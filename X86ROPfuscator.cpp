@@ -68,7 +68,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
 
         dbgs() << " *  " << MI;
         stats.totalInstr++;
-
+          dbgs() << "PANEEEE " << MI;
         if (ropChains.empty() || ropChains.back()->isFinalized()) {
           /* Since we are forced to do the actual injection only when the whole
            * Machine Basic Block has been processed, we have to pass the

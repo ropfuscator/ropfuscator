@@ -2,6 +2,7 @@
 // Created by Daniele Ferla on 22/10/2018.
 //
 
+#include "ROPseeker.h"
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
 #include "../X86MachineFunctionInfo.h"
@@ -45,7 +46,7 @@ class ROPChain {
   // Input instructions that we want to replace with obfuscated ones
   std::vector<MachineInstr *> instructionsToDelete;
 
-  typedef std::map<std::string, unsigned> ropmap;
+  typedef std::map<std::string, Gadget*> ropmap;
   static ropmap libc_microgadgets;
 
 public:
@@ -98,49 +99,10 @@ public:
 // with its offset within libc.
 // Actual memory address is computed by the getGadgetByInst
 // function.
-ROPChain::ropmap ROPChain::libc_microgadgets = {
-    // push %reg
-    {"push eax", 0x001206f6},
-    {"push ebx", 0x000e9484},
-    {"push ecx", 0x00179993},
-    {"push edx", 0x00179993},
-    {"push esi", 0x0005838b},
-    {"push edi", 0x0017d8a5},
-    {"push ebp", 0x0016c5da},
-    {"push esp", 0x00120766},
-
-    // pop %reg
-    {"pop eax", 0x00023dc7},
-    {"pop ebx", 0x00017fe5},
-    {"pop ecx", 0x000b5e97},
-    {"pop edx", 0x00001aa6},
-    {"pop esi", 0x00017b46},
-    {"pop edi", 0x0001788b},
-    {"pop esp", 0x00003990},
-    {"pop ebp", 0x000179bd},
-
-    // xchg %reg1, %reg2
-    {"xchg eax, ebx", 0x0006b489},
-    {"xchg eax, edx", 0x0003dc79},
-    {"xchg eax, esi", 0x0006a4ba},
-    {"xchg eax, edi", 0x00095cbe},
-    {"xchg eax, ebp", 0x0000204f},
-    {"xchg eax, esp", 0x00018b07},
-
-    // add %reg, %reg
-    {"add eax, ecx", 0x0008fe10},
-    {"add eax, edx", 0x00090793},
-
-    // xor %reg, %reg
-    {"xor eax, eax", 0x0002c6ac},
-
-    {"mov eax, dword ptr [eax]", 0x000acc64},
-    {"mov eax, dword ptr [edx]", 0x000609d7},
-    {"mov dword ptr [edx], eax", 0x0006cafb},
-    {"mov eax, edx", 0x0007de67}};
+ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
 unsigned ROPChain::getOffsetByAsm(std::string asmInstr) {
-  unsigned offset = libc_microgadgets[asmInstr];
+  unsigned offset = libc_microgadgets[asmInstr]->address;
   assert(offset != 0 &&
          "Unable to find specified asm instruction in the gadget library!");
   return offset;
@@ -234,24 +196,24 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx")));
+      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
       gadgets.push_back(ROPGadget(IMMEDIATE, MI.getOperand(2).getImm()));
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx")));
+      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
       return 0;
     } else
       return 1;
   case X86::SUB32ri8:
   case X86::SUB32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx")));
+      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
       gadgets.push_back(ROPGadget(IMMEDIATE, -MI.getOperand(2).getImm()));
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx")));
+      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
       return 0;
     } else
       return 1;
   case X86::MOV32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop eax")));
+      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop eax;")));
       gadgets.push_back(ROPGadget(IMMEDIATE, MI.getOperand(2).getImm()));
       return 0;
     } else
@@ -262,7 +224,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
         MI.getOperand(1).getReg() == X86::EBP) {
       loadEffectiveAddress(MI.getOperand(4).getImm());
       gadgets.push_back(
-          ROPGadget(OFFSET, getOffsetByAsm("mov eax, dword ptr [edx]")));
+          ROPGadget(OFFSET, getOffsetByAsm("mov eax, dword ptr [edx];")));
       return 0;
     } else
       return 1;
@@ -272,7 +234,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
         MI.getOperand(5).getReg() == X86::EAX) {
       loadEffectiveAddress(MI.getOperand(3).getImm());
       gadgets.push_back(
-          ROPGadget(OFFSET, getOffsetByAsm("mov dword ptr [edx], eax")));
+          ROPGadget(OFFSET, getOffsetByAsm("mov dword ptr [edx], eax;")));
       return 0;
     } else
       return 1;
@@ -285,17 +247,17 @@ void ROPChain::loadEffectiveAddress(int64_t displacement) {
   /* Loads the effective address of a memory reference of type [ebp +
    * $displacement] in EDX */
   // EAX <- EBP
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("mov eax, edx")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp;")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("mov eax, edx;")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp;")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
   // EAX = EAX + $displacement
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
   gadgets.push_back(ROPGadget(IMMEDIATE, displacement));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
   // EDX <- EAX
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx")));
+  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
 }
 
 void ROPChain::finalize() { finalized = true; }
