@@ -59,7 +59,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
         dbgs() << " *  " << MI;
-        stats.totalInstr++;
+        stats.processed++;
 
         if (ropChains.empty() || ropChains.back()->isFinalized()) {
           /* Since we are forced to do the actual injection only when the whole
@@ -107,9 +107,9 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
   dbgs() << "\n--------------------------------------------\n";
   dbgs() << " \033[1mSTATISTICS for function \033[4m" << funcName
          << "\033[24m:\n";
-  dbgs() << "   Total instr.:\t" << stats.totalInstr << "\n";
+  dbgs() << "   Total instr.:\t" << stats.processed << "\n";
   dbgs() << "   Replaced:\t\t" << stats.replaced << " ("
-         << (stats.replaced * 100) / stats.totalInstr << "%)\033[0m";
+         << (stats.replaced * 100) / stats.processed << "%)\033[0m";
   dbgs() << "\n--------------------------------------------\n";
 
   // the MachineFunction has been modified

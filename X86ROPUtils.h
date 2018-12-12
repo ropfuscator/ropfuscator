@@ -17,21 +17,15 @@
 #include <sys/time.h>
 
 using namespace llvm;
-enum type_t { OFFSET, IMMEDIATE };
+enum type_t { GADGET, IMMEDIATE };
 
-struct ROPGadget {
-  /* Maps values to be pushed onto the stack to a specific type */
-  type_t type;
-  int64_t value;
-
-  ROPGadget(type_t type, int64_t value) : type(type), value(value) {}
-};
+struct ChainElem;
 
 struct Stats {
-    int totalInstr;
+    int processed;
     int replaced;
 
-    Stats() : totalInstr(0), replaced(0){};
+    Stats() : processed(0), replaced(0){};
 };
 
 class ROPChain {
@@ -47,14 +41,11 @@ class ROPChain {
   // A finalized chain can't get gadgets anymore
   bool finalized = false;
 
-  // Gadgets to be pushed onto the stack during the injection phase
-  std::vector<ROPGadget> gadgets;
-
   // Input instructions that we want to replace with obfuscated ones
   std::vector<MachineInstr *> instructionsToDelete;
 
-  typedef std::map<std::string, Gadget*> ropmap;
-  static ropmap libc_microgadgets;
+  // Gadgets to be pushed onto the stack during the injection phase
+  std::vector<ChainElem> chain;
 
 public:
   // Labels for inline asm instructions ("C" = colon)
@@ -77,10 +68,12 @@ public:
   void loadEffectiveAddress(int64_t displacement);
 
   // Helper methods
-  unsigned getOffsetByAsm(std::string asmInstr);
   bool isFinalized();
   void finalize();
   bool isEmpty();
+
+  typedef std::map<std::string, Gadget*> ropmap;
+  static ropmap libc_microgadgets;
 
   ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint)
       : MBB(&MBB), injectionPoint(&injectionPoint) {
@@ -98,14 +91,29 @@ public:
   ~ROPChain() { globalChainID--; }
 };
 
-ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
-unsigned ROPChain::getOffsetByAsm(std::string asmInstr) {
-  unsigned offset = libc_microgadgets[asmInstr]->address;
-  assert(offset != 0 &&
-         "Unable to find specified asm instruction in the gadget library!");
-  return offset;
-}
+struct ChainElem {
+    /* Element to be pushed onto the stack. It could be either a gadget
+     * or an immediate value */
+    type_t type;
+    int64_t value;
+
+    ChainElem(std::string asmInstr) {
+      uint64_t address = ROPChain::libc_microgadgets[asmInstr]->address;
+      assert(address != 0 &&
+             "Unable to find specified asm instruction in the gadget library!");
+      value = address;
+      type = GADGET;
+    };
+
+    ChainElem(int64_t value) : value(value) {
+      type = IMMEDIATE;
+    }
+};
+
+
+
+ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
 int ROPChain::globalChainID = 0;
 
@@ -117,49 +125,60 @@ unsigned ROPChain::getBaseAddress() {
 
 void ROPChain::inject() {
   /* PROLOGUE: saves the EIP value before executing the ROP chain */
+  // call chain_X
   BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(X86::CALLpcrel32)) // call chain_X
+          TII->get(X86::CALLpcrel32))
       .addExternalSymbol(chainLabel);
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JMP_1)) // jmp resume_X
+  // jmp resume_X
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JMP_1))
       .addExternalSymbol(resumeLabel);
+  // chain_X:
   BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(TargetOpcode::INLINEASM)) // chain_X:
+          TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(chainLabel_C)
       .addImm(0);
+  // mov ebx, LIBC_BASE_ADDR
   BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(X86::MOV32ri)) // mov ebx, LIBC_BASE_ADDR
+          TII->get(X86::MOV32ri))
       .addReg(X86::EBX)
       .addImm(getBaseAddress());
 
+
   /* Pushes each gadget onto the stack in reverse order */
-  for (auto gadget = gadgets.rbegin(); gadget != gadgets.rend(); ++gadget) {
-    if (gadget->type == IMMEDIATE) {
+  for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
+    if (elem->type == IMMEDIATE) {
       /* Pushes the immediate value directly onto the stack, without further
        * computations */
+      // push $imm
       BuildMI(*MBB, injectionPoint, nullptr,
-              TII->get(X86::PUSHi32)) // push $imm
-          .addImm(gadget->value);
+              TII->get(X86::PUSHi32))
+          .addImm(elem->value);
     } else {
       /* At first it pushes the ebx register (within which the libc base address
        * is located, then it adds the gadget offset to it */
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSH32r)) // push ebx
+      // push ebx
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSH32r))
           .addReg(X86::EBX);
+      // add [esp], $offset
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(gadget->value); // add [esp], $offset
+          .addImm(elem->value);
     }
   }
 
   /* EPILOGUE
   Emits the `ret` instruction which will trigger the chain execution, and a
   label to resume the normal execution flow when the chain has finished. */
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL)); // ret
+  // ret
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL));
+  // resume_X:
   BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(TargetOpcode::INLINEASM)) // resume_X:
+          TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
 
+  /* Deletes the initial instructions */
   for (MachineInstr *MI : instructionsToDelete) {
     MI->eraseFromParent();
   }
@@ -195,25 +214,25 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
-      gadgets.push_back(ROPGadget(IMMEDIATE, MI.getOperand(2).getImm()));
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
+      chain.push_back(ChainElem("pop ecx;"));
+      chain.push_back(MI.getOperand(2).getImm());
+      chain.push_back(ChainElem("add eax, ecx;"));
       return 0;
     } else
       return 1;
   case X86::SUB32ri8:
   case X86::SUB32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
-      gadgets.push_back(ROPGadget(IMMEDIATE, -MI.getOperand(2).getImm()));
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
+      chain.push_back(ChainElem("pop ecx;"));
+      chain.push_back(ChainElem(-MI.getOperand(2).getImm()));
+      chain.push_back(ChainElem("add eax, ecx;"));
       return 0;
     } else
       return 1;
   case X86::MOV32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop eax;")));
-      gadgets.push_back(ROPGadget(IMMEDIATE, MI.getOperand(2).getImm()));
+      chain.push_back(ChainElem("pop eax;"));
+      chain.push_back(ChainElem(MI.getOperand(2).getImm()));
       return 0;
     } else
       return 1;
@@ -222,8 +241,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (MI.getOperand(0).getReg() == X86::EAX &&
         MI.getOperand(1).getReg() == X86::EBP) {
       loadEffectiveAddress(MI.getOperand(4).getImm());
-      gadgets.push_back(
-          ROPGadget(OFFSET, getOffsetByAsm("mov eax, dword ptr [edx];")));
+      chain.push_back(ChainElem("mov eax, dword ptr [edx];"));
       return 0;
     } else
       return 1;
@@ -232,8 +250,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (MI.getOperand(0).getReg() == X86::EBP &&
         MI.getOperand(5).getReg() == X86::EAX) {
       loadEffectiveAddress(MI.getOperand(3).getImm());
-      gadgets.push_back(
-          ROPGadget(OFFSET, getOffsetByAsm("mov dword ptr [edx], eax;")));
+      chain.push_back(ChainElem("mov dword ptr [edx], eax;"));
       return 0;
     } else
       return 1;
@@ -246,21 +263,21 @@ void ROPChain::loadEffectiveAddress(int64_t displacement) {
   /* Loads the effective address of a memory reference of type [ebp +
    * $displacement] in EDX */
   // EAX <- EBP
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp;")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("mov eax, edx;")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, ebp;")));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
+  chain.push_back(ChainElem("xchg eax, ebp;"));
+  chain.push_back(ChainElem("xchg eax, edx;"));
+  chain.push_back(ChainElem("mov eax, edx;"));
+  chain.push_back(ChainElem("xchg eax, ebp;"));
+  chain.push_back(ChainElem("xchg eax, edx;"));
   // EAX = EAX + $displacement
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("pop ecx;")));
-  gadgets.push_back(ROPGadget(IMMEDIATE, displacement));
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("add eax, ecx;")));
+  chain.push_back(ChainElem("pop ecx;"));
+  chain.push_back(ChainElem(displacement));
+  chain.push_back(ChainElem("add eax, ecx;"));
   // EDX <- EAX
-  gadgets.push_back(ROPGadget(OFFSET, getOffsetByAsm("xchg eax, edx;")));
+  chain.push_back(ChainElem("xchg eax, edx;"));
 }
 
 void ROPChain::finalize() { finalized = true; }
 
 bool ROPChain::isFinalized() { return finalized; }
 
-bool ROPChain::isEmpty() { return gadgets.empty(); }
+bool ROPChain::isEmpty() { return chain.empty(); }
