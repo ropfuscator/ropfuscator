@@ -27,6 +27,13 @@ struct ROPGadget {
   ROPGadget(type_t type, int64_t value) : type(type), value(value) {}
 };
 
+struct Stats {
+    int totalInstr;
+    int replaced;
+
+    Stats() : totalInstr(0), replaced(0){};
+};
+
 class ROPChain {
   /* Keeps track of all the instructions to be replaced with the obfuscated
    * ones. Handles the injection of auxiliary machine code to guarantee the
@@ -91,14 +98,6 @@ public:
   ~ROPChain() { globalChainID--; }
 };
 
-// ------------------------------------------------------------
-//                 GADGET LIBRARY CONFIGURATION
-// ------------------------------------------------------------
-
-// This data structure associates a specific x86 instruction
-// with its offset within libc.
-// Actual memory address is computed by the getGadgetByInst
-// function.
 ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
 unsigned ROPChain::getOffsetByAsm(std::string asmInstr) {

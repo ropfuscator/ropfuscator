@@ -9,7 +9,6 @@
 // as a MachineFunctionPass.
 //
 //===----------------------------------------------------------------------===//
-
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
 #include "../X86MachineFunctionInfo.h"
@@ -27,15 +26,8 @@
 #include <string>
 #include <utility>
 
-#define DEBUG_TYPE "debug"
 using namespace llvm;
 
-struct Stats {
-  int totalInstr;
-  int replaced;
-
-  Stats() : totalInstr(0), replaced(0){};
-};
 
 namespace {
 struct X86ROPfuscationPass : public MachineFunctionPass {
@@ -68,7 +60,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
 
         dbgs() << " *  " << MI;
         stats.totalInstr++;
-          dbgs() << "PANEEEE " << MI;
+
         if (ropChains.empty() || ropChains.back()->isFinalized()) {
           /* Since we are forced to do the actual injection only when the whole
            * Machine Basic Block has been processed, we have to pass the
