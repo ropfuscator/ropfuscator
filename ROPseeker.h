@@ -45,7 +45,7 @@ bool recurseLibcDir(const char *path, string &libcPath, uint current_depth) {
       libcPath += "/";
       libcPath += entry->d_name;
 
-      llvm::dbgs() << "libc found here: " << entry->d_name << "\n";
+      // llvm::dbgs() << "libc found here: " << libcPath << "\n";
 
       return true;
     }
