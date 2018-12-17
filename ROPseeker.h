@@ -4,17 +4,16 @@
 
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
+#include <dirent.h>
 #include <fstream>
 #include <map>
-#include <filesystem>
+#include <string.h>
 
 // Max bytes before the RET to be examined
 #define MAXDEPTH 4
-
-// TODO: find other paths
-#define LIBC_PATH "/lib/i386-linux-gnu/libc.so.6"
-
 using namespace std;
+
+string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
 
 struct Gadget {
   size_t length;
@@ -25,16 +24,89 @@ struct Gadget {
       : length(length), instructions(instructions), address(address){};
 };
 
+// TODO: plz improve me
+bool recurseLibcDir(const char *path, string &libcPath, uint current_depth) {
+  DIR *dir;
+  struct dirent *entry;
+
+  if (!current_depth) {
+    return false;
+  }
+
+  dir = opendir(path);
+
+  if (dir == NULL)
+    return false;
+
+  // searching for libc in regular files only
+  while ((entry = readdir(dir)) != NULL) {
+    if (!strcmp(entry->d_name, "libc.so.6")) {
+      libcPath += path;
+      libcPath += "/";
+      libcPath += entry->d_name;
+
+      llvm::dbgs() << "libc found here: " << entry->d_name << "\n";
+
+      return true;
+    }
+  }
+
+  // could not find libc, recursing into directories
+  dir = opendir(path);
+
+  if (dir == NULL)
+    return false;
+
+  while ((entry = readdir(dir)) != NULL) {
+    // must be a dir and not "." or ".."
+    if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") &&
+        strcmp(entry->d_name, "..")) {
+
+      // constructing path to dir
+      string newpath = std::string();
+
+      newpath += path;
+      newpath += "/";
+      newpath += entry->d_name;
+
+      // llvm::dbgs() << "recursing into: " << newpath << "\n";
+
+      // recurse into dir
+      if (recurseLibcDir(newpath.c_str(), libcPath, current_depth - 1))
+        return true;
+    }
+  }
+
+  return false;
+}
+
+// TODO: plz improve me
+bool getLibcPath(string &libcPath) {
+  uint maxrecursedepth = 3;
+
+  libcPath.clear();
+
+  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
+    if (recurseLibcDir(folder.c_str(), libcPath, maxrecursedepth))
+      return true;
+  }
+  return false;
+}
+
 map<string, Gadget *> findGadgets() {
   const uint8_t ret[] = "\xc3";
+  string libcPath;
   csh handle;
   cs_insn *instructions;
   map<string, Gadget *> gadgets;
+
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
 
-  llvm::dbgs() << "[*] Looking for gadgets in " << LIBC_PATH << "\n";
-  ifstream input_file(LIBC_PATH, ios::binary);
+  assert(getLibcPath(libcPath) == true);
+
+  llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
+  ifstream input_file(libcPath, ios::binary);
 
   assert(input_file.good() && "Unable to find libc!");
 
@@ -92,7 +164,8 @@ map<string, Gadget *> findGadgets() {
   llvm::dbgs() << "[*] Found " << gadgets.size() << " gadgets!\n";
 
   /*for (auto const &gadget : gadgets) {
-     dbgs() << "0x"  << (*gadget.second).address << ":   \t" << gadget.first <<
+     dbgs() << "0x"  << (*gadget.second).address << ":   \t" << gadget.first
+  <<
   "\n");
   }*/
 
