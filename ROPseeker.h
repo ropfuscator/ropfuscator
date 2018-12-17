@@ -118,8 +118,7 @@ map<string, Gadget *> findGadgets() {
   // Read the whole file
   input_file.seekg(0, ios::beg);
 
-  // TODO: move to heap
-  uint8_t buf[input_size];
+  uint8_t * buf = new uint8_t[input_size];
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   // Scan for RET instructions
