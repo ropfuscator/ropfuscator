@@ -10,6 +10,8 @@
 #include <vector>
 #include <bfd.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 // Max bytes before the RET to be examined
 #define MAXDEPTH 4
@@ -21,9 +23,10 @@ struct Gadget {
   size_t length;
   cs_insn *instructions;
   uint64_t address;
+  string symbolName;
 
-  Gadget(size_t length, cs_insn *instructions, uint64_t address)
-      : length(length), instructions(instructions), address(address){};
+  Gadget(size_t length, cs_insn *instructions, uint64_t address, string symbolName)
+      : length(length), instructions(instructions), address(address), symbolName(symbolName){};
 };
 
 struct Symbol {
@@ -105,7 +108,7 @@ bool getLibcPath(string &libcPath) {
 vector<Symbol> getDynamicSymbols(char *path) {
   vector<Symbol> dynamicSymbols;
   const char *symbolName;
-  long addr, size, nsym;
+  size_t addr, size, nsym;
 
   /* Open binary file */
   bfd_init();
@@ -113,13 +116,13 @@ vector<Symbol> getDynamicSymbols(char *path) {
   assert(bfd_check_format(bfd_h, bfd_object) &&
          "file '%s' does not look like an executable");
 
-  /* Allocate memory */
+  /* Allocate memory and get the symbol table */
   size = bfd_get_dynamic_symtab_upper_bound(bfd_h);
   asymbol **asymtab = static_cast<asymbol**>(malloc(size));
   nsym = bfd_canonicalize_dynamic_symtab(bfd_h, asymtab);
 
   /* Scan for all the symbols */
-  for (long i = 0; i < nsym; i++) {
+  for (size_t i = 0; i < nsym; i++) {
     symbolName = bfd_asymbol_name(asymtab[i]);
     addr = bfd_asymbol_value(asymtab[i]);
     if (addr < 0x100)
@@ -133,21 +136,28 @@ vector<Symbol> getDynamicSymbols(char *path) {
   return dynamicSymbols;
 }
 
+Symbol getRandomSymbol(vector<Symbol> dynamicSymbols) {
+  unsigned long i = rand() % dynamicSymbols.size();
+
+  return dynamicSymbols.at(i);
+}
+
 map<string, Gadget *> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
   csh handle;
   cs_insn *instructions;
   map<string, Gadget *> gadgets;
+  srand (time(NULL));
 
   assert(getLibcPath(libcPath) == true);
-  getDynamicSymbols("/lib/i386-linux-gnu/libc.so.6");
+  vector<Symbol> dynamicSymbols = getDynamicSymbols("/lib/i386-linux-gnu/libc.so.6");
 
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
 
-
-
+  string pane = dynamicSymbols.at(4).name;
+  llvm::dbgs() << pane;
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
   ifstream input_file(libcPath, ios::binary);
 
@@ -192,8 +202,8 @@ map<string, Gadget *> findGadgets() {
               asm_instr += instructions[j].op_str;
               asm_instr += ";";
             }
-
-            auto *g = new Gadget(count, instructions, instructions[0].address);
+            Symbol s = getRandomSymbol(dynamicSymbols);
+            auto *g = new Gadget(count, instructions, instructions[0].address - s.address, s.name);
             gadgets[asm_instr] = g;
           }
         }

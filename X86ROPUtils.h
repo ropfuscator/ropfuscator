@@ -96,13 +96,16 @@ struct ChainElem {
    * or an immediate value */
   type_t type;
   int64_t value;
+  const char* symbolName;
 
   ChainElem(std::string asmInstr) {
-    uint64_t address = ROPChain::libc_microgadgets[asmInstr]->address;
+    Gadget* r = ROPChain::libc_microgadgets[asmInstr];
+    uint64_t address = r->address;
     assert(address != 0 &&
            "Unable to find specified asm instruction in the gadget library!");
     value = address;
     type = GADGET;
+    symbolName = r->symbolName.c_str();
   };
 
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
@@ -145,12 +148,12 @@ void ROPChain::inject() {
        * is located, then it adds the gadget offset to it */
       // push ebx
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol("msgrcv");
+          .addExternalSymbol(elem->symbolName);
       // add [esp], $offset
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(elem->value - 0xe95e0);
+          .addImm(elem->value);
     }
   }
 
