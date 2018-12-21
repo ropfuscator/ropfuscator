@@ -2,13 +2,13 @@
 // Created by Daniele Ferla on 22/10/2018.
 //
 
-#include "ROPseeker.h"
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
 #include "../X86MachineFunctionInfo.h"
 #include "../X86RegisterInfo.h"
 #include "../X86Subtarget.h"
 #include "../X86TargetMachine.h"
+#include "ROPseeker.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -22,10 +22,10 @@ enum type_t { GADGET, IMMEDIATE };
 struct ChainElem;
 
 struct Stats {
-    int processed;
-    int replaced;
+  int processed;
+  int replaced;
 
-    Stats() : processed(0), replaced(0){};
+  Stats() : processed(0), replaced(0){};
 };
 
 class ROPChain {
@@ -72,7 +72,7 @@ public:
   void finalize();
   bool isEmpty();
 
-  typedef std::map<std::string, Gadget*> ropmap;
+  typedef std::map<std::string, Gadget *> ropmap;
   static ropmap libc_microgadgets;
 
   ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint)
@@ -91,27 +91,22 @@ public:
   ~ROPChain() { globalChainID--; }
 };
 
-
 struct ChainElem {
-    /* Element to be pushed onto the stack. It could be either a gadget
-     * or an immediate value */
-    type_t type;
-    int64_t value;
+  /* Element to be pushed onto the stack. It could be either a gadget
+   * or an immediate value */
+  type_t type;
+  int64_t value;
 
-    ChainElem(std::string asmInstr) {
-      uint64_t address = ROPChain::libc_microgadgets[asmInstr]->address;
-      assert(address != 0 &&
-             "Unable to find specified asm instruction in the gadget library!");
-      value = address;
-      type = GADGET;
-    };
+  ChainElem(std::string asmInstr) {
+    uint64_t address = ROPChain::libc_microgadgets[asmInstr]->address;
+    assert(address != 0 &&
+           "Unable to find specified asm instruction in the gadget library!");
+    value = address;
+    type = GADGET;
+  };
 
-    ChainElem(int64_t value) : value(value) {
-      type = IMMEDIATE;
-    }
+  ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 };
-
-
 
 ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
@@ -126,23 +121,16 @@ unsigned ROPChain::getBaseAddress() {
 void ROPChain::inject() {
   /* PROLOGUE: saves the EIP value before executing the ROP chain */
   // call chain_X
-  BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(X86::CALLpcrel32))
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
       .addExternalSymbol(chainLabel);
   // jmp resume_X
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JMP_1))
       .addExternalSymbol(resumeLabel);
   // chain_X:
-  BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(TargetOpcode::INLINEASM))
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(chainLabel_C)
       .addImm(0);
   // mov ebx, LIBC_BASE_ADDR
-  BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(X86::MOV32ri))
-      .addReg(X86::EBX)
-      .addImm(getBaseAddress());
-
 
   /* Pushes each gadget onto the stack in reverse order */
   for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
@@ -150,20 +138,19 @@ void ROPChain::inject() {
       /* Pushes the immediate value directly onto the stack, without further
        * computations */
       // push $imm
-      BuildMI(*MBB, injectionPoint, nullptr,
-              TII->get(X86::PUSHi32))
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addImm(elem->value);
     } else {
       /* At first it pushes the ebx register (within which the libc base address
        * is located, then it adds the gadget offset to it */
       // push ebx
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSH32r))
-          .addReg(X86::EBX);
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
+          .addExternalSymbol("msgrcv");
       // add [esp], $offset
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(elem->value);
+          .addImm(elem->value - 0xe95e0);
     }
   }
 
@@ -173,8 +160,7 @@ void ROPChain::inject() {
   // ret
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL));
   // resume_X:
-  BuildMI(*MBB, injectionPoint, nullptr,
-          TII->get(TargetOpcode::INLINEASM))
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
 

@@ -7,6 +7,8 @@
 #include <dirent.h>
 #include <fstream>
 #include <map>
+#include <vector>
+#include <bfd.h>
 #include <string.h>
 
 // Max bytes before the RET to be examined
@@ -22,6 +24,13 @@ struct Gadget {
 
   Gadget(size_t length, cs_insn *instructions, uint64_t address)
       : length(length), instructions(instructions), address(address){};
+};
+
+struct Symbol {
+  string name;
+  uint64_t address;
+
+  Symbol(string name, uint64_t address) : name(name), address(address){};
 };
 
 // TODO: plz improve me
@@ -93,6 +102,37 @@ bool getLibcPath(string &libcPath) {
   return false;
 }
 
+vector<Symbol> getDynamicSymbols(char *path) {
+  vector<Symbol> dynamicSymbols;
+  const char *symbolName;
+  long addr, size, nsym;
+
+  /* Open binary file */
+  bfd_init();
+  bfd *bfd_h = bfd_openr(path, NULL);
+  assert(bfd_check_format(bfd_h, bfd_object) &&
+         "file '%s' does not look like an executable");
+
+  /* Allocate memory */
+  size = bfd_get_dynamic_symtab_upper_bound(bfd_h);
+  asymbol **asymtab = static_cast<asymbol**>(malloc(size));
+  nsym = bfd_canonicalize_dynamic_symtab(bfd_h, asymtab);
+
+  /* Scan for all the symbols */
+  for (long i = 0; i < nsym; i++) {
+    symbolName = bfd_asymbol_name(asymtab[i]);
+    addr = bfd_asymbol_value(asymtab[i]);
+    if (addr < 0x100)
+      continue;
+
+    Symbol s = Symbol(symbolName, addr);
+    dynamicSymbols.push_back(s);
+  }
+
+  free(asymtab);
+  return dynamicSymbols;
+}
+
 map<string, Gadget *> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
@@ -100,10 +140,13 @@ map<string, Gadget *> findGadgets() {
   cs_insn *instructions;
   map<string, Gadget *> gadgets;
 
+  assert(getLibcPath(libcPath) == true);
+  getDynamicSymbols("/lib/i386-linux-gnu/libc.so.6");
+
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
 
-  assert(getLibcPath(libcPath) == true);
+
 
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
   ifstream input_file(libcPath, ios::binary);
@@ -118,7 +161,7 @@ map<string, Gadget *> findGadgets() {
   // Read the whole file
   input_file.seekg(0, ios::beg);
 
-  uint8_t * buf = new uint8_t[input_size];
+  uint8_t *buf = new uint8_t[input_size];
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   // Scan for RET instructions
