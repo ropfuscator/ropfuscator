@@ -19,15 +19,6 @@ using namespace std;
 
 string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
 
-struct Gadget {
-  size_t length;
-  cs_insn *instructions;
-  uint64_t address;
-  string symbolName;
-
-  Gadget(size_t length, cs_insn *instructions, uint64_t address, string symbolName)
-      : length(length), instructions(instructions), address(address), symbolName(symbolName){};
-};
 
 struct Symbol {
   string name;
@@ -35,6 +26,24 @@ struct Symbol {
 
   Symbol(string name, uint64_t address) : name(name), address(address){};
 };
+
+vector<Symbol> symbols;
+struct Gadget {
+  size_t length;
+  cs_insn *instructions;
+  uint64_t address;
+
+  Gadget(size_t length, cs_insn *instructions, uint64_t address)
+      : length(length), instructions(instructions), address(address){};
+
+
+
+};
+
+Symbol* getRandomSymbol() {
+  unsigned long i = rand() % symbols.size();
+  return &(symbols.at(i));
+}
 
 // TODO: plz improve me
 bool recurseLibcDir(const char *path, string &libcPath, uint current_depth) {
@@ -105,59 +114,66 @@ bool getLibcPath(string &libcPath) {
   return false;
 }
 
-vector<Symbol> getDynamicSymbols(char *path) {
-  vector<Symbol> dynamicSymbols;
+
+
+
+
+void getDynamicSymbols(vector<Symbol> &symbols, string &libcPath) {
+  // FIXME: get ony BSF_FUNCTION symbols: e.g. _sys_errlist (object) isn't valid
   const char *symbolName;
+  const char *path = libcPath.c_str();
   size_t addr, size, nsym;
 
-  /* Open binary file */
+  llvm::dbgs() << "[*] Scanning " << path << " for symbols... \n";
+
+  // Open binary file
   bfd_init();
   bfd *bfd_h = bfd_openr(path, NULL);
   assert(bfd_check_format(bfd_h, bfd_object) &&
          "file '%s' does not look like an executable");
 
-  /* Allocate memory and get the symbol table */
+  // Allocate memory and get the symbol table
   size = bfd_get_dynamic_symtab_upper_bound(bfd_h);
-  asymbol **asymtab = static_cast<asymbol**>(malloc(size));
+  auto **asymtab = static_cast<asymbol**>(malloc(size));
   nsym = bfd_canonicalize_dynamic_symtab(bfd_h, asymtab);
 
-  /* Scan for all the symbols */
+  // Scan for all the symbols
   for (size_t i = 0; i < nsym; i++) {
-    symbolName = bfd_asymbol_name(asymtab[i]);
-    addr = bfd_asymbol_value(asymtab[i]);
-    if (addr < 0x100)
-      continue;
+      if (asymtab[i]->flags & BSF_FUNCTION) {
+      symbolName = bfd_asymbol_name(asymtab[i]);
+      addr = bfd_asymbol_value(asymtab[i]);
+      if (addr < 0x100)
+        continue;
 
-    Symbol s = Symbol(symbolName, addr);
-    dynamicSymbols.push_back(s);
+      Symbol s = Symbol(symbolName, addr);
+      symbols.push_back(s);
+    }
   }
 
   free(asymtab);
-  return dynamicSymbols;
 }
 
-Symbol getRandomSymbol(vector<Symbol> dynamicSymbols) {
-  unsigned long i = rand() % dynamicSymbols.size();
-
-  return dynamicSymbols.at(i);
-}
 
 map<string, Gadget *> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
+  map<string, Gadget *> gadgets;
+
+
+  // capstone stuff
   csh handle;
   cs_insn *instructions;
-  map<string, Gadget *> gadgets;
+
   srand (time(NULL));
 
-  assert(getLibcPath(libcPath) == true);
-  vector<Symbol> dynamicSymbols = getDynamicSymbols("/lib/i386-linux-gnu/libc.so.6");
+  assert(getLibcPath(libcPath));
+
+  getDynamicSymbols(symbols, libcPath);
+  llvm::dbgs() << "[*] Found " << symbols.size() << " symbols\n";
 
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
 
-  string pane = dynamicSymbols.at(4).name;
-  llvm::dbgs() << pane;
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
   ifstream input_file(libcPath, ios::binary);
 
@@ -202,8 +218,9 @@ map<string, Gadget *> findGadgets() {
               asm_instr += instructions[j].op_str;
               asm_instr += ";";
             }
-            Symbol s = getRandomSymbol(dynamicSymbols);
-            auto *g = new Gadget(count, instructions, instructions[0].address - s.address, s.name);
+            if (gadgets[asm_instr] != nullptr) continue;
+
+            auto *g = new Gadget(count, instructions, instructions[0].address);
             gadgets[asm_instr] = g;
           }
         }

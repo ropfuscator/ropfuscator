@@ -99,13 +99,18 @@ struct ChainElem {
   const char* symbolName;
 
   ChainElem(std::string asmInstr) {
+    type = GADGET;
+
     Gadget* r = ROPChain::libc_microgadgets[asmInstr];
     uint64_t address = r->address;
+    // FIXME: address assertion really necessary?
     assert(address != 0 &&
            "Unable to find specified asm instruction in the gadget library!");
-    value = address;
-    type = GADGET;
-    symbolName = r->symbolName.c_str();
+
+    Symbol *s = getRandomSymbol();
+    value = address - s->address;
+
+    symbolName = s->name.c_str();
   };
 
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
@@ -133,17 +138,21 @@ void ROPChain::inject() {
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(chainLabel_C)
       .addImm(0);
-  // mov ebx, LIBC_BASE_ADDR
+
 
   /* Pushes each gadget onto the stack in reverse order */
   for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
-    if (elem->type == IMMEDIATE) {
+    switch (elem->type) {
+
+      case IMMEDIATE: {
       /* Pushes the immediate value directly onto the stack, without further
        * computations */
       // push $imm
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addImm(elem->value);
-    } else {
+          .addImm(elem->value); break;
+      }
+
+      case GADGET: {
       /* At first it pushes the ebx register (within which the libc base address
        * is located, then it adds the gadget offset to it */
       // push ebx
@@ -153,7 +162,8 @@ void ROPChain::inject() {
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(elem->value);
+          .addImm(elem->value); break;
+      }
     }
   }
 
