@@ -16,18 +16,27 @@
 // Max bytes before the RET to be examined
 #define MAXDEPTH 4
 using namespace std;
+struct Symbol;
 
 string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
-
+vector<Symbol> symbols;
 
 struct Symbol {
   string name;
+  string version;
   uint64_t address;
+  string symVer;
 
-  Symbol(string name, uint64_t address) : name(name), address(address){};
+  Symbol(string name, string version, uint64_t address) : name(name), version(version), address(address){
+    symVer = ".symver ";
+    symVer += name;
+    symVer += ",";
+    symVer += name;
+    symVer += "@";
+    symVer += version;
+  };
 };
 
-vector<Symbol> symbols;
 struct Gadget {
   size_t length;
   cs_insn *instructions;
@@ -35,10 +44,9 @@ struct Gadget {
 
   Gadget(size_t length, cs_insn *instructions, uint64_t address)
       : length(length), instructions(instructions), address(address){};
-
-
-
 };
+
+
 
 Symbol* getRandomSymbol() {
   unsigned long i = rand() % symbols.size();
@@ -119,7 +127,6 @@ bool getLibcPath(string &libcPath) {
 
 
 void getDynamicSymbols(vector<Symbol> &symbols, string &libcPath) {
-  // FIXME: get ony BSF_FUNCTION symbols: e.g. _sys_errlist (object) isn't valid
   const char *symbolName;
   const char *path = libcPath.c_str();
   size_t addr, size, nsym;
@@ -139,18 +146,26 @@ void getDynamicSymbols(vector<Symbol> &symbols, string &libcPath) {
 
   // Scan for all the symbols
   for (size_t i = 0; i < nsym; i++) {
-      if (asymtab[i]->flags & BSF_FUNCTION) {
-      symbolName = bfd_asymbol_name(asymtab[i]);
-      addr = bfd_asymbol_value(asymtab[i]);
-      if (addr < 0x100)
-        continue;
+    asymbol *sym = asymtab[i];
 
-      Symbol s = Symbol(symbolName, addr);
+    // Consider only symbols with global scope and referred to functions
+      if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
+      symbolName = bfd_asymbol_name(sym);
+      addr = bfd_asymbol_value(sym);
+
+      // Get version string to avoid symbol aliasing
+      const char *versionString = NULL;
+      bfd_boolean hidden = false;
+      if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
+        versionString = bfd_get_symbol_version_string (bfd_h, sym, &hidden);
+
+      Symbol s = Symbol(symbolName, versionString, addr);
       symbols.push_back(s);
     }
   }
 
   free(asymtab);
+  assert(symbols.size()>0 && "No symbols found!");
 }
 
 
@@ -158,7 +173,6 @@ map<string, Gadget *> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
   map<string, Gadget *> gadgets;
-
 
   // capstone stuff
   csh handle;
@@ -168,21 +182,22 @@ map<string, Gadget *> findGadgets() {
 
   assert(getLibcPath(libcPath));
 
+  // Get symbols from .dynsym table, to use them for symbol hooking
   getDynamicSymbols(symbols, libcPath);
   llvm::dbgs() << "[*] Found " << symbols.size() << " symbols\n";
 
+  // Get gadgets
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
-
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
-  ifstream input_file(libcPath, ios::binary);
 
+  ifstream input_file(libcPath, ios::binary);
   assert(input_file.good() && "Unable to find libc!");
 
   // Get input size
   input_file.seekg(0, ios::end);
   streamoff input_size = input_file.tellg();
-  llvm::dbgs() << "[*] Reading binary (" << input_size << " bytes) ...\n";
+  llvm::dbgs() << "[*] Scanning the whole binary (" << input_size << " bytes) ...\n";
 
   // Read the whole file
   input_file.seekg(0, ios::beg);
@@ -206,11 +221,10 @@ map<string, Gadget *> findGadgets() {
 
         // Valid gadgets must have at least two instructions, and the
         // last one must be a RET
-        if (count >= 2) {
-          if (instructions[count - 1].id == X86_INS_RET) {
+        if (count >= 2 && instructions[count - 1].id == X86_INS_RET) {
 
             // Each gadget is identified with its mnemonic
-            // ans operators within the map (ugly but straightforward :P)
+            // and operators (ugly but straightforward :P)
             string asm_instr;
             for (size_t j = 0; j < count - 1; j++) {
               asm_instr += instructions[j].mnemonic;
@@ -218,11 +232,9 @@ map<string, Gadget *> findGadgets() {
               asm_instr += instructions[j].op_str;
               asm_instr += ";";
             }
-            if (gadgets[asm_instr] != nullptr) continue;
 
             auto *g = new Gadget(count, instructions, instructions[0].address);
             gadgets[asm_instr] = g;
-          }
         }
       }
     }

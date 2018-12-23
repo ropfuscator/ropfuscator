@@ -97,20 +97,22 @@ struct ChainElem {
   type_t type;
   int64_t value;
   const char* symbolName;
+  const char* symVerDirective;
 
   ChainElem(std::string asmInstr) {
     type = GADGET;
 
     Gadget* r = ROPChain::libc_microgadgets[asmInstr];
-    uint64_t address = r->address;
-    // FIXME: address assertion really necessary?
-    assert(address != 0 &&
+    assert(r != nullptr &&
            "Unable to find specified asm instruction in the gadget library!");
+
+    uint64_t address = r->address;
 
     Symbol *s = getRandomSymbol();
     value = address - s->address;
 
     symbolName = s->name.c_str();
+    symVerDirective = s->symVer.c_str();
   };
 
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
@@ -119,12 +121,6 @@ struct ChainElem {
 ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
 int ROPChain::globalChainID = 0;
-
-unsigned ROPChain::getBaseAddress() {
-  // TODO: Opaque constant generation must be implemented here to conceal the
-  // base address
-  return 0xb7e11000;
-}
 
 void ROPChain::inject() {
   /* PROLOGUE: saves the EIP value before executing the ROP chain */
@@ -145,17 +141,19 @@ void ROPChain::inject() {
     switch (elem->type) {
 
       case IMMEDIATE: {
-      /* Pushes the immediate value directly onto the stack, without further
-       * computations */
+      /* Pushe the immediate value  onto the stack, without further computations */
       // push $imm
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addImm(elem->value); break;
       }
 
       case GADGET: {
-      /* At first it pushes the ebx register (within which the libc base address
-       * is located, then it adds the gadget offset to it */
-      // push ebx
+      /* Push a random symbol that will be used as base address, then add
+       * the offset to point a specific gadget */
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
+                .addExternalSymbol(elem->symVerDirective)
+                .addImm(0);
+      // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(elem->symbolName);
       // add [esp], $offset
