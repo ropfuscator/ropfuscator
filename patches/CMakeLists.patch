@@ -1,5 +1,5 @@
---- CMakeLists.txt	2018-07-13 12:13:58.000000000 +0100
-+++ /home/giulio/llvm-7.0.0.src/lib/Target/X86/CMakeLists.txt	2018-12-12 15:43:36.520086404 +0000
+--- /Users/danieleferla/Downloads/llvm-7.0.0.src/lib/Target/X86/CMakeLists.txt	2018-07-13 13:13:58.000000000 +0200
++++ CMakeLists.txt	2018-12-21 14:49:51.000000000 +0100
 @@ -65,6 +65,7 @@
    X86VZeroUpper.cpp
    X86WinAllocaExpander.cpp
@@ -8,7 +8,7 @@
    )
  
  add_llvm_target(X86CodeGen ${sources})
-@@ -75,3 +76,20 @@
+@@ -75,3 +76,25 @@
  add_subdirectory(MCTargetDesc)
  add_subdirectory(TargetInfo)
  add_subdirectory(Utils)
@@ -29,3 +29,8 @@
 +
 +# Linking da man
 +target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE capstone)
++
++
++
++# Linking da man
++target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE bfd)

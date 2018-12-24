@@ -63,7 +63,6 @@ public:
   // Methods
   int addInstruction(MachineInstr &MI);
   int mapBindings(MachineInstr &MI);
-  unsigned getBaseAddress();
   void inject();
   void loadEffectiveAddress(int64_t displacement);
 
@@ -141,15 +140,17 @@ void ROPChain::inject() {
     switch (elem->type) {
 
       case IMMEDIATE: {
-      /* Pushe the immediate value  onto the stack, without further computations */
+      /* Push the immediate value onto the stack */
       // push $imm
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addImm(elem->value); break;
       }
 
       case GADGET: {
-      /* Push a random symbol that will be used as base address, then add
-       * the offset to point a specific gadget */
+      /* Push a random symbol that, when resolved by the dynamic linker,
+       * will be used as base address; then add the offset to point a specific gadget */
+
+      // .symver directive: necessary to prevent aliasing when more symbols have the same name
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
                 .addExternalSymbol(elem->symVerDirective)
                 .addImm(0);

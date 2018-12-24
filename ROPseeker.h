@@ -137,7 +137,7 @@ void getDynamicSymbols(vector<Symbol> &symbols, string &libcPath) {
   bfd_init();
   bfd *bfd_h = bfd_openr(path, NULL);
   assert(bfd_check_format(bfd_h, bfd_object) &&
-         "file '%s' does not look like an executable");
+         "Given file does not look like an executable");
 
   // Allocate memory and get the symbol table
   size = bfd_get_dynamic_symtab_upper_bound(bfd_h);
@@ -148,8 +148,8 @@ void getDynamicSymbols(vector<Symbol> &symbols, string &libcPath) {
   for (size_t i = 0; i < nsym; i++) {
     asymbol *sym = asymtab[i];
 
-    // Consider only symbols with global scope and referred to functions
-      if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
+    // Consider only function symbols with global scope
+    if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
       symbolName = bfd_asymbol_name(sym);
       addr = bfd_asymbol_value(sym);
 
@@ -186,7 +186,6 @@ map<string, Gadget *> findGadgets() {
   getDynamicSymbols(symbols, libcPath);
   llvm::dbgs() << "[*] Found " << symbols.size() << " symbols\n";
 
-  // Get gadgets
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";

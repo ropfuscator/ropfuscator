@@ -1,12 +1,20 @@
+![logo](https://i.imgur.com/dSAJ2VG.png)
 # ROPfuscator
 ROPfuscator is an LLVM backend extension that aims to perform code obfuscation taking advantage of ROP chains: supported instructions are replaced by semantically equivalent ROP gadgets.
 
-##### Limitations
-The current implementation has several limitations, so the following requirements must be met if you want to get everything working:
+##### Features
+- Available gadgets and symbols are automatically extracted from `libc`.
+- Gadgets are referenced using **symbol hooking**, i.e. each gadget is referenced using a random symbol within `libc` and its offset from it. Since symbol addresses are automatically resolved at runtime by the dynamic loader (`ld`), we can guarantee to reach the wanted gadget even if the library is mapped in memory at a non-static address.
+- ASLR-resilient: works flawlessly with ASLR enabled.
 
-- Gadgets are borrowed from `libc` (x86); so, since we refer to them using offsets, you must use this specific version: `Debian GLIBC 2.24-11+deb9u3`. 
-**For this reason, I suggest you to work in a VM with the same distribution I used: [Debian Stretch (9.5.0) i386](https://ftp.cae.tntech.edu/debian-cd/debian-9.5.0-i386-netinst.iso)**.
-- Address Space Layout Randomization (ASLR) isn't supported yet. Remember to disable it when you test compiled programs.
+##### Limitations
+- Dependence on the specific version of `libc` used at compile time.  
+    To avoid this, you can potentially use a library that will be distributed along with the binary as source for ROP gadgets.
+- Only the following instructions are currently supported: `ADD32ri(8)`, `SUB32ri(8)`, `MOV32ri`, `MOV32rm` and `MOV32mr`.
+
+##### Dependencies
+- `libcapstone-dev`
+- `binutils-dev`
 
 -------
 
@@ -69,26 +77,18 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 
 ----------
 
-### Running experiments
-`llc` works at the IR level, so we have to generate the `.ll` file out of our C program:
+### Usage
+1. Generate the LLVM IR (`.ll`) out of a given C program:
 
-    clang example1.c -O0 -S -emit-llvm -o example1.ll
+        clang -O0 -S -emit-llvm hello.c -o hello.ll
 
-then we have to run only the code generation use `llc`:
+2. Run the assembly code generation using `llc`:
 
-    llc example1.ll -o example1.s
+        llc hello.ll
 
-The output is an `asm` file, that can be compiled simply with `gcc`:
+3. Compile the output file (`.s`) using `gcc` with the following arguments:
 
-    gcc hello.s -o hello
+        gcc -o hello hello.s -Wl,--unresolved-symbols=ignore-in-object-files -lc
 
-------------
+    Using those flags will instruct the static linker to exclusively use `libc` as library.
 
-### Troubleshooting
-##### Segmentation fault during ROP Chain execution
-* **Getting the correct libc version:** ROPfuscator builds ROP chains using gadgets located at very specific locations with `libc`. A slight version variation can lead to errors.
-Please be sure to use this exact version: `Debian GLIBC 2.24-11+deb9u3`.
-
-* **Disabling ASLR:** ROPfuscator uses `libc` to inject ROP gadgets onto the stack. Until now, we're unable to handle with ASLR, so we have to disable it:
-
-        sudo sysctl -w kernel.randomize_va_space=0
