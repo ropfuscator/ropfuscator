@@ -12,6 +12,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include <iostream>
 #include <stdio.h>
 #include <string>
 #include <sys/time.h>
@@ -95,13 +96,13 @@ struct ChainElem {
    * or an immediate value */
   type_t type;
   int64_t value;
-  const char* symbolName;
-  const char* symVerDirective;
+  const char *symbolName;
+  const char *symVerDirective;
 
   ChainElem(std::string asmInstr) {
     type = GADGET;
 
-    Gadget* r = ROPChain::libc_microgadgets[asmInstr];
+    Gadget *r = ROPChain::libc_microgadgets[asmInstr];
     assert(r != nullptr &&
            "Unable to find specified asm instruction in the gadget library!");
 
@@ -112,6 +113,10 @@ struct ChainElem {
 
     symbolName = s->name.c_str();
     symVerDirective = s->symVer.c_str();
+
+    std::cout << "[*] Injecting gadget " + asmInstr + "\t(0x" << std::hex
+              << r->address << "):\n\t\t" << s->name << "@ 0x" << s->address
+              << " + 0x" << value << "\n";
   };
 
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
@@ -123,6 +128,7 @@ int ROPChain::globalChainID = 0;
 
 void ROPChain::inject() {
   /* PROLOGUE: saves the EIP value before executing the ROP chain */
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
   // call chain_X
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
       .addExternalSymbol(chainLabel);
@@ -134,26 +140,44 @@ void ROPChain::inject() {
       .addExternalSymbol(chainLabel_C)
       .addImm(0);
 
-
   /* Pushes each gadget onto the stack in reverse order */
   for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
     switch (elem->type) {
 
-      case IMMEDIATE: {
+    case IMMEDIATE: {
       /* Push the immediate value onto the stack */
       // push $imm
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addImm(elem->value); break;
-      }
+          .addImm(elem->value);
+      break;
+    }
 
-      case GADGET: {
+    case GADGET: {
       /* Push a random symbol that, when resolved by the dynamic linker,
-       * will be used as base address; then add the offset to point a specific gadget */
+       * will be used as base address; then add the offset to point a specific
+       * gadget */
 
-      // .symver directive: necessary to prevent aliasing when more symbols have the same name
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
-                .addExternalSymbol(elem->symVerDirective)
-                .addImm(0);
+      // TODO: Backup EFLAGS not to disrupt flags during the opaque predicate
+      // evaluation
+      // TODO: ROPing the opaquePredicate too!
+
+      // call $opaquePredicate
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
+          .addExternalSymbol("opaquePredicate");
+
+      // je $wrong_target
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
+          .addExternalSymbol(chainLabel);
+
+      // .symver directive: necessary to prevent aliasing when more symbols have
+      // the same name
+      /*BuildMI(*MBB, injectionPoint, nullptr,
+         TII->get(TargetOpcode::INLINEASM))
+          .addExternalSymbol(elem->symVerDirective)
+          .addImm(0);*/
+
+      // TODO: push+add in one single instruction (via inline ASM)
+
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(elem->symbolName);
@@ -161,8 +185,9 @@ void ROPChain::inject() {
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(elem->value); break;
-      }
+          .addImm(elem->value);
+      break;
+    }
     }
   }
 
@@ -175,6 +200,7 @@ void ROPChain::inject() {
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
 
   /* Deletes the initial instructions */
   for (MachineInstr *MI : instructionsToDelete) {
@@ -188,6 +214,7 @@ int ROPChain::addInstruction(MachineInstr &MI) {
    * We keep track of all the instructions to remove in order to defer the
    * actual deletion to the moment in which we'll inject the ROP Chain. We do
    * this because currently MI is just an iterator */
+
   assert(!finalized && "Attempt to modify a finalized chain!");
   int err = mapBindings(MI);
 
