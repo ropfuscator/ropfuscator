@@ -78,17 +78,10 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 ----------
 
 ### Usage
-1. Generate the LLVM IR (`.ll`) out of a given C program:
+##### Compiling examples
 
-        clang -O0 -S -emit-llvm hello.c -o hello.ll
+    cd examples
+    make
 
-2. Run the assembly code generation using `llc`:
-
-        llc hello.ll
-
-3. Compile the output file (`.s`) using `gcc` with the following arguments:
-
-        gcc -o hello hello.s -Wl,--unresolved-symbols=ignore-in-object-files -lc
-
-    Using those flags will instruct the static linker to exclusively use `libc` as library.
+The example file (`example1.c`) will be ROPfuscated and put in the `examples/bin/` folder.
 

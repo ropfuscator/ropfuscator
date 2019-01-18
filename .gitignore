@@ -1,2 +1,6 @@
 .DS_Store
 .vscode/settings.json
+examples/tmp/*
+examples/bin/*
+examples/opaque_predicate/bin/*
+examples/opaque_predicate/obj/*
