@@ -28,7 +28,6 @@
 
 using namespace llvm;
 
-
 namespace {
 struct X86ROPfuscationPass : public MachineFunctionPass {
   static char ID;
@@ -59,6 +58,10 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
         dbgs() << " *  " << MI;
+        if (MI.isBundled())
+          dbgs() << "[BUNDLE]";
+        else
+          dbgs() << "[]";
         stats.processed++;
 
         if (ropChains.empty() || ropChains.back()->isFinalized()) {

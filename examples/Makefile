@@ -1,7 +1,7 @@
 ROPLIB_RPATH=lib
 ROPLIB_NAME=libnaive.so
 OP_PATH=opaque_predicate
-APP_NAME=example1
+APP_NAME=example7
 
 # Final ROPfuscated executable
 bin/$(APP_NAME): tmp/$(APP_NAME).s $(OP_PATH)/bin/op.a

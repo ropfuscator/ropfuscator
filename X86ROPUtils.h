@@ -128,6 +128,7 @@ int ROPChain::globalChainID = 0;
 
 void ROPChain::inject() {
   /* PROLOGUE: saves the EIP value before executing the ROP chain */
+  // pushf (EFLAGS register backup)
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
   // call chain_X
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
@@ -156,10 +157,6 @@ void ROPChain::inject() {
       /* Push a random symbol that, when resolved by the dynamic linker,
        * will be used as base address; then add the offset to point a specific
        * gadget */
-
-      // TODO: Backup EFLAGS not to disrupt flags during the opaque predicate
-      // evaluation
-      // TODO: ROPing the opaquePredicate too!
 
       // call $opaquePredicate
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
@@ -200,6 +197,7 @@ void ROPChain::inject() {
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
+  // popf (EFLAGS register restore)
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
 
   /* Deletes the initial instructions */
