@@ -1,6 +1,7 @@
 //
 // ROPseeker engine aims to find gadgets within a given binary.
 //
+#define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
 #include <bfd.h>
 #include <capstone/capstone.h>
