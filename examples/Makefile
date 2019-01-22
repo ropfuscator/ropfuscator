@@ -4,10 +4,10 @@ MKDIR = mkdir -p
 
 # Compiler vars
 CC = clang
-CFLAGS = -m32 -c -fomit-frame-pointer -fno-pie -no-pie
+CFLAGS = -m32 -c -fomit-frame-pointer -fno-pie
 IRFLAGS = -m32 -O0 -S -emit-llvm
 ROPLIB_CFLAGS = -m32 -shared
-ROPF_LLC = ropf-llc
+ROPF_LLC = llc
 
 # Directories vars
 OUT_DIR = bin
@@ -27,8 +27,7 @@ all: directories $(OUT_DIR)/$(APP_NAME)
 # Final ROPfuscated executable
 $(OUT_DIR)/$(APP_NAME): $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so
 	$(info --> Compiling the ROPfuscated executable)
-	$(CC) -L $(ROPLIB_RPATH) -l$(ROPLIB_NAME) $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -o $@ 
-
+	LD_RUN_PATH='$$ORIGIN/$(ROPLIB_RPATH)' gcc $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -l:lib$(ROPLIB_NAME).so -o $@ 
 # ROP support library
 $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so: $(ROPLIB_SRCDIR)/lib$(ROPLIB_NAME).c
 	$(info --> Compiling support library)
