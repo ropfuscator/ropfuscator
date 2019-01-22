@@ -80,7 +80,7 @@ bool recurseLibcDir(const char *path, string &libcPath, uint current_depth) {
 
   // searching for libc in regular files only
   while ((entry = readdir(dir)) != NULL) {
-    if (!strcmp(entry->d_name, "libc.so")) {
+    if (!strcmp(entry->d_name, "libc.so.6")) {
       libcPath += path;
       libcPath += "/";
       libcPath += entry->d_name;
