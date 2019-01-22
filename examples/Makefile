@@ -27,7 +27,7 @@ all: directories $(OUT_DIR)/$(APP_NAME)
 # Final ROPfuscated executable
 $(OUT_DIR)/$(APP_NAME): $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so
 	$(info --> Compiling the ROPfuscated executable)
-	$(CC) -L $(ROPLIB_RPATH) -l$(ROPLIB_NAME) $(TMP_DIR)/$(APP_NAME).s $(OP_PATH)/bin/op.a -o $@ 
+	$(CC) -L $(ROPLIB_RPATH) -l$(ROPLIB_NAME) $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -o $@ 
 
 # ROP support library
 $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so: $(ROPLIB_SRCDIR)/lib$(ROPLIB_NAME).c
