@@ -65,9 +65,11 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
     Building takes some time to finish. 
 
-6. Finally, we can create a symbolic link to our custom version of `llc`, in order to call it in a simpler way:
+6. Finally, we can create a symbolic link to our custom version of `llc`, in order to call it in a simpler way, `ropf-llc`:
 
-        sudo ln -s [BUILD-DIR]/bin/llc /usr/local/bin/llc
+        sudo ln -s [BUILD-DIR]/bin/llc $(HOME)/.local/bin/ropf-llc
+
+Make sure that `$(HOME)/.local/bin/` is set in your `PATH` environmental variable.
 
 #### Recompiling LLC 
 Since ROPfuscator is a `MachineFunctionPass`, we have to recompile `llc` (LLVM system compiler) each time we modify the pass. 
