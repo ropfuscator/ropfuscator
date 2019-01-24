@@ -290,6 +290,32 @@ Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
   return nullptr;
 }
 
+cs_x86_op opCreate(x86_op_type type, uint value) {
+  cs_x86_op op;
+  op.type = type;
+
+  switch (type) {
+  case X86_OP_REG: {
+    op.reg = static_cast<x86_reg>(value);
+    break;
+  }
+  case X86_OP_IMM: {
+    op.imm = static_cast<uint64_t>(value);
+    break;
+  }
+  case X86_OP_MEM: {
+    x86_op_mem mem;
+    op.mem = mem;
+    op.mem.base = static_cast<x86_reg>(value);
+    break;
+  }
+  default:
+    assert(1 == 2 && "Invalid operand type");
+  }
+
+  return op;
+}
+
 vector<Gadget> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;

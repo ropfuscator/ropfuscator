@@ -144,19 +144,10 @@ void ROPChain::inject() {
       dbgs() << "immediate\n";
   }*/
 
-  dbgs() << "# X86_INS_ADD: " << X86_INS_ADD << "\t";
+  dbgs() << "# X86_INS_ADDasdasd: " << X86_INS_ADD << "\t";
 
-  cs_x86_op src, dst;
-  x86_op_mem dst_mem;
-
-  src.type = X86_OP_MEM;
-  src.mem = dst_mem;
-  src.mem.base = X86_REG_ESP;
-
-  dst.type = X86_OP_REG;
-  dst.reg = X86_REG_EAX;
-
-  gadgetLookup(X86_INS_ADD, dst, src);
+  gadgetLookup(X86_INS_ADD, opCreate(X86_OP_REG, X86_REG_EAX),
+               opCreate(X86_OP_MEM, X86_REG_ESP));
 
   /*
   // PROLOGUE: saves the EIP value before executing the ROP chain
