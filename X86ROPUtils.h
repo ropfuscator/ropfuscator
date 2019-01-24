@@ -92,15 +92,19 @@ public:
 };
 
 struct ChainElem {
-  /* Element to be pushed onto the stack. It could be either a gadget
-   * or an immediate value */
+  // Element to be pushed onto the stack. It could be either a gadget or an
+  // immediate value
   type_t type;
-  int64_t value;
+  union {
+    int64_t value;
+    const Gadget *r;
+  };
+
   const char *symbolName;
   const char *symVerDirective;
 
   // debug
-  const Gadget *r;
+
   std::string asmIns;
 
   ChainElem(std::string asmInstr) {
@@ -109,11 +113,12 @@ struct ChainElem {
 
     r = gadgetLookup(asmInstr);
     assert(r != nullptr && "Unable to find the requested gadget");
-
+    dbgs() << "gadget: " << asmInstr << " \t@" << &r
+           << "\t addr:" << &(r->address) << "\n";
     uint64_t address = r->address;
 
     Symbol *s = getRandomSymbol();
-    value = address - s->address;
+    // value = address - s->address;
 
     symbolName = s->name.c_str();
     symVerDirective = s->symVer.c_str();
@@ -144,12 +149,9 @@ void ROPChain::inject() {
       dbgs() << "immediate\n";
   }*/
 
-  dbgs() << "# X86_INS_ADDasdasd: " << X86_INS_ADD << "\t";
+  gadgetLookup(X86_INS_XOR, opCreate(X86_OP_REG, X86_REG_EAX),
+               opCreate(X86_OP_REG, X86_REG_EAX));
 
-  gadgetLookup(X86_INS_ADD, opCreate(X86_OP_REG, X86_REG_EAX),
-               opCreate(X86_OP_MEM, X86_REG_ESP));
-
-  /*
   // PROLOGUE: saves the EIP value before executing the ROP chain
   // pushf (EFLAGS register backup)
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
@@ -165,21 +167,21 @@ void ROPChain::inject() {
       .addImm(0);
 
   // Pushes each gadget onto the stack in reverse order
-  for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
-    switch (elem->type) {
+  for (auto e = chain.rbegin(); e != chain.rend(); ++e) {
+    switch (e->type) {
 
     case IMMEDIATE: {
       // Push the immediate value onto the stack //
       // push $imm
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addImm(elem->value);
+          .addImm(e->value);
       break;
     }
 
     case GADGET: {
-      // Push a random symbol that, when resolved by the dynamic linker, will
-be
-      // used as base address; then add the offset to point a specific gadget
+      // Push a random symbol that, when resolved by the dynamic linker, willbe
+      // used as base address; then add the offset to point a specific
+      // gadget
 
       // call $opaquePredicate
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
@@ -190,44 +192,45 @@ be
           .addExternalSymbol(chainLabel);
 
       // .symver directive: necessary to prevent aliasing when more symbols
-have
-      // the same name
+      // have the same name
       /*BuildMI(*MBB, injectionPoint, nullptr,
          TII->get(TargetOpcode::INLINEASM))
           .addExternalSymbol(elem->symVerDirective)
-          .addImm(0);
+          .addImm(0);*/
 
       // TODO: push+add in one single instruction (via inline ASM)
 
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(elem->symbolName);
+          .addExternalSymbol(e->symbolName);
+
       // add [esp], $offset
+
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(elem->value);
+          .addImm(e->r->address);
       break;
     }
     }
-}
+  }
 
-// EPILOGUE Emits the `ret` instruction which will trigger the chain
-// execution, and a label to resume the normal execution flow when the chain
-// has finished.
-// ret
-BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL));
-// resume_X:
-BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
-    .addExternalSymbol(resumeLabel_C)
-    .addImm(0);
-// popf (EFLAGS register restore)
-BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
+  // EPILOGUE Emits the `ret` instruction which will trigger the chain
+  // execution, and a label to resume the normal execution flow when the chain
+  // has finished.
+  // ret
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL));
+  // resume_X:
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
+      .addExternalSymbol(resumeLabel_C)
+      .addImm(0);
+  // popf (EFLAGS register restore)
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
 
-// Deletes the initial instructions
-for (MachineInstr *MI : instructionsToDelete) {
-  MI->eraseFromParent();
-}*/
+  // Deletes the initial instructions
+  for (MachineInstr *MI : instructionsToDelete) {
+    MI->eraseFromParent();
+  }
 }
 
 int ROPChain::addInstruction(MachineInstr &MI) {
