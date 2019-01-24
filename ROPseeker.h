@@ -16,8 +16,8 @@
 #include <time.h>
 #include <vector>
 
-// Max bytes before the RET to be examined
-#define MAXDEPTH 3
+// Max bytes before the RET to be examined (RET included!)
+#define MAXDEPTH 4
 using namespace std;
 struct Symbol;
 struct Section;
@@ -58,50 +58,19 @@ struct Gadget {
       : length(length), instructions(instructions), address(address),
         asmInstr(asmInstr){};
 
-  unsigned int getID() const { return instructions[0].id; }
+  x86_insn getID() const {
+    // Returns the ID (opcode)
+    return static_cast<x86_insn>(instructions[0].id);
+  }
 
-  unsigned int getOp(int i) const {
-    cs_x86_op op = instructions[0].detail->x86.operands[i];
-
-    switch (op.type) {
-    case X86_OP_REG:
-      return op.reg;
-    case X86_OP_IMM:
-      return op.imm;
-    case X86_OP_MEM:
-      // We use only gadgets with a plain base address (displacements are
-      // useless in our case)
-
-      // TODO: figure out how to use displacement, index, etc.
-      return op.mem.base;
-    default:
-      assert(1 == 2 && "Undefined operand requested");
-    }
+  cs_x86_op getOp(int i) const {
+    // Returns the i-th operand
+    return instructions[0].detail->x86.operands[i];
   }
 
   uint8_t getNumOp() const {
-    // Return the number of operands of the gadget instruction
-    cs_detail *detail = instructions[0].detail;
-    return (detail->x86).op_count;
-  }
-
-  bool operator==(const Gadget g) const {
-    return this->asmInstr.compare(g.asmInstr);
-    /*if (this->getID() != g.getID())
-      return false;
-    else if (this->getNumOp() != g.getNumOp())
-      return false;
-    else {
-      for (int i = 0; i < min(this->getNumOp(), g.getNumOp()); i++) {
-        if (this->getOp(i) != g.getOp(i))
-          return false;
-      }
-    }
-      return true;*/
-  }
-
-  bool operator<(const Gadget g) const {
-    return this->asmInstr.compare(g.asmInstr);
+    // Returns the number of operands
+    return instructions[0].detail->x86.op_count;
   }
 };
 
@@ -264,6 +233,63 @@ void getDynamicSymbols(bfd *bfd_h) {
   assert(symbols.size() > 0 && "No symbols found!");
 }
 
+Gadget *gadgetLookup(string asmInstr) {
+  // Legacy: lookup by asm_instr string
+  if (gadgets.size() > 0) {
+    for (auto &gadget : gadgets) {
+      if (gadget.asmInstr.compare(asmInstr) == 0)
+        return &gadget;
+    }
+  }
+  return nullptr;
+}
+
+bool opCompare(cs_x86_op a, cs_x86_op b) {
+  if (a.type == b.type) {
+    switch (a.type) {
+    case X86_OP_REG:
+      return a.reg == b.reg;
+    case X86_OP_IMM:
+      return a.imm == b.imm;
+
+    // For MEM operands, we look only at the base address, since all the other
+    // stuff cannot be useful for our purpose
+    case X86_OP_MEM:
+      return a.mem.base == b.mem.base;
+
+    default:
+      assert(1 == 2 && "Trying to compare invalid or floating point operands "
+                       "(not supported)");
+    }
+  }
+  return false;
+}
+
+Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
+  if (gadgets.size() > 0) {
+    for (auto &gadget : gadgets) {
+
+      // Search by OpCode
+      if (gadget.getID() == insn) {
+        // We don't reason about the number of operands, since it is possible to
+        // assume that instructions with the same opcode have also the same
+        // number of operands
+
+        // Search by operand
+        if (opCompare(gadget.getOp(0), op0) &&
+            opCompare(gadget.getOp(1), op1)) {
+
+          llvm::dbgs() << "  FOUND! ----> " << insn << " (" << gadget.asmInstr
+                       << ")"
+                       << "@ " << gadget.address << "\n";
+          return &gadget;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 vector<Gadget> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
@@ -342,10 +368,12 @@ vector<Gadget> findGadgets() {
               asm_instr += ";";
             }
 
-            gadgets.push_back(Gadget(count, instructions,
-                                     instructions[0].address, asm_instr));
-
-            cnt++;
+            if (gadgetLookup(asm_instr) == nullptr) {
+              gadgets.push_back(Gadget(count, instructions,
+                                       instructions[0].address, asm_instr));
+              // llvm::dbgs() << "Added gadget: " << asm_instr << "\n";
+              cnt++;
+            }
           }
         }
       }
@@ -355,7 +383,7 @@ vector<Gadget> findGadgets() {
   free(buf);
   input_file.close();
 
-  llvm::dbgs() << "[*] Found " << gadgets.size() << " gadgets!\n";
+  llvm::dbgs() << "[*] Found " << gadgets.size() << " unique microgadgets!\n";
 
   /*for (auto const &gadget : gadgets) {
     llvm::dbgs() << "0x" << gadget.address << ":   \t" << gadget.asmInstr

@@ -106,25 +106,10 @@ struct ChainElem {
   ChainElem(std::string asmInstr) {
     type = GADGET;
     asmIns = asmInstr;
-    dbgs() << "searching: " << asmInstr << "...";
-    // auto it =
-    //  std::find(gadgets.begin(), gadgets.end(), Gadget(0, 0, 0, asmInstr));
 
-    for (auto &gadget : gadgets) {
+    r = gadgetLookup(asmInstr);
+    assert(r != nullptr && "Unable to find the requested gadget");
 
-      if (gadget.asmInstr.compare(asmInstr) == 0) {
-        dbgs() << "found gadget: " << gadget.asmInstr << "\n";
-        r = &gadget;
-        break;
-      }
-    }
-    // assert(it != gadgets.end() &&
-    //      "Unable to find specified asm instruction in the gadget library!");
-
-    // dbgs() << "it: " << it->asmInstr << "\n";
-    // Convert iterator to pointer
-    // r = std::addressof(*it);
-    // dbgs() << "pointer @" << r->asmInstr << "\n";
     uint64_t address = r->address;
 
     Symbol *s = getRandomSymbol();
@@ -145,9 +130,8 @@ ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
 
 int ROPChain::globalChainID = 0;
 
-Gadget *gadgetLookup(x86_insn insn, cs_x86_op dst, cs_x86_op src) {}
-
 void ROPChain::inject() {
+  /*
   for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
 
     if (elem->type == GADGET) {
@@ -158,7 +142,21 @@ void ROPChain::inject() {
       dbgs() << "\n";
     } else
       dbgs() << "immediate\n";
-  }
+  }*/
+
+  dbgs() << "# X86_INS_ADD: " << X86_INS_ADD << "\t";
+
+  cs_x86_op src, dst;
+  x86_op_mem dst_mem;
+
+  src.type = X86_OP_MEM;
+  src.mem = dst_mem;
+  src.mem.base = X86_REG_ESP;
+
+  dst.type = X86_OP_REG;
+  dst.reg = X86_REG_EAX;
+
+  gadgetLookup(X86_INS_ADD, dst, src);
 
   /*
   // PROLOGUE: saves the EIP value before executing the ROP chain
