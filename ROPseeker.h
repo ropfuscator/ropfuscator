@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -20,10 +21,12 @@
 using namespace std;
 struct Symbol;
 struct Section;
+struct Gadget;
 
 string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
 vector<Symbol> symbols;
 vector<Section> sections;
+vector<Gadget> gadgets;
 
 struct Symbol {
   string name;
@@ -47,8 +50,59 @@ struct Gadget {
   cs_insn *instructions;
   uint64_t address;
 
-  Gadget(size_t length, cs_insn *instructions, uint64_t address)
-      : length(length), instructions(instructions), address(address){};
+  // debug
+  string asmInstr;
+
+  Gadget(size_t length, cs_insn *instructions, uint64_t address,
+         string asmInstr)
+      : length(length), instructions(instructions), address(address),
+        asmInstr(asmInstr){};
+
+  unsigned int getID() const { return instructions[0].id; }
+
+  unsigned int getOp(int i) const {
+    cs_x86_op op = instructions[0].detail->x86.operands[i];
+
+    switch (op.type) {
+    case X86_OP_REG:
+      return op.reg;
+    case X86_OP_IMM:
+      return op.imm;
+    case X86_OP_MEM:
+      // We use only gadgets with a plain base address (displacements are
+      // useless in our case)
+
+      // TODO: figure out how to use displacement, index, etc.
+      return op.mem.base;
+    default:
+      assert(1 == 2 && "Undefined operand requested");
+    }
+  }
+
+  uint8_t getNumOp() const {
+    // Return the number of operands of the gadget instruction
+    cs_detail *detail = instructions[0].detail;
+    return (detail->x86).op_count;
+  }
+
+  bool operator==(const Gadget g) const {
+    return this->asmInstr.compare(g.asmInstr);
+    /*if (this->getID() != g.getID())
+      return false;
+    else if (this->getNumOp() != g.getNumOp())
+      return false;
+    else {
+      for (int i = 0; i < min(this->getNumOp(), g.getNumOp()); i++) {
+        if (this->getOp(i) != g.getOp(i))
+          return false;
+      }
+    }
+      return true;*/
+  }
+
+  bool operator<(const Gadget g) const {
+    return this->asmInstr.compare(g.asmInstr);
+  }
 };
 
 struct Section {
@@ -210,10 +264,9 @@ void getDynamicSymbols(bfd *bfd_h) {
   assert(symbols.size() > 0 && "No symbols found!");
 }
 
-map<string, Gadget *> findGadgets() {
+vector<Gadget> findGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
-  map<string, Gadget *> gadgets;
 
   // capstone stuff
   csh handle;
@@ -238,6 +291,7 @@ map<string, Gadget *> findGadgets() {
 
   assert((cs_open(CS_ARCH_X86, CS_MODE_32, &handle) == CS_ERR_OK) &&
          "Unable to initialise capstone-engine");
+  cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
   llvm::dbgs() << "[*] Looking for gadgets in " << libcPath << "\n";
 
   ifstream input_file(libcPath, ios::binary);
@@ -267,16 +321,16 @@ map<string, Gadget *> findGadgets() {
         size_t offset = i + 1;
         uint8_t *cur_pos = buf + offset;
 
-        // Iteratively try to decode starting from (MAXDEPTH to 0) instructions
-        // before the actual RET
+        // Iteratively try to decode starting from (MAXDEPTH to 0)
+        // instructions before the actual RET
         for (int depth = MAXDEPTH; depth >= 0; depth--) {
 
           size_t count = cs_disasm(handle, cur_pos - depth, depth,
                                    offset - depth, depth, &instructions);
 
-          // Valid gadgets must have at least two instructions, and the
+          // Valid gadgets must have two instructions, and the
           // last one must be a RET
-          if (count >= 2 && instructions[count - 1].id == X86_INS_RET) {
+          if (count == 2 && instructions[count - 1].id == X86_INS_RET) {
 
             // Each gadget is identified with its mnemonic
             // and operators (ugly but straightforward :P)
@@ -288,8 +342,9 @@ map<string, Gadget *> findGadgets() {
               asm_instr += ";";
             }
 
-            auto *g = new Gadget(count, instructions, instructions[0].address);
-            gadgets[asm_instr] = g;
+            gadgets.push_back(Gadget(count, instructions,
+                                     instructions[0].address, asm_instr));
+
             cnt++;
           }
         }
@@ -303,9 +358,8 @@ map<string, Gadget *> findGadgets() {
   llvm::dbgs() << "[*] Found " << gadgets.size() << " gadgets!\n";
 
   /*for (auto const &gadget : gadgets) {
-     dbgs() << "0x"  << (*gadget.second).address << ":   \t" << gadget.first
-  <<
-  "\n");
+    llvm::dbgs() << "0x" << gadget.address << ":   \t" << gadget.asmInstr
+                 << "\n";
   }*/
 
   return gadgets;

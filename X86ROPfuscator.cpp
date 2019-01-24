@@ -58,10 +58,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
         dbgs() << " *  " << MI;
-        if (MI.isBundled())
-          dbgs() << "[BUNDLE]";
-        else
-          dbgs() << "[]";
+
         stats.processed++;
 
         if (ropChains.empty() || ropChains.back()->isFinalized()) {
