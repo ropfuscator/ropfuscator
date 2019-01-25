@@ -44,6 +44,46 @@ FunctionPass *llvm::createX86ROPfuscationPass() {
   return new X86ROPfuscationPass();
 }
 
+struct DeadRegs {
+  std::vector<int> regs;
+
+  int pop() {
+    int retval = regs[0];
+    regs.erase(regs.begin());
+    return retval;
+  }
+};
+
+std::vector<DeadRegs> registerLivenessAnalysis(MachineBasicBlock &MBB) {
+
+  std::vector<DeadRegs> instructions;
+
+  const MachineFunction *MF = MBB.getParent();
+  const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();
+  const MachineRegisterInfo &MRI = MF->getRegInfo();
+  LivePhysRegs LiveRegs(TRI);
+  LiveRegs.addLiveOuts(MBB);
+
+  for (auto I = MBB.rbegin(); I != MBB.rend(); ++I) {
+    MachineInstr *MI = &*I;
+    if (!(MI->getFlag(MachineInstr::FrameSetup) ||
+          MI->getFlag(MachineInstr::FrameDestroy))) {
+      auto tmp = DeadRegs();
+
+      for (unsigned reg : X86::GR32RegClass) {
+        if (LiveRegs.available(MRI, reg)) {
+          tmp.regs.push_back(reg);
+        }
+      }
+      instructions.insert(instructions.begin(), tmp);
+
+      LiveRegs.stepBackward(*MI);
+    }
+  }
+
+  return instructions;
+}
+
 bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
@@ -53,11 +93,18 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
 
+    std::vector<DeadRegs> BBLiveness = registerLivenessAnalysis(MBB);
+
     for (MachineInstr &MI : MBB) {
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
-        dbgs() << " *  " << MI;
+        dbgs() << "\n* " << MI;
+
+        DeadRegs &dreg = BBLiveness.front();
+        for (int &r : dreg.regs)
+          dbgs() << "live reg: " << r << "\n";
+        BBLiveness.erase(BBLiveness.begin());
 
         stats.processed++;
 
@@ -79,7 +126,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
            * processed, another chain will be created. This essentially means
            * that a chain is split every time an un-replaceable instruction is
            * encountered. */
-          dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
+          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
           if (lastChain->isEmpty()) {
             /* The last created chain is pointless at this point, since it's
              * empty. */
@@ -88,7 +135,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
           } else
             lastChain->finalize();
         } else {
-          dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
+          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
           stats.replaced++;
         }
       }

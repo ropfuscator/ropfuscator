@@ -111,6 +111,11 @@ struct ChainElem {
     s = getRandomSymbol();
   };
 
+  ChainElem(Gadget *r) : r(r) {
+    type = GADGET;
+    s = getRandomSymbol();
+  };
+
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
   uint64_t getRelativeAddress() { return r->getAddress() - s->address; }
@@ -234,6 +239,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
+    return 1;
     if (MI.getOperand(0).getReg() == X86::EAX) {
       chain.push_back(ChainElem("pop ecx;"));
       chain.push_back(MI.getOperand(2).getImm());
@@ -243,6 +249,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       return 1;
   case X86::SUB32ri8:
   case X86::SUB32ri:
+    return 1;
     if (MI.getOperand(0).getReg() == X86::EAX) {
       chain.push_back(ChainElem("pop ecx;"));
       chain.push_back(ChainElem(-MI.getOperand(2).getImm()));
@@ -252,12 +259,16 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       return 1;
   case X86::MOV32ri:
     if (MI.getOperand(0).getReg() == X86::EAX) {
-      chain.push_back(ChainElem("pop eax;"));
-      chain.push_back(ChainElem(MI.getOperand(2).getImm()));
-      return 0;
-    } else
-      return 1;
+      auto g = gadgetLookup(X86_INS_POP, opCreate(X86_OP_REG, X86_REG_EAX));
+      if (g) {
+        chain.push_back(ChainElem(g));
+        chain.push_back(ChainElem(MI.getOperand(2).getImm()));
+        return 0;
+      }
+    }
+    return 1;
   case X86::MOV32rm:
+    return 1;
     // mov eax, dword ptr [ebp - $displacement]
     if (MI.getOperand(0).getReg() == X86::EAX &&
         MI.getOperand(1).getReg() == X86::EBP) {
@@ -267,6 +278,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     } else
       return 1;
   case X86::MOV32mr:
+    return 1;
     // mov dword ptr [ebp - $displacement], eax
     if (MI.getOperand(0).getReg() == X86::EBP &&
         MI.getOperand(5).getReg() == X86::EAX) {

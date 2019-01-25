@@ -161,7 +161,14 @@ Gadget *gadgetLookup(string asmInstr) {
   return nullptr;
 }
 
-Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
+bool opValid(cs_x86_op op) {
+  // It is used to check whether the optional parameter
+  // in gadgetLookup has been set
+  return op.type != 0;
+}
+
+Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0,
+                     cs_x86_op op1 = cs_x86_op{}) {
   if (gadgets.size() > 0) {
     for (auto &gadget : gadgets) {
 
@@ -171,9 +178,10 @@ Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
         // assume that instructions with the same opcode have also the same
         // number of operands
 
-        // Search by operand
-        if (opCompare(gadget.getOp(0), op0) &&
-            opCompare(gadget.getOp(1), op1)) {
+        // If op1 (optional parameter) is set, compare gadgets using both
+        // operands; else use only op0
+        if ((opValid(op1) && opCompare(gadget.getOp(1), op1)) ||
+            opCompare(gadget.getOp(0), op0)) {
           return &gadget;
         }
       }
@@ -297,7 +305,7 @@ vector<Gadget> extractGadgets() {
     }
     llvm::dbgs() << cnt << " found!\n";
   }
-  free(buf);
+  delete[] buf;
   input_file.close();
 
   llvm::dbgs() << "[*] Found " << gadgets.size() << " unique microgadgets!\n";
