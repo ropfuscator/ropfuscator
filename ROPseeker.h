@@ -38,6 +38,12 @@ struct Gadget {
 
   uint64_t getAddress() const { return instructions[0].address; }
 
+  uint64_t getRelativeAddess(Symbol *s) const {
+    // Returns the address relative to a given symbol
+    uint64_t absAddress = getAddress();
+    return absAddress - s->address;
+  }
+
   x86_insn getID() const {
     // Returns the ID (opcode)
     return static_cast<x86_insn>(instructions[0].id);

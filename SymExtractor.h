@@ -5,6 +5,10 @@
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
 #include <bfd.h>
+#include <cstring>
+#include <iostream>
+#include <sstream>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -20,20 +24,27 @@ vector<Symbol> symbols;
 vector<Section> sections;
 
 struct Symbol {
-  string name;
-  string version;
+  // string name;
+  char *name;
+  char *version;
+  char *symVerDirective;
   uint64_t address;
-  string symVer;
 
-  Symbol(string name, string version, uint64_t address)
-      : name(name), version(version), address(address) {
-    symVer = ".symver ";
-    symVer += name;
-    symVer += ",";
-    symVer += name;
-    symVer += "@";
-    symVer += version;
+  Symbol(string symName, string symVersion, uint64_t address)
+      : address(address) {
+    name = new char[symName.length() + 1];
+    version = new char[symVersion.length() + 1];
+    strcpy(name, symName.c_str());
+    strcpy(version, symVersion.c_str());
   };
+
+  char *getSymVerDirective() {
+    stringstream ss;
+    ss << ".symver " << name << "," << name << "@" << version;
+    symVerDirective = new char[ss.str().length() + 1];
+    strcpy(symVerDirective, ss.str().c_str());
+    return symVerDirective;
+  }
 };
 
 struct Section {

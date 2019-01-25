@@ -92,43 +92,28 @@ public:
 };
 
 struct ChainElem {
-  // Element to be pushed onto the stack. It could be either a gadget or an
-  // immediate value
+  // Element to be pushed onto the stack (gadget or immediate value)
+  // Each ChainElem is associated with a specific symbol: by doing this, we can
+  // avoid to associate one gadget with always the same symbol
   type_t type;
   union {
     int64_t value;
     const Gadget *r;
   };
-
-  const char *symbolName;
-  const char *symVerDirective;
-
-  // debug
-
-  std::string asmIns;
+  Symbol *s;
 
   ChainElem(std::string asmInstr) {
     type = GADGET;
-    asmIns = asmInstr;
 
     r = gadgetLookup(asmInstr);
     assert(r != nullptr && "Unable to find the requested gadget");
-    // dbgs() << "gadget: " << asmInstr << " \t@" << &r
-    //       << "\t addr:" << &(r->address) << "\n";
-    // uint64_t address = r->address;
 
-    Symbol *s = getRandomSymbol();
-    // value = address - s->address;
-
-    symbolName = s->name.c_str();
-    symVerDirective = s->symVer.c_str();
-
-    /*std::cout << "[*] Injecting gadget " + asmInstr + "\t(0x" << std::hex
-              << r->address << "):\n\t\t" << s->name << "@ 0x" << s->address
-              << " + 0x" << value << "\n";*/
+    s = getRandomSymbol();
   };
 
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
+
+  uint64_t getRelativeAddress() { return r->getAddress() - s->address; }
 };
 
 ROPChain::ropmap ROPChain::libc_microgadgets = extractGadgets();
@@ -136,19 +121,6 @@ ROPChain::ropmap ROPChain::libc_microgadgets = extractGadgets();
 int ROPChain::globalChainID = 0;
 
 void ROPChain::inject() {
-  /*
-  for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
-
-    if (elem->type == GADGET) {
-      dbgs() << "gadget: " << elem->asmIns << ", id " << elem->r->getID();
-      dbgs() << "\t n_op: " << elem->r->getNumOp() << "\t";
-      for (int i = 0; i < elem->r->getNumOp(); i++)
-        dbgs() << " op" << i << "=" << elem->r->getOp(i);
-      dbgs() << "\n";
-    } else
-      dbgs() << "immediate\n";
-  }*/
-
   gadgetLookup(X86_INS_XOR, opCreate(X86_OP_REG, X86_REG_EAX),
                opCreate(X86_OP_REG, X86_REG_EAX));
 
@@ -193,23 +165,22 @@ void ROPChain::inject() {
 
       // .symver directive: necessary to prevent aliasing when more symbols
       // have the same name
-      /*BuildMI(*MBB, injectionPoint, nullptr,
-         TII->get(TargetOpcode::INLINEASM))
-          .addExternalSymbol(elem->symVerDirective)
-          .addImm(0);*/
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
+          .addExternalSymbol(e->s->getSymVerDirective())
+          .addImm(0);
 
       // TODO: push+add in one single instruction (via inline ASM)
 
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(e->symbolName);
+          .addExternalSymbol(e->s->name);
 
       // add [esp], $offset
 
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(e->r->getAddress());
+          .addImm(e->getRelativeAddress());
       break;
     }
     }
