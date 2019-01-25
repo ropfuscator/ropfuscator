@@ -113,9 +113,9 @@ struct ChainElem {
 
     r = gadgetLookup(asmInstr);
     assert(r != nullptr && "Unable to find the requested gadget");
-    dbgs() << "gadget: " << asmInstr << " \t@" << &r
-           << "\t addr:" << &(r->address) << "\n";
-    uint64_t address = r->address;
+    // dbgs() << "gadget: " << asmInstr << " \t@" << &r
+    //       << "\t addr:" << &(r->address) << "\n";
+    // uint64_t address = r->address;
 
     Symbol *s = getRandomSymbol();
     // value = address - s->address;
@@ -131,7 +131,7 @@ struct ChainElem {
   ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 };
 
-ROPChain::ropmap ROPChain::libc_microgadgets = findGadgets();
+ROPChain::ropmap ROPChain::libc_microgadgets = extractGadgets();
 
 int ROPChain::globalChainID = 0;
 
@@ -209,7 +209,7 @@ void ROPChain::inject() {
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(e->r->address);
+          .addImm(e->r->getAddress());
       break;
     }
     }

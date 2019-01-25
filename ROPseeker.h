@@ -3,6 +3,7 @@
 //
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
+#include "SymExtractor.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
@@ -19,44 +20,23 @@
 // Max bytes before the RET to be examined (RET included!)
 #define MAXDEPTH 4
 using namespace std;
-struct Symbol;
-struct Section;
+
 struct Gadget;
 
 string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
-vector<Symbol> symbols;
-vector<Section> sections;
+
 vector<Gadget> gadgets;
 
-struct Symbol {
-  string name;
-  string version;
-  uint64_t address;
-  string symVer;
-
-  Symbol(string name, string version, uint64_t address)
-      : name(name), version(version), address(address) {
-    symVer = ".symver ";
-    symVer += name;
-    symVer += ",";
-    symVer += name;
-    symVer += "@";
-    symVer += version;
-  };
-};
-
 struct Gadget {
-  size_t length;
   cs_insn *instructions;
-  uint64_t address;
 
   // debug
   string asmInstr;
 
-  Gadget(size_t length, cs_insn *instructions, uint64_t address,
-         string asmInstr)
-      : length(length), instructions(instructions), address(address),
-        asmInstr(asmInstr){};
+  Gadget(cs_insn *instructions, string asmInstr)
+      : instructions(instructions), asmInstr(asmInstr){};
+
+  uint64_t getAddress() const { return instructions[0].address; }
 
   x86_insn getID() const {
     // Returns the ID (opcode)
@@ -73,19 +53,6 @@ struct Gadget {
     return instructions[0].detail->x86.op_count;
   }
 };
-
-struct Section {
-  string name;
-  uint64_t address, size;
-
-  Section(string name, uint64_t address, uint64_t size)
-      : name(name), address(address), size(size){};
-};
-
-Symbol *getRandomSymbol() {
-  unsigned long i = rand() % symbols.size();
-  return &(symbols.at(i));
-}
 
 // TODO: plz improve me
 bool recurseLibcDir(const char *path, string &libcPath, uint current_depth) {
@@ -156,81 +123,25 @@ bool getLibcPath(string &libcPath) {
   return false;
 }
 
-int getSections(bfd *bfd_h) {
-  int flags;
-  asection *s;
-  uint64_t vma, size;
-  const char *sec_name;
+bool opCompare(cs_x86_op a, cs_x86_op b) {
+  if (a.type == b.type) {
+    switch (a.type) {
+    case X86_OP_REG:
+      return a.reg == b.reg;
+    case X86_OP_IMM:
+      return a.imm == b.imm;
 
-  llvm::dbgs() << "[*] Looking for CODE sections... \n";
+    // For MEM operands, we look only at the base address, since displacement
+    // and other stuff cannot be useful for our purpose
+    case X86_OP_MEM:
+      return a.mem.base == b.mem.base;
 
-  // Iterate through all the sections, picking only the ones that contain
-  // executable code
-  for (s = bfd_h->sections; s; s = s->next) {
-    flags = bfd_get_section_flags(bfd_h, s);
-
-    if (flags & SEC_CODE) {
-      vma = bfd_section_vma(bfd_h, s);
-      size = bfd_section_size(bfd_h, s);
-      sec_name = bfd_section_name(bfd_h, s);
-
-      if (!sec_name)
-        sec_name = "<unnamed>";
-
-      sections.push_back(Section(sec_name, vma, size));
-      // printf("Found code section <%s> at %#08llx [%d bytes]\n", sec_name,
-      // vma, size);
+    default:
+      assert(1 == 2 && "Trying to compare invalid or floating point operands "
+                       "(not supported)");
     }
   }
-  return 0;
-}
-
-void initBfd(string &libcPath, bfd *&bfd_h) {
-  // Opens the binary file and returns a BFD handle
-  bfd_init();
-  const char *path = libcPath.c_str();
-  bfd_h = bfd_openr(path, NULL);
-}
-
-void getDynamicSymbols(bfd *bfd_h) {
-  const char *symbolName;
-  size_t addr, size, nsym;
-
-  llvm::dbgs() << "[*] Scanning for symbols... \n";
-
-  // Allocate memory and get the symbol table
-  size = bfd_get_dynamic_symtab_upper_bound(bfd_h);
-  auto **asymtab = static_cast<asymbol **>(malloc(size));
-  nsym = bfd_canonicalize_dynamic_symtab(bfd_h, asymtab);
-
-  // Scan for all the symbols
-  for (size_t i = 0; i < nsym; i++) {
-    asymbol *sym = asymtab[i];
-
-    // Consider only function symbols with global scope
-    if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
-      symbolName = bfd_asymbol_name(sym);
-
-      if (strcmp(symbolName, "_init") == 0 || strcmp(symbolName, "_fini") == 0)
-        continue;
-
-      addr = bfd_asymbol_value(sym);
-
-      // Get version string to avoid symbol aliasing
-      const char *versionString = NULL;
-      bfd_boolean hidden = false;
-      if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
-        versionString = bfd_get_symbol_version_string(bfd_h, sym, &hidden);
-
-      Symbol s = Symbol(symbolName, versionString, addr);
-      // printf("Found symbol: %s at %#08x\n", symbolName, addr);
-      symbols.push_back(s);
-    }
-  }
-
-  free(asymtab);
-
-  assert(symbols.size() > 0 && "No symbols found!");
+  return false;
 }
 
 Gadget *gadgetLookup(string asmInstr) {
@@ -242,27 +153,6 @@ Gadget *gadgetLookup(string asmInstr) {
     }
   }
   return nullptr;
-}
-
-bool opCompare(cs_x86_op a, cs_x86_op b) {
-  if (a.type == b.type) {
-    switch (a.type) {
-    case X86_OP_REG:
-      return a.reg == b.reg;
-    case X86_OP_IMM:
-      return a.imm == b.imm;
-
-    // For MEM operands, we look only at the base address, since all the other
-    // stuff cannot be useful for our purpose
-    case X86_OP_MEM:
-      return a.mem.base == b.mem.base;
-
-    default:
-      assert(1 == 2 && "Trying to compare invalid or floating point operands "
-                       "(not supported)");
-    }
-  }
-  return false;
 }
 
 Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
@@ -278,10 +168,6 @@ Gadget *gadgetLookup(x86_insn insn, cs_x86_op op0, cs_x86_op op1) {
         // Search by operand
         if (opCompare(gadget.getOp(0), op0) &&
             opCompare(gadget.getOp(1), op1)) {
-
-          llvm::dbgs() << "  FOUND! ----> " << insn << " (" << gadget.asmInstr
-                       << ")"
-                       << "@ " << gadget.address << "\n";
           return &gadget;
         }
       }
@@ -316,7 +202,7 @@ cs_x86_op opCreate(x86_op_type type, uint value) {
   return op;
 }
 
-vector<Gadget> findGadgets() {
+vector<Gadget> extractGadgets() {
   const uint8_t ret[] = "\xc3";
   string libcPath;
 
@@ -395,8 +281,7 @@ vector<Gadget> findGadgets() {
             }
 
             if (gadgetLookup(asm_instr) == nullptr) {
-              gadgets.push_back(Gadget(count, instructions,
-                                       instructions[0].address, asm_instr));
+              gadgets.push_back(Gadget(instructions, asm_instr));
               // llvm::dbgs() << "Added gadget: " << asm_instr << "\n";
               cnt++;
             }
