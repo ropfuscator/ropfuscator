@@ -4,7 +4,6 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
-#include "llvm/Support/Debug.h"
 #include <assert.h>
 #include <fstream>
 #include <iostream>
@@ -84,9 +83,21 @@ BinaryAutopsy::BinaryAutopsy(string path) {
 
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(NULL));
+
+  dumpGadgets();
 }
 
-void BinaryAutopsy::getSections() {
+BinaryAutopsy *BinaryAutopsy::instance = 0;
+
+BinaryAutopsy *BinaryAutopsy::getInstance(string path) {
+  if (instance == 0) {
+    instance = new BinaryAutopsy(path);
+  }
+
+  return instance;
+}
+
+void BinaryAutopsy::dumpSections() {
   int flags;
   asection *s;
   uint64_t vma, size;
@@ -112,7 +123,7 @@ void BinaryAutopsy::getSections() {
   }
 }
 
-void BinaryAutopsy::getDynamicSymbols() {
+void BinaryAutopsy::dumpDynamicSymbols() {
   const char *symbolName;
   size_t addr, size, nsym;
 
@@ -150,6 +161,7 @@ void BinaryAutopsy::getDynamicSymbols() {
   }
 
   free(asymtab);
+  cout << "[*] Found " << Symbols.size() << " symbols\n";
 
   assert(Symbols.size() > 0 && "No symbols found!");
 }
@@ -161,18 +173,22 @@ Symbol *BinaryAutopsy::getRandomSymbol() {
 
 uint8_t BinaryAutopsy::ret[] = "\xc3";
 
-void BinaryAutopsy::extractGadgets() {
+void BinaryAutopsy::dumpGadgets() {
   // capstone stuff
   csh handle;
   cs_insn *instructions;
 
   //  assert(getLibcPath(libcPath));
 
-  getSections();
+  // Dumps sections if it wasn't already done
+  if (Sections.size() == 0)
+    dumpSections();
 
-  getDynamicSymbols();
-  cout << "[*] Found " << Symbols.size() << " symbols\n";
+  // Dumps the dynamic symbol table if it wasn't already done
+  if (Symbols.size() == 0)
+    dumpDynamicSymbols();
 
+  // Initizialises capstone engine
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
   cout << "[*] Looking for gadgets in " << BinaryPath << "\n";
@@ -239,10 +255,18 @@ void BinaryAutopsy::extractGadgets() {
 
   cout << "[*] Found " << Microgadgets.size() << " unique microgadgets!\n";
 
-  /*for (auto const &gadget : gadgets) {
-    llvm::dbgs() << "0x" << gadget.address << ":   \t" << gadget.asmInstr
-                 << "\n";
+  /*for (auto const &gadget : Microgadgets) {
+    cout << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr << "\n";
   }*/
 }
 
-Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) { return nullptr; }
+Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
+  // Legacy: lookup by asm_instr string
+  if (Microgadgets.size() > 0) {
+    for (auto &g : Microgadgets) {
+      if (g.asmInstr.compare(asmInstr) == 0)
+        return &g;
+    }
+  }
+  return nullptr;
+}

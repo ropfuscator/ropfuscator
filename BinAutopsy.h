@@ -30,57 +30,97 @@
 #include <string>
 #include <vector>
 
-namespace std {
-
+// Symbol - entry of the dynamic symbol table. We use them as references
+// to locate the needed gadgets.
 struct Symbol {
+  // Label - i.e., the symbol name.
   char *Label;
+
+  // Version - this is mostly useful when dealing with libc, because within it
+  // there are lots of symbols with the same label. GNU LIBC uses versioning to
+  // ensure compatibility with binaries using an old ABI version.
   char *Version;
+
+  // SymVerDirective - it is just an inline asm directive we need to place to
+  // force the static linker to pick the right symbol version during the
+  // compilation.
   char *SymVerDirective;
+
+  // Address - offset relative to the analysed binary file. When we'll reference
+  // a gadget in memory we'll use this as base address.
   uint64_t Address;
 
-  Symbol(string label, string version, uint64_t address);
+  // Constructor
+  Symbol(std::string label, std::string version, uint64_t address);
 
+  // getSymVerDirective - returns a pointer to the SymVerDirective string.
   char *getSymVerDirective();
 };
 
+// Section - we need to read the ELF header to figure out which are the binary
+// sections that contain executable code, from which the symbol and gadget
+// extraction will take place.
 struct Section {
-  string Label;
+  // Label - section name
+  std::string Label;
+
+  // Address - offset relative to the analysed binary file.
+  // Length - Size of the section.
   uint64_t Address, Length;
 
-  Section(string label, uint64_t address, uint64_t length);
+  // Constructor
+  Section(std::string label, uint64_t address, uint64_t length);
 };
 
+// Microgadget - represents a single x86 instruction that precedes a RET.
 struct Microgadget {
+  // Instr - pointer to a capstone-engine data structure that contains details
+  // on the overall semantics of the instruction, along with address, opcode,
+  // etc.
   cs_insn *Instr;
 
   // debug
-  string asmInstr;
+  std::string asmInstr;
 
-  Microgadget(cs_insn *instr, string asmInstr);
+  // Constructor
+  Microgadget(cs_insn *instr, std::string asmInstr);
+
+  // getAddress - returns the offset relative to the analysed binary file.
   uint64_t getAddress() const;
+
+  // getID - returns the instruction opcode.
   x86_insn getID() const;
+
+  // getOp - returns the i-th instruction operand.
   cs_x86_op getOp(int i) const;
+
+  // getNumOp - returns the total number of operands of the instruction
   uint8_t getNumOp() const;
 };
 
+// BinaryAutopsy - main class that dumps all the data needed by ROPfuscator. It
+// provides also methods to look for specific gadgets and performs the "exchange
+// path" analysis.
 class BinaryAutopsy {
+private:
+  // Singleton
+  static BinaryAutopsy *instance;
+  BinaryAutopsy(std::string path);
+
 public:
   static uint8_t ret[];
-  vector<Symbol> Symbols;
-  vector<Section> Sections;
-  vector<Microgadget> Microgadgets;
+  std::vector<Symbol> Symbols;
+  std::vector<Section> Sections;
+  std::vector<Microgadget> Microgadgets;
   char *BinaryPath;
   bfd *BfdHandle;
 
-  BinaryAutopsy(string path);
-
-  void getSections();
-  void getDynamicSymbols();
+  static BinaryAutopsy *getInstance(std::string path);
+  void dumpSections();
+  void dumpDynamicSymbols();
+  void dumpGadgets();
   Symbol *getRandomSymbol();
-  void extractGadgets();
-  Microgadget *gadgetLookup(string asmInstr);
+  Microgadget *gadgetLookup(std::string asmInstr);
 };
-
-} // namespace std
 
 #endif

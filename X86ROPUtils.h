@@ -9,6 +9,7 @@
 #include "../X86Subtarget.h"
 #include "../X86TargetMachine.h"
 //#include "ROPseeker.h"
+#include "BinAutopsy.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -20,7 +21,7 @@
 using namespace llvm;
 enum type_t { GADGET, IMMEDIATE };
 
-struct ChainElem;
+// struct ChainElem;
 
 struct Stats {
   int processed;
@@ -46,7 +47,9 @@ class ROPChain {
   std::vector<MachineInstr *> instructionsToDelete;
 
   // Gadgets to be pushed onto the stack during the injection phase
-  std::vector<ChainElem> chain;
+  // std::vector<ChainElem> chain;
+
+  static BinaryAutopsy *BA;
 
 public:
   // Labels for inline asm instructions ("C" = colon)
@@ -72,9 +75,6 @@ public:
   void finalize();
   bool isEmpty();
 
-  typedef std::vector<Gadget> ropmap;
-  static ropmap libc_microgadgets;
-
   ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint)
       : MBB(&MBB), injectionPoint(&injectionPoint) {
     MF = MBB.getParent();
@@ -91,9 +91,29 @@ public:
   ~ROPChain() { globalChainID--; }
 };
 
+BinaryAutopsy *ROPChain::BA =
+    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
+/*
+std::BinaryAutopsy *init() {
+  static cl::opt<std::string> BinaryPath(
+      "lib",
+      cl::desc("path to the library from which gadgets must be extracted"),
+      cl::NotHidden, cl::Optional, cl::ValueRequired);
+  StringRef binPath = StringRef(BinaryPath.getValue());
+  if (binPath.empty()) {
+    dbgs() << "[*] No 'lib' argument supplied. Using LIBC\n";
+    binPath = "/lib/i386-linux-gnu/libc.so.6";
+  }
+
+  std::BinaryAutopsy *BA = std::BinaryAutopsy::getInstance(binPath);
+  BA->extractGadgets();
+  return BA;
+}*/
+/*
 struct ChainElem {
   // Element to be pushed onto the stack (gadget or immediate value)
-  // Each ChainElem is associated with a specific symbol: by doing this, we can
+  // Each ChainElem is associated with a specific symbol: by doing this, we
+can
   // avoid to associate one gadget with always the same symbol
   type_t type;
   union {
@@ -120,13 +140,12 @@ struct ChainElem {
 
   uint64_t getRelativeAddress() { return r->getAddress() - s->address; }
 };
-
-ROPChain::ropmap ROPChain::libc_microgadgets = extractGadgets();
+*/
 
 int ROPChain::globalChainID = 0;
 
 void ROPChain::inject() {
-  gadgetLookup(X86_INS_XOR, opCreate(X86_OP_REG, X86_REG_EAX),
+  /*gadgetLookup(X86_INS_XOR, opCreate(X86_OP_REG, X86_REG_EAX),
                opCreate(X86_OP_REG, X86_REG_EAX));
 
   // PROLOGUE: saves the EIP value before executing the ROP chain
@@ -206,7 +225,7 @@ void ROPChain::inject() {
   // Deletes the initial instructions
   for (MachineInstr *MI : instructionsToDelete) {
     MI->eraseFromParent();
-  }
+  }*/
 }
 
 int ROPChain::addInstruction(MachineInstr &MI) {
@@ -234,7 +253,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
    *    - EBX: pointer to the libc base address
    *    - ECX: storage of immediate values
    *    - EDX: storage of memory addresses */
-
+  return 1;
+  /*
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
@@ -289,13 +309,14 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       return 1;
   default:
     return 1;
-  }
+  }*/
 }
 
 void ROPChain::loadEffectiveAddress(int64_t displacement) {
   /* Loads the effective address of a memory reference of type [ebp +
    * $displacement] in EDX */
   // EAX <- EBP
+  /*
   chain.push_back(ChainElem("xchg eax, ebp;"));
   chain.push_back(ChainElem("xchg eax, edx;"));
   chain.push_back(ChainElem("mov eax, edx;"));
@@ -306,11 +327,11 @@ void ROPChain::loadEffectiveAddress(int64_t displacement) {
   chain.push_back(ChainElem(displacement));
   chain.push_back(ChainElem("add eax, ecx;"));
   // EDX <- EAX
-  chain.push_back(ChainElem("xchg eax, edx;"));
+  chain.push_back(ChainElem("xchg eax, edx;"));*/
 }
 
 void ROPChain::finalize() { finalized = true; }
 
 bool ROPChain::isFinalized() { return finalized; }
 
-bool ROPChain::isEmpty() { return chain.empty(); }
+bool ROPChain::isEmpty() { return true; } // chain.empty(); }
