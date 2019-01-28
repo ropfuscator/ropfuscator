@@ -4,7 +4,7 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
-#include "XchgGraph.h"
+#include "CapstoneLLVMAdpt.h"
 #include <assert.h>
 #include <fstream>
 #include <iostream>
@@ -85,7 +85,14 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(NULL));
 
+  dissect();
+}
+
+void BinaryAutopsy::dissect() {
+  dumpSections();
+  dumpDynamicSymbols();
   dumpGadgets();
+  buildXchgGraph();
 }
 
 BinaryAutopsy *BinaryAutopsy::instance = 0;
@@ -263,11 +270,6 @@ void BinaryAutopsy::dumpGadgets() {
   /*for (auto const &gadget : Microgadgets) {
     cout << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr << "\n";
   }*/
-
-  auto xpath = XchgGraph();
-  xpath.addEdge(0, 1);
-  xpath.addEdge(1, 2);
-  xpath.generateCode(0, 2);
 }
 
 Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
@@ -281,4 +283,29 @@ Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   return nullptr;
 }
 
-std::vector<Microgadget *>
+std::vector<Microgadget>
+BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
+  std::vector<Microgadget> res;
+  if (Microgadgets.size() > 0) {
+    for (auto &gadget : Microgadgets) {
+      if (gadget.getID() != insn)
+        continue;
+      if (op0 != gadget.getOp(0).type)
+        continue;
+      if (op1 != 0 && op1 != gadget.getOp(1).type)
+        continue;
+
+      res.push_back(gadget);
+    }
+  }
+  return res;
+}
+
+void BinaryAutopsy::buildXchgGraph() {
+  xgraph = XchgGraph();
+  for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
+    cout << "\nadding xchg " << g.getOp(0).reg << ", " << g.getOp(1).reg;
+    xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
+  }
+  xgraph.generateCode(29, 19);
+}

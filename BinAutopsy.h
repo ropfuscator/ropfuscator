@@ -24,6 +24,7 @@
 #ifndef BINAUTOPSY_H
 #define BINAUTOPSY_H
 
+#include "XchgGraph.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
@@ -109,6 +110,9 @@ private:
   BinaryAutopsy(std::string path);
 
 public:
+  // XchgGraph instance
+  XchgGraph xgraph;
+
   // Symbols - results from dumpDynamicSymbols() are placed here
   std::vector<Symbol> Symbols;
 
@@ -128,6 +132,9 @@ public:
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
 
+  // dissect - dumps all the possible data and performs every analysis
+  void dissect();
+
   // dumpSections - parses the ELF header using LibBFD to obtain a list of
   // sections that contain executable code, from which the symbol and gadget
   // extraction will take place.
@@ -143,6 +150,10 @@ public:
   // decoded using capstone-engine.
   void dumpGadgets();
 
+  // buildXchgGraph - creates a new instance of xgraph and feeds it with all the
+  // XCHG gadgets that have been found.
+  void buildXchgGraph();
+
   // getRandomSymbol - returns a random symbol. This is used to reference each
   // gadget in the ROP chain as sum of a random symbol address and the gadget
   // offset from it.
@@ -151,6 +162,8 @@ public:
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
   Microgadget *gadgetLookup(std::string asmInstr);
+  std::vector<Microgadget> gadgetLookup(x86_insn insn, x86_op_type op0,
+                                        x86_op_type op1 = x86_op_type());
 };
 
 #endif
