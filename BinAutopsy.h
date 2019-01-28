@@ -33,12 +33,12 @@
 // Symbol - entry of the dynamic symbol table. We use them as references
 // to locate the needed gadgets.
 struct Symbol {
-  // Label - i.e., the symbol name.
+  // Label - symbol name.
   char *Label;
 
   // Version - this is mostly useful when dealing with libc, because within it
   // there are lots of symbols with the same label. GNU LIBC uses versioning to
-  // ensure compatibility with binaries using an old ABI version.
+  // ensure compatibility with binaries using old ABI versions.
   char *Version;
 
   // SymVerDirective - it is just an inline asm directive we need to place to
@@ -57,9 +57,7 @@ struct Symbol {
   char *getSymVerDirective();
 };
 
-// Section - we need to read the ELF header to figure out which are the binary
-// sections that contain executable code, from which the symbol and gadget
-// extraction will take place.
+// Section - section data dumped from the ELF header
 struct Section {
   // Label - section name
   std::string Label;
@@ -98,9 +96,12 @@ struct Microgadget {
   uint8_t getNumOp() const;
 };
 
-// BinaryAutopsy - main class that dumps all the data needed by ROPfuscator. It
-// provides also methods to look for specific gadgets and performs the "exchange
-// path" analysis.
+// BinaryAutopsy - dumps all the data needed by ROPfuscator.
+// It provides also methods to look for specific gadgets and performs the
+// "exchange path" analysis.
+// This class has been designed as singleton to simplify the interaction with
+// the ROPChain class. Indeed, we don't want to analyse the same file every time
+// that a new ROPChain is instanciated.
 class BinaryAutopsy {
 private:
   // Singleton
@@ -108,18 +109,47 @@ private:
   BinaryAutopsy(std::string path);
 
 public:
-  static uint8_t ret[];
+  // Symbols - results from dumpDynamicSymbols() are placed here
   std::vector<Symbol> Symbols;
+
+  // Sections - results from dumpSections() are placed here
   std::vector<Section> Sections;
+
+  // Microgadgets - results from dumpGadgets() are placed here
   std::vector<Microgadget> Microgadgets;
+
+  // BinaryPath - path of the binary file that is being analysed
   char *BinaryPath;
+
+  // BfdHandle - an handle to read ELF headers. It is used by dumpSections() and
+  // dumpDynamicSymbols()
   bfd *BfdHandle;
 
+  // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
+
+  // dumpSections - parses the ELF header using LibBFD to obtain a list of
+  // sections that contain executable code, from which the symbol and gadget
+  // extraction will take place.
   void dumpSections();
+
+  // dumpDynamicSymbols - extracts symbols from the .dynsym section. It takes
+  // into account only function symbols with global scope and used in executable
+  // sections.
   void dumpDynamicSymbols();
+
+  // dumpGadgets - extracts every microgadget (i.e., single instructions
+  // before a RET) that can be found in executable sections. Each instruction is
+  // decoded using capstone-engine.
   void dumpGadgets();
+
+  // getRandomSymbol - returns a random symbol. This is used to reference each
+  // gadget in the ROP chain as sum of a random symbol address and the gadget
+  // offset from it.
   Symbol *getRandomSymbol();
+
+  // gadgetLookup - set of overloaded methods to look for a specific gadget in
+  // the set of the ones that have been previously discovered.
   Microgadget *gadgetLookup(std::string asmInstr);
 };
 

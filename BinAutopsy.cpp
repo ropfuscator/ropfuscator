@@ -4,6 +4,7 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
+#include "XchgGraph.h"
 #include <assert.h>
 #include <fstream>
 #include <iostream>
@@ -127,6 +128,10 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   const char *symbolName;
   size_t addr, size, nsym;
 
+  // Dumps sections if it wasn't already done
+  if (Sections.size() == 0)
+    dumpSections();
+
   cout << "[*] Scanning for symbols... \n";
 
   // Allocate memory and get the symbol table
@@ -167,13 +172,17 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 }
 
 Symbol *BinaryAutopsy::getRandomSymbol() {
+  // Dumps the dynamic symbol table if it wasn't already done
+  if (Symbols.size() == 0)
+    dumpDynamicSymbols();
+
   unsigned long i = rand() % Symbols.size();
   return &(Symbols.at(i));
 }
 
-uint8_t BinaryAutopsy::ret[] = "\xc3";
-
 void BinaryAutopsy::dumpGadgets() {
+  uint8_t ret[] = "\xc3";
+
   // capstone stuff
   csh handle;
   cs_insn *instructions;
@@ -183,10 +192,6 @@ void BinaryAutopsy::dumpGadgets() {
   // Dumps sections if it wasn't already done
   if (Sections.size() == 0)
     dumpSections();
-
-  // Dumps the dynamic symbol table if it wasn't already done
-  if (Symbols.size() == 0)
-    dumpDynamicSymbols();
 
   // Initizialises capstone engine
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
@@ -239,7 +244,7 @@ void BinaryAutopsy::dumpGadgets() {
               asm_instr += ";";
             }
 
-            if (gadgetLookup(asm_instr) == nullptr) {
+            if (!gadgetLookup(asm_instr)) {
               Microgadgets.push_back(Microgadget(instructions, asm_instr));
 
               cnt++;
@@ -258,6 +263,11 @@ void BinaryAutopsy::dumpGadgets() {
   /*for (auto const &gadget : Microgadgets) {
     cout << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr << "\n";
   }*/
+
+  auto xpath = XchgGraph();
+  xpath.addEdge(0, 1);
+  xpath.addEdge(1, 2);
+  xpath.generateCode(0, 2);
 }
 
 Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
@@ -270,3 +280,5 @@ Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   }
   return nullptr;
 }
+
+std::vector<Microgadget *>
