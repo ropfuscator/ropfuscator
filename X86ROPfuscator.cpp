@@ -54,15 +54,15 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
 
-    registerLivenessAnalysis(MBB);
+    auto scratchRegTracker = ScratchRegTracker(MBB);
 
     for (MachineInstr &MI : MBB) {
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
         dbgs() << "\n* " << MI;
-        while (int r = deadRegs.getScratchRegister(MI))
-          dbgs() << "live: " << r << "\n";
+        // while (int r = deadRegs.getScratchRegister(MI))
+        //   dbgs() << "live: " << r << "\n";
 
         stats.processed++;
 

@@ -1,6 +1,8 @@
 .DS_Store
 .vscode/settings.json
-
+GPATH
+GRTAGS
+GTAGS
 examples/tmp/*
 examples/bin/*
 examples/lib/*

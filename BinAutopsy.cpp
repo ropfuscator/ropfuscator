@@ -5,9 +5,10 @@
 
 #include "BinAutopsy.h"
 #include "CapstoneLLVMAdpt.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 #include <assert.h>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <stdlib.h>
 #include <string.h>
@@ -112,7 +113,7 @@ void BinaryAutopsy::dumpSections() {
   uint64_t vma, size;
   const char *sec_name;
 
-  cout << "[*] Looking for CODE sections... \n";
+  llvm::dbgs() << "[*] Looking for CODE sections... \n";
 
   // Iterates through all the sections, picking only the ones that contain
   // executable code
@@ -140,7 +141,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   if (Sections.size() == 0)
     dumpSections();
 
-  cout << "[*] Scanning for symbols... \n";
+  llvm::dbgs() << "[*] Scanning for symbols... \n";
 
   // Allocate memory and get the symbol table
   size = bfd_get_dynamic_symtab_upper_bound(BfdHandle);
@@ -174,7 +175,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   }
 
   free(asymtab);
-  cout << "[*] Found " << Symbols.size() << " symbols\n";
+  llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
 
   assert(Symbols.size() > 0 && "No symbols found!");
 }
@@ -204,7 +205,7 @@ void BinaryAutopsy::dumpGadgets() {
   // Initizialises capstone engine
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-  cout << "[*] Looking for gadgets in " << BinaryPath << "\n";
+  llvm::dbgs() << "[*] Looking for gadgets in " << BinaryPath << "\n";
 
   ifstream input_file(BinaryPath, ios::binary);
   assert(input_file.good() && "Unable to open given binary file!");
@@ -212,7 +213,8 @@ void BinaryAutopsy::dumpGadgets() {
   // Get input size
   input_file.seekg(0, ios::end);
   streamoff input_size = input_file.tellg();
-  cout << "[*] Scanning the whole binary (" << input_size << " bytes) ...\n";
+  llvm::dbgs() << "[*] Scanning the whole binary (" << input_size
+               << " bytes) ...\n";
 
   // Read the whole file
   input_file.seekg(0, ios::beg);
@@ -220,7 +222,7 @@ void BinaryAutopsy::dumpGadgets() {
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   for (auto &s : Sections) {
-    cout << "[*] Searching gadgets in section " + s.Label + " ... ";
+    llvm::dbgs() << "[*] Searching gadgets in section " + s.Label + " ... ";
     int cnt = 0;
 
     // Scan for RET instructions
@@ -261,15 +263,17 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
-    cout << cnt << " found!\n";
+    llvm::dbgs() << cnt << " found!\n";
   }
   delete[] buf;
   input_file.close();
 
-  cout << "[*] Found " << Microgadgets.size() << " unique microgadgets!\n";
+  llvm::dbgs() << "[*] Found " << Microgadgets.size()
+               << " unique microgadgets!\n";
 
   /*for (auto const &gadget : Microgadgets) {
-    cout << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr << "\n";
+    llvm::dbgs() << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr
+  << "\n";
   }*/
 }
 
@@ -314,22 +318,23 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  cout << "[*] Building the eXCHanGe Graph ... ";
+  llvm::dbgs() << "[*] Building the eXCHanGe Graph ... ";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
   auto XchgGadgets = gadgetLookup(REG_XCHG);
-  cout << "found " << XchgGadgets.size() << " XCHG gadgets!\n";
+  llvm::dbgs() << "found " << XchgGadgets.size() << " XCHG gadgets!\n";
 
   if (XchgGadgets.size() > 0) {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
-      cout << "\nadding xchg " << g.getOp(0).reg << ", " << g.getOp(1).reg;
+      llvm::dbgs() << "\nadding xchg " << g.getOp(0).reg << ", "
+                   << g.getOp(1).reg;
       xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
     }
     if (xgraph.areExchangeable(29, 19))
-      cout << "29 e 19 scambiabili\n";
+      llvm::dbgs() << "29 e 19 scambiabili\n";
   } else
-    cout << "[!] Unable to build the eXCHanGe Graph\n";
+    llvm::dbgs() << "[!] Unable to build the eXCHanGe Graph\n";
 }
 
 void BinaryAutopsy::assignGadgetClass() {
@@ -387,20 +392,32 @@ void BinaryAutopsy::assignGadgetClass() {
     // debug prints
     switch (g.Class) {
     case REG_INIT:
-      cout << g.asmInstr << " REG_INIT\n";
+      llvm::dbgs() << g.asmInstr << " REG_INIT\n";
       break;
     case REG_LOAD:
-      cout << g.asmInstr << " REG_LOAD\n";
+      llvm::dbgs() << g.asmInstr << " REG_LOAD\n";
       break;
     case REG_STORE:
-      cout << g.asmInstr << " REG_STORE\n";
+      llvm::dbgs() << g.asmInstr << " REG_STORE\n";
       break;
     case REG_XCHG:
-      cout << g.asmInstr << " REG_XCHG\n";
+      llvm::dbgs() << g.asmInstr << " REG_XCHG\n";
       break;
     case REG_RESET:
-      cout << g.asmInstr << " REG_RESET\n";
+      llvm::dbgs() << g.asmInstr << " REG_RESET\n";
       break;
     }*/
   }
+}
+
+bool BinaryAutopsy::canInitReg(unsigned int reg) {
+  if (Microgadgets.size() == 0)
+    dumpGadgets();
+
+  for (auto &g : Microgadgets) {
+    if (g.Class == REG_INIT && g.getOp(0).reg == reg)
+      return true;
+  }
+
+  return false;
 }

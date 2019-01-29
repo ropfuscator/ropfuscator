@@ -253,21 +253,23 @@ int ROPChain::mapBindings(MachineInstr &MI) {
    *    - EBX: pointer to the libc base address
    *    - ECX: storage of immediate values
    *    - EDX: storage of memory addresses */
-  return 1;
-  /*
+
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
-  case X86::ADD32ri:
-    return 1;
-    if (MI.getOperand(0).getReg() == X86::EAX) {
-      chain.push_back(ChainElem("pop ecx;"));
-      chain.push_back(MI.getOperand(2).getImm());
-      chain.push_back(ChainElem("add eax, ecx;"));
-      return 0;
-    } else
-      return 1;
-  case X86::SUB32ri8:
+  case X86::ADD32ri: {
+    // deadRegs.
+  }
+
+    /*
+        if (MI.getOperand(0).getReg() == X86::EAX) {
+          chain.push_back(ChainElem("pop ecx;"));
+          chain.push_back(MI.getOperand(2).getImm());
+          chain.push_back(ChainElem("add eax, ecx;"));
+          return 0;
+        } else
+          return 1;*/
+  /*case X86::SUB32ri8:
   case X86::SUB32ri:
     return 1;
     if (MI.getOperand(0).getReg() == X86::EAX) {
@@ -306,10 +308,10 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       chain.push_back(ChainElem("mov dword ptr [edx], eax;"));
       return 0;
     } else
-      return 1;
+      return 1;*/
   default:
     return 1;
-  }*/
+  }
 }
 
 void ROPChain::loadEffectiveAddress(int64_t displacement) {

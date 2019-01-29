@@ -1,5 +1,6 @@
 #include "XchgGraph.h"
-#include <iostream>
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 #include <limits.h>
 #include <list>
 
@@ -47,8 +48,8 @@ void XchgGraph::generateCode(int s, int dest) {
   int pred[REGS], dist[REGS];
 
   if (BFS(s, dest, pred, dist) == false) {
-    cout << "Given source and destination"
-         << " are not connected";
+    llvm::dbgs() << "Given source and destination"
+                 << " are not connected";
     return;
   }
 
@@ -60,13 +61,13 @@ void XchgGraph::generateCode(int s, int dest) {
     crawl = pred[crawl];
   }
 
-  cout << "Shortest path length is : " << dist[dest];
+  llvm::dbgs() << "Shortest path length is : " << dist[dest];
 
-  cout << "\nPath is::\n";
+  llvm::dbgs() << "\nPath is::\n";
   for (int i = path.size() - 1; i >= 0; i--)
 
     if (i > 0)
-      cout << "xchg " << path[i] << " " << path[i - 1] << "\n";
+      llvm::dbgs() << "xchg " << path[i] << " " << path[i - 1] << "\n";
 }
 
 bool XchgGraph::areExchangeable(int Op0, int Op1) {

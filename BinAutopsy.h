@@ -79,6 +79,7 @@ enum GadgetClass_t {
   REG_XCHG,
   UNDEFINED
 };
+
 // Microgadget - represents a single x86 instruction that precedes a RET.
 struct Microgadget {
   // Instr - pointer to a capstone-engine data structure that contains details
@@ -86,6 +87,7 @@ struct Microgadget {
   // etc.
   cs_insn *Instr;
 
+  // Class - gives basic semantic information about the instruction
   GadgetClass_t Class;
 
   // debug
@@ -176,6 +178,8 @@ public:
                                         x86_op_type op1 = x86_op_type());
   std::vector<Microgadget> gadgetLookup(GadgetClass_t Class);
   void assignGadgetClass();
+
+  bool canInitReg(unsigned int reg);
 };
 
 #endif
