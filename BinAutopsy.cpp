@@ -318,7 +318,7 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  llvm::dbgs() << "[*] Building the eXCHanGe Graph ... ";
+  llvm::dbgs() << "[XchgGraph]\t[*] Building the eXCHanGe Graph ... ";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
@@ -327,13 +327,14 @@ void BinaryAutopsy::buildXchgGraph() {
 
   if (XchgGadgets.size() > 0) {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
-      llvm::dbgs() << "\nadding xchg " << g.getOp(0).reg << ", "
-                   << g.getOp(1).reg;
       xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
+
+      llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g.getOp(0).reg << ", "
+                   << g.getOp(1).reg << "\n";
     }
 
   } else
-    llvm::dbgs() << "[!] Unable to build the eXCHanGe Graph\n";
+    llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
 
   for (auto &pair : xgraph.getExchangePath(X86_REG_EDX, X86_REG_EBX)) {
     llvm::dbgs() << "-> xchg " << pair.first << ", " << pair.second << "\n";

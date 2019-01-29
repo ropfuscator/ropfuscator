@@ -31,22 +31,24 @@
 using namespace llvm;
 
 namespace {
-struct X86ROPfuscationPass : public MachineFunctionPass {
+class X86ROPfuscator : public MachineFunctionPass {
+public:
   static char ID;
 
-  X86ROPfuscationPass() : MachineFunctionPass(ID) {}
+  X86ROPfuscator() : MachineFunctionPass(ID) {
+    // initializeX86ROPfuscatorPass(*PassRegistry::getPassRegistry());
+  }
 
-  bool runOnMachineFunction(MachineFunction &MF);
+  StringRef getPassName() const override { return "X86 ROPfuscator"; }
+  bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
-char X86ROPfuscationPass::ID = 0;
+char X86ROPfuscator::ID = 0;
 } // namespace
 
-FunctionPass *llvm::createX86ROPfuscationPass() {
-  return new X86ROPfuscationPass();
-}
+FunctionPass *llvm::createX86ROPfuscator() { return new X86ROPfuscator(); }
 
-bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
+bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
   dbgs() << "\n[*] Processing function: " << funcName << "\n";
@@ -120,3 +122,7 @@ bool X86ROPfuscationPass::runOnMachineFunction(MachineFunction &MF) {
   // the MachineFunction has been modified
   return true;
 }
+
+static RegisterPass<X86ROPfuscator>
+    X("x86-ropfuscator", "Obfuscate machine code through ROP chains",
+      false /* Only looks at CFG */, false /* Analysis Pass */);
