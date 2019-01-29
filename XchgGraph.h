@@ -23,6 +23,7 @@
 #ifndef XCHGGRAPH_H
 #define XCHGGRAPH_H
 
+#include <utility>
 #include <vector>
 
 #define REGS 100
@@ -33,7 +34,7 @@ public:
 
   void addEdge(int Op0, int Op1);
   bool BFS(int src, int dest, int pred[], int dist[]);
-  void generateCode(int s, int dest);
+  std::vector<std::pair<int, int>> getExchangePath(int src, int dest);
   bool areExchangeable(int Op0, int Op1);
 };
 

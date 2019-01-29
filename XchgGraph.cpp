@@ -44,13 +44,15 @@ bool XchgGraph::BFS(int src, int dest, int pred[], int dist[]) {
   return false;
 }
 
-void XchgGraph::generateCode(int s, int dest) {
+vector<pair<int, int>> XchgGraph::getExchangePath(int src, int dest) {
+  vector<pair<int, int>> exchangePath;
+
   int pred[REGS], dist[REGS];
 
-  if (BFS(s, dest, pred, dist) == false) {
+  if (BFS(src, dest, pred, dist) == false) {
     llvm::dbgs() << "Given source and destination"
                  << " are not connected";
-    return;
+    // return nullptr;
   }
 
   vector<int> path;
@@ -64,10 +66,12 @@ void XchgGraph::generateCode(int s, int dest) {
   llvm::dbgs() << "Shortest path length is : " << dist[dest];
 
   llvm::dbgs() << "\nPath is::\n";
-  for (int i = path.size() - 1; i >= 0; i--)
+  for (int i = path.size() - 1, j = path.size() - 2; j >= 0; i--, j--) {
+    exchangePath.emplace_back(make_pair(path[i], path[j]));
+    llvm::dbgs() << "xchg " << path[i] << " " << path[i - 1] << "\n";
+  }
 
-    if (i > 0)
-      llvm::dbgs() << "xchg " << path[i] << " " << path[i - 1] << "\n";
+  return exchangePath;
 }
 
 bool XchgGraph::areExchangeable(int Op0, int Op1) {

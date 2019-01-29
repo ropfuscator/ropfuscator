@@ -331,10 +331,13 @@ void BinaryAutopsy::buildXchgGraph() {
                    << g.getOp(1).reg;
       xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
     }
-    if (xgraph.areExchangeable(29, 19))
-      llvm::dbgs() << "29 e 19 scambiabili\n";
+
   } else
     llvm::dbgs() << "[!] Unable to build the eXCHanGe Graph\n";
+
+  for (auto &pair : xgraph.getExchangePath(X86_REG_EDX, X86_REG_EBX)) {
+    llvm::dbgs() << "-> xchg " << pair.first << ", " << pair.second << "\n";
+  }
 }
 
 void BinaryAutopsy::assignGadgetClass() {
