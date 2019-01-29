@@ -69,12 +69,8 @@ void XchgGraph::generateCode(int s, int dest) {
       cout << "xchg " << path[i] << " " << path[i - 1] << "\n";
 }
 
-// Driver program to test above functions
-/*
-int buildXchgGraph() {
-  auto xgraph = XchgGraph();
+bool XchgGraph::areExchangeable(int Op0, int Op1) {
+  int pred[REGS], dist[REGS];
 
-  int source = 0, dest = 5;
-  xgraph.generateCode(source, dest);
-  return 0;
-}*/
+  return BFS(Op0, Op1, pred, dist);
+}

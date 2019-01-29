@@ -302,10 +302,20 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
+  cout << "[*] Building the eXCHanGe Graph ... ";
   xgraph = XchgGraph();
-  for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
-    cout << "\nadding xchg " << g.getOp(0).reg << ", " << g.getOp(1).reg;
-    xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
-  }
-  xgraph.generateCode(29, 19);
+
+  // search for all the "xchg reg, reg" gadgets
+  auto XchgGadgets = gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
+  cout << "found " << XchgGadgets.size() << " XCHG gadgets!\n";
+
+  if (XchgGadgets.size() > 0) {
+    for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
+      cout << "\nadding xchg " << g.getOp(0).reg << ", " << g.getOp(1).reg;
+      xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
+    }
+    if (xgraph.areExchangeable(29, 19))
+      cout << "29 e 19 scambiabili\n";
+  } else
+    cout << "[!] Unable to build the eXCHanGe Graph\n";
 }

@@ -34,7 +34,7 @@ public:
   void addEdge(int Op0, int Op1);
   bool BFS(int src, int dest, int pred[], int dist[]);
   void generateCode(int s, int dest);
-  bool areExchangeable();
+  bool areExchangeable(int Op0, int Op1);
 };
 
 #endif
