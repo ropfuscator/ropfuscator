@@ -92,6 +92,7 @@ void BinaryAutopsy::dissect() {
   dumpSections();
   dumpDynamicSymbols();
   dumpGadgets();
+  assignGadgetClass();
   buildXchgGraph();
 }
 
@@ -301,12 +302,23 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   return res;
 }
 
+std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
+  std::vector<Microgadget> res;
+  if (Microgadgets.size() > 0) {
+    for (auto &gadget : Microgadgets) {
+      if (gadget.Class == Class)
+        res.push_back(gadget);
+    }
+  }
+  return res;
+}
+
 void BinaryAutopsy::buildXchgGraph() {
   cout << "[*] Building the eXCHanGe Graph ... ";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
-  auto XchgGadgets = gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
+  auto XchgGadgets = gadgetLookup(REG_XCHG);
   cout << "found " << XchgGadgets.size() << " XCHG gadgets!\n";
 
   if (XchgGadgets.size() > 0) {
@@ -318,4 +330,77 @@ void BinaryAutopsy::buildXchgGraph() {
       cout << "29 e 19 scambiabili\n";
   } else
     cout << "[!] Unable to build the eXCHanGe Graph\n";
+}
+
+void BinaryAutopsy::assignGadgetClass() {
+  // Dumps gadgets if it wasn't already done
+  if (Microgadgets.size() == 0)
+    dumpGadgets();
+
+  for (auto &g : Microgadgets) {
+    switch (g.getID()) {
+    case X86_INS_POP: {
+      // pop reg1
+      if (g.getOp(0).type == X86_OP_REG)
+        g.Class = REG_INIT;
+      break;
+    }
+    case X86_INS_XOR: {
+      // xor reg1, reg2
+      // operands must be both of type register and the same
+      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_REG &&
+          g.getOp(0).reg == g.getOp(1).reg)
+        g.Class = REG_RESET;
+      break;
+    }
+    case X86_INS_MOV: {
+      // mov reg1, [reg2]
+      // dst must be a register, src must be a plain pointer in reg2
+      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_MEM &&
+          g.getOp(1).mem.segment == X86_REG_INVALID &&
+          g.getOp(1).mem.index == X86_REG_INVALID &&
+          g.getOp(1).mem.scale == 1 && g.getOp(1).mem.disp == 0)
+        g.Class = REG_LOAD;
+      else
+          // mov [reg1], reg2
+          if (g.getOp(1).type == X86_OP_REG && g.getOp(0).type == X86_OP_MEM &&
+              g.getOp(0).mem.segment == X86_REG_INVALID &&
+              g.getOp(0).mem.index == X86_REG_INVALID &&
+              g.getOp(0).mem.scale == 1 && g.getOp(0).mem.disp == 0)
+        g.Class = REG_STORE;
+      else
+        g.Class = UNDEFINED;
+      break;
+    }
+    case X86_INS_XCHG: {
+      // xchg reg1, reg2
+      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_REG &&
+          g.getOp(0).reg != g.getOp(1).reg)
+        g.Class = REG_XCHG;
+      break;
+    }
+    default:
+      g.Class = UNDEFINED;
+    }
+
+    /*
+    // debug prints
+    switch (g.Class) {
+    case REG_INIT:
+      cout << g.asmInstr << " REG_INIT\n";
+      break;
+    case REG_LOAD:
+      cout << g.asmInstr << " REG_LOAD\n";
+      break;
+    case REG_STORE:
+      cout << g.asmInstr << " REG_STORE\n";
+      break;
+    case REG_XCHG:
+      cout << g.asmInstr << " REG_XCHG\n";
+      break;
+    case REG_RESET:
+      cout << g.asmInstr << " REG_RESET\n";
+      break;
+    }*/
+  }
 }

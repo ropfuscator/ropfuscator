@@ -71,12 +71,22 @@ struct Section {
   Section(std::string label, uint64_t address, uint64_t length);
 };
 
+enum GadgetClass_t {
+  REG_INIT,
+  REG_RESET,
+  REG_LOAD,
+  REG_STORE,
+  REG_XCHG,
+  UNDEFINED
+};
 // Microgadget - represents a single x86 instruction that precedes a RET.
 struct Microgadget {
   // Instr - pointer to a capstone-engine data structure that contains details
   // on the overall semantics of the instruction, along with address, opcode,
   // etc.
   cs_insn *Instr;
+
+  GadgetClass_t Class;
 
   // debug
   std::string asmInstr;
@@ -125,7 +135,7 @@ public:
   // BinaryPath - path of the binary file that is being analysed
   char *BinaryPath;
 
-  // BfdHandle - an handle to read ELF headers. It is used by dumpSections() and
+  // BfdHandle - an handle to read ELF headers. Used by dumpSections() and
   // dumpDynamicSymbols()
   bfd *BfdHandle;
 
@@ -164,6 +174,8 @@ public:
   Microgadget *gadgetLookup(std::string asmInstr);
   std::vector<Microgadget> gadgetLookup(x86_insn insn, x86_op_type op0,
                                         x86_op_type op1 = x86_op_type());
+  std::vector<Microgadget> gadgetLookup(GadgetClass_t Class);
+  void assignGadgetClass();
 };
 
 #endif
