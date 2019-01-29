@@ -5,19 +5,18 @@
 // This module parses all the XCHG microgadgets found by Binary Autopsy,
 // building a graph basing on their operands.
 // In this graph, registers are the nodes, while each XCHG gadget is represented
-// by an edge between two registers.
+// by an edge between the involved registers.
 //
 // Once the graph has been built, it is possible to tell whether the content of
 // two registers can be exchanged: in this case we say that they belong to the
 // same "exchange path".
 // Obtaining this kind of information is crucial to extend the scope of our
-// gadgets. For instance, if we have a gadget like this:
-//          mov eax, esi
-// and we figure out that the "esi" register is exchangable with "ebx", the
-// following semantic equivalence is verified:
+// gadgets. For instance, if we have a gadget like "mov eax, esi" and we figure
+// out that the "esi" register is exchangable with "ebx", the following semantic
+// equivalence is verified:
 //
 //                                   xchg esi, ebx
-//          mov eax, ebx    <===>    mov eax, esi
+//          mov eax, ebx  < === >    mov eax, esi
 //                                   xchg esi, ebx
 //
 

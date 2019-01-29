@@ -18,3 +18,7 @@ bool opCompare(cs_x86_op a, cs_x86_op b);
 
 // opCreate - creates an operand from scratch.
 cs_x86_op opCreate(x86_op_type type, unsigned int value);
+
+// convertToCapstoneReg - simple lookup table that translates register enums
+// from the LLVM representation (e.g. X86::EAX) to capstone (X86_REG_EAX).
+x86_reg convertToCapstoneReg(unsigned int reg);
