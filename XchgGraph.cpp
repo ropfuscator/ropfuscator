@@ -11,7 +11,7 @@ void XchgGraph::addEdge(int Op0, int Op1) {
   adj[Op1].push_back(Op0);
 }
 
-bool XchgGraph::BFS(int src, int dest, int pred[], int dist[]) {
+bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[]) {
   list<int> queue;
   bool visited[REGS];
 
@@ -20,6 +20,9 @@ bool XchgGraph::BFS(int src, int dest, int pred[], int dist[]) {
     dist[i] = INT_MAX;
     pred[i] = -1;
   }
+
+  if (src == dest)
+    return true;
 
   visited[src] = true;
   dist[src] = 0;
@@ -44,16 +47,13 @@ bool XchgGraph::BFS(int src, int dest, int pred[], int dist[]) {
   return false;
 }
 
-vector<pair<int, int>> XchgGraph::getExchangePath(int src, int dest) {
+vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
   vector<pair<int, int>> exchangePath;
 
   int pred[REGS], dist[REGS];
 
-  if (BFS(src, dest, pred, dist) == false) {
-    llvm::dbgs() << "Given source and destination"
-                 << " are not connected";
-    // return nullptr;
-  }
+  assert(checkPath(src, dest, pred, dist) &&
+         "Src and dest operand are not connected. Use checkPath() first.");
 
   vector<int> path;
   int crawl = dest;
@@ -63,19 +63,9 @@ vector<pair<int, int>> XchgGraph::getExchangePath(int src, int dest) {
     crawl = pred[crawl];
   }
 
-  llvm::dbgs() << "Shortest path length is : " << dist[dest];
-
-  llvm::dbgs() << "\nPath is::\n";
   for (int i = path.size() - 1, j = path.size() - 2; j >= 0; i--, j--) {
     exchangePath.emplace_back(make_pair(path[i], path[j]));
-    llvm::dbgs() << "xchg " << path[i] << " " << path[i - 1] << "\n";
   }
 
   return exchangePath;
-}
-
-bool XchgGraph::areExchangeable(int Op0, int Op1) {
-  int pred[REGS], dist[REGS];
-
-  return BFS(Op0, Op1, pred, dist);
 }

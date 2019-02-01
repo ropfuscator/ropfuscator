@@ -20,6 +20,9 @@
 // the registers that are available after each single instruction has been
 // executed.
 
+#ifndef LIVENESSANALYSIS_H
+#define LIVENESSANALYSIS_H
+
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <map>
@@ -51,7 +54,7 @@ public:
 
   // getRegs - returns an array of all the scratch registers available after the
   // given instruction.
-  std::vector<int> getRegs(llvm::MachineInstr &MI);
+  std::vector<int> *getRegs(llvm::MachineInstr &MI);
 
   // getReg - returns a scratch register.
   int getReg(llvm::MachineInstr &MI);
@@ -63,3 +66,5 @@ public:
   // count - returns the number of available scratch registers.
   int count(llvm::MachineInstr &MI);
 };
+
+#endif

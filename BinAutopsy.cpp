@@ -306,6 +306,25 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   return res;
 }
 
+std::vector<Microgadget> BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0,
+                                                     x86_reg op1) {
+  std::vector<Microgadget> res;
+  if (Microgadgets.size() > 0) {
+    for (auto &gadget : Microgadgets) {
+      if (gadget.getID() != insn)
+        continue;
+      if (gadget.getOp(0).type == X86_OP_REG && gadget.getOp(0).reg != op0)
+        continue;
+      if (op1 != X86_REG_INVALID && gadget.getOp(1).type == X86_OP_REG &&
+          gadget.getOp(1).reg != op1)
+        continue;
+
+      res.push_back(gadget);
+    }
+  }
+  return res;
+}
+
 std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
   std::vector<Microgadget> res;
   if (Microgadgets.size() > 0) {
@@ -318,7 +337,7 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  llvm::dbgs() << "[XchgGraph]\t[*] Building the eXCHanGe Graph ... ";
+  llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... ";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
@@ -336,7 +355,7 @@ void BinaryAutopsy::buildXchgGraph() {
   } else
     llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
 
-  for (auto &pair : xgraph.getExchangePath(X86_REG_EDX, X86_REG_EBX)) {
+  for (auto &pair : xgraph.getPath(X86_REG_EDX, X86_REG_EBX)) {
     llvm::dbgs() << "-> xchg " << pair.first << ", " << pair.second << "\n";
   }
 }
@@ -424,4 +443,39 @@ bool BinaryAutopsy::canInitReg(unsigned int reg) {
   }
 
   return false;
+}
+
+bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
+  int pred[REGS], dist[REGS];
+  // if the third param hasn't been set, check only the first two
+  if (c == X86_REG_INVALID)
+    return xgraph.checkPath(a, b, pred, dist);
+
+  return (xgraph.checkPath(a, b, pred, dist) &&
+          xgraph.checkPath(b, c, pred, dist));
+}
+
+vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
+  vector<x86_reg> ret;
+  for (auto &g : gadgetLookup(REG_INIT))
+    ret.push_back(g.getOp(0).reg);
+  return ret;
+}
+
+vector<Microgadget> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
+  vector<Microgadget> exchangePath;
+  vector<pair<int, int>> path = xgraph.getPath(a, b);
+  for (auto &edge : path) {
+    // even if the XCHG instruction doesn't care about the order of operands, we
+    // have to find the right gadget with the same operand order as decoded by
+    // capstone.
+    auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
+                            static_cast<x86_reg>(edge.second));
+    if (res.size() == 0)
+      res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
+                         static_cast<x86_reg>(edge.first));
+
+    exchangePath.push_back(res[0]);
+  }
+  return exchangePath;
 }

@@ -48,6 +48,13 @@ int ScratchRegTracker::getReg(MachineInstr &MI) {
   return NULL;
 }
 
+std::vector<int> *ScratchRegTracker::getRegs(MachineInstr &MI) {
+  std::vector<int> *tmp = findRegs(MI);
+  if (tmp)
+    return tmp;
+  return nullptr;
+}
+
 int ScratchRegTracker::popReg(MachineInstr &MI) {
   std::vector<int> *tmp = findRegs(MI);
   if (tmp) {

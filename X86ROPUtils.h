@@ -10,6 +10,8 @@
 #include "../X86TargetMachine.h"
 //#include "ROPseeker.h"
 #include "BinAutopsy.h"
+#include "CapstoneLLVMAdpt.h"
+#include "LivenessAnalysis.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -63,20 +65,24 @@ public:
   MachineFunction *MF;
   MachineInstr *injectionPoint;
   MCInstrInfo const *TII;
+  ScratchRegTracker &SRT;
 
   // Methods
   int addInstruction(MachineInstr &MI);
   int mapBindings(MachineInstr &MI);
   void inject();
   void loadEffectiveAddress(int64_t displacement);
+  Microgadget *pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
+                                  MachineInstr &MI);
 
   // Helper methods
   bool isFinalized();
   void finalize();
   bool isEmpty();
 
-  ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint)
-      : MBB(&MBB), injectionPoint(&injectionPoint) {
+  ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
+           ScratchRegTracker &SRT)
+      : MBB(&MBB), injectionPoint(&injectionPoint), SRT(SRT) {
     MF = MBB.getParent();
     TII = MF->getTarget().getMCInstrInfo();
     chainID = globalChainID++;
@@ -245,6 +251,56 @@ int ROPChain::addInstruction(MachineInstr &MI) {
   return err;
 }
 
+// Among a set of RR gadgets, picks the one that has:
+//   1. as dst operand the register we supply, or at least one that is
+//   exchangeable
+//   2. as src operand a register that is at least indirectly initialisable via
+//   a scratch register.
+Microgadget *ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR,
+                                          x86_reg o_dst, MachineInstr &MI) {
+  std::vector<Microgadget> dstXchg;
+
+  for (Microgadget &g : RR) {
+
+    x86_reg g_dst = g.getOp(0).reg; // gadget dst operand
+    x86_reg g_src = g.getOp(1).reg; // gadget src operand
+
+    // same src and dst operands -> skip
+    if (g_src == g_dst)
+      continue;
+
+    // dst operands of original instr. and RR gadget don't belong to a
+    // feasible exchange path -> skip
+    if (!BA->checkXchgPath(o_dst, g_dst)) {
+      dbgs() << "skipping gadget " << g.asmInstr << "\n";
+      continue;
+    }
+
+    dbgs() << "gadget " << g.asmInstr << " seems ok\n";
+    dstXchg = BA->getXchgPath(o_dst, g_dst);
+
+    dbgs() << "xchgpath (" << o_dst << ", " << g_dst << "):\n";
+    for (auto &a : dstXchg)
+      dbgs() << a.asmInstr << "\n";
+
+    // now we have to check whether the src operand of the RR gadget can be
+    // directly or indirectly initialisable via a scratch register
+    for (auto &initialisableReg : BA->getInitialisableRegs()) {
+      for (auto &scratchReg : *SRT.getRegs(MI)) {
+
+        // convert LLVM register enum (e.g. X86::EAX) in capstone
+        // (X86_REG_EAX);
+        x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
+        if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
+          dbgs() << "found! " << g.asmInstr << "\n";
+          return &g;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 int ROPChain::mapBindings(MachineInstr &MI) {
   /* Given a specific MachineInstr it tries to find a series of gadgets that
    * can replace the input instruction maintaining the same semantics.
@@ -258,7 +314,27 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
-    // deadRegs.
+
+    // Abort if no scratch registers are available, or if the dst operand is ESP
+    // (we are unable to modify it since we are using microgadgets).
+    if (SRT.count(MI) < 1 || MI.getOperand(0).getReg() == X86::ESP)
+      return 1;
+
+    // searches an ADD instruction with register-register flavour
+    auto RR = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
+
+    // no RR-gadgets found -> abort
+    if (RR.size() == 0)
+      return 1;
+
+    // original instr. dst operand
+    x86_reg o_dst = convertToCapstoneReg(MI.getOperand(0).getReg());
+
+    // iterate through all the RR gadgets until a suitable one is found
+    Microgadget *suitable = pickSuitableGadget(RR, o_dst, MI);
+
+    if (suitable)
+      dbgs() << "found the right gadget: " << suitable->asmInstr << "\n";
   }
 
     /*

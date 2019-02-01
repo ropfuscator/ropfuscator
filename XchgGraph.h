@@ -29,13 +29,21 @@
 #define REGS 100
 
 class XchgGraph {
-public:
+  // adj[] - adjacency list
   std::vector<int> adj[REGS];
 
+public:
+  // addEdge - adds a new edge between Op0 and Op1.
   void addEdge(int Op0, int Op1);
-  bool BFS(int src, int dest, int pred[], int dist[]);
-  std::vector<std::pair<int, int>> getExchangePath(int src, int dest);
-  bool areExchangeable(int Op0, int Op1);
+
+  // checkPath - Breadth First Search algorithm implementation. It simply
+  // returns tells whether two nodes are mutually reachable. If the two optional
+  // output parameters are given, it is possible to compute the actual path
+  // (this is done by getPath()).
+  bool checkPath(int src, int dest, int pred[], int dist[]);
+
+  // getPath - returns the entire path from src to dest, edge by edge.
+  std::vector<std::pair<int, int>> getPath(int src, int dest);
 };
 
 #endif

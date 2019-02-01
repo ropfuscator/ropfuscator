@@ -73,7 +73,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
            * Machine Basic Block has been processed, we have to pass the
            * MachineInstr by value, because it is an iterator and, at some
            * point, it will be invalidated. */
-          ROPChain *ropChain = new ROPChain(MBB, MI);
+          ROPChain *ropChain = new ROPChain(MBB, MI, scratchRegTracker);
           ropChains.push_back(ropChain);
         }
 
