@@ -189,7 +189,7 @@ public:
   bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
 
   // getXchgPath - gets the path between two registers edge by edge from
-  // XChgGraph, then return a vector of the actual XCHG microgadgets.
+  // XChgGraph, then returns a vector of the actual XCHG microgadgets.
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
 };
 

@@ -88,7 +88,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           if (lastChain->isEmpty()) {
             /* The last created chain is pointless at this point, since it's
              * empty. */
-            dbgs() << "last chain is empty\n";
             delete lastChain;
             ropChains.pop_back();
           } else
@@ -99,7 +98,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         }
       }
     }
-    dbgs() << "now injecting " << ropChains.size() << " chains\n";
+
     /* IMPORTANT: the injection must occur only after that the entire Machine
      * Basic Block has been run through, otherwise an exception is thrown. For
      * this reason, we use a vector in which we put all the chains to be

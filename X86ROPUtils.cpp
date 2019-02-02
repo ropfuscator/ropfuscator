@@ -131,8 +131,7 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
 
     x86_reg g_dst = g.getOp(0).reg; // gadget dst operand
     x86_reg g_src = g.getOp(1).reg; // gadget src operand
-    if (g_dst == X86_REG_EAX && g_src == X86_REG_ECX)
-      continue;
+
     // same src and dst operands -> skip
     if (g_src == g_dst)
       continue;
@@ -145,13 +144,11 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
     // now we have to check whether the src operand of the RR gadget can be
     // directly or indirectly initialisable via a scratch register
     for (auto &initialisableReg : BA->getInitialisableRegs()) {
-      dbgs() << "init: " << initialisableReg << "\n";
       for (auto &scratchReg : *SRT.getRegs(MI)) {
 
         // convert LLVM register enum (e.g. X86::EAX) in capstone
         // (X86_REG_EAX);
         x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
-        dbgs() << "scratch: " << capScratchReg << "\n";
         if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
           xchgDirective = std::make_tuple(&g, initialisableReg, capScratchReg);
           return xchgDirective;
@@ -163,21 +160,24 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
+  // if ESP is one of the operands of MI -> abort
+  for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
+    if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
+      return 1;
+  }
 
   unsigned opcode = MI.getOpcode();
-
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
 
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
-    if (SRT.count(MI) < 1 || MI.getOperand(0).getReg() == X86::ESP)
+    if (SRT.count(MI) < 1)
       return 1;
 
     // searches an ADD instruction with register-register flavour; if nothing
     // is found -> abort
-
     auto RR = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
     if (RR.size() == 0)
       return 1;
@@ -188,70 +188,51 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // iterate through all the RR gadgets until a suitable one is found
     std::tuple<Microgadget *, x86_reg, x86_reg> suitable =
         pickSuitableGadget(RR, o_dst, MI);
-
     Microgadget *picked = std::get<0>(suitable);
     x86_reg init = std::get<1>(suitable);
     x86_reg scratch = std::get<2>(suitable);
+    if (picked == nullptr)
+      return 1;
 
     dbgs() << "found the right gadget: " << std::get<0>(suitable)->asmInstr
            << "\n";
     dbgs() << "scratch reg: " << scratch << ", init reg: " << init << "\n";
 
     // Step 1: initialise the register
-    // In the worst case, we have to exchange the initialisable register with
-    // the scratch register. Initialise that register. Exchange back again, then
-    // exchange scratch register and instruction src operand.
 
     // reserve the scratch register by popping it
-    // TODO: DO I REALLY NEED TO DO THIS?
     SRT.popReg(MI, scratch);
 
+    // build xchg path (scratch -> init)
     std::vector<Microgadget *> tmp = BA->getXchgPath(scratch, init);
-    if (tmp.size() == 0)
-      dbgs() << "no xchg required between scratch and init\n";
-    else
-      dbgs() << tmp.size() << " xchg to perform:\n";
-    for (auto &a : tmp) {
-      dbgs() << "x -> " << a->asmInstr << "\n";
+    for (auto &a : tmp)
       chain.emplace_back(ChainElem(a));
-    }
 
-    // here scratch = initilisable
-    dbgs() << "looking for a pop " << init << "\n";
+    // now the contents of init are in scratch and viceversa, so we can pop
+    // init
     Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, init).front();
-    dbgs() << regInit->asmInstr << "\n";
     chain.emplace_back(ChainElem(regInit));
     chain.push_back(MI.getOperand(2).getImm());
 
-    // exchange back
+    // build xchg path (scratch <- init)
     tmp = BA->getXchgPath(init, scratch);
-    if (tmp.size() == 0)
-      dbgs() << "no xchg required between init and scratch\n";
-
-    for (auto &a : tmp) {
-      dbgs() << "x -> " << a->asmInstr << "\n";
+    for (auto &a : tmp)
       chain.emplace_back(ChainElem(a));
-    }
 
-    // exchange dst gadget op
+    // Step 2: at this point we have indirectly initialised the scratch
+    // register. Now it is time to exchange registers again in order to match
+    // the operands of the RR instruction.
+
+    //  build xchg path (o_dst -> g_dst)
     tmp = BA->getXchgPath(o_dst, picked->getOp(0).reg);
-    if (tmp.size() == 0)
-      dbgs() << "no xchg required between original dst and gadget dst\n";
-
-    for (auto &a : tmp) {
-      dbgs() << "x -> " << a->asmInstr << "\n";
+    for (auto &a : tmp)
       chain.emplace_back(ChainElem(a));
-    }
-    // exchange src gadget op
+
+    // build xchg path (scratch -> g_src)
     tmp = BA->getXchgPath(scratch, picked->getOp(1).reg);
-    if (tmp.size() == 0)
-      dbgs() << "no xchg required between the loaded scratch register and "
-                "gadget src\n";
-
-    for (auto &a : tmp) {
-      dbgs() << "x -> " << a->asmInstr << "\n";
+    for (auto &a : tmp)
       chain.emplace_back(ChainElem(a));
-    }
+
     // rr instruction
     chain.emplace_back(ChainElem(picked));
 

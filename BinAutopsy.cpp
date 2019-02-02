@@ -341,15 +341,18 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... ";
+  llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... \n";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
   auto XchgGadgets = gadgetLookup(REG_XCHG);
-  llvm::dbgs() << "found " << XchgGadgets.size() << " XCHG gadgets!\n";
 
   if (XchgGadgets.size() > 0) {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
+      // We skip XCHG gadgets with ESP as operand, since we cannot deal with the
+      // stack pointer using just microgadgets.
+      if (g.getOp(0).reg == X86_REG_ESP || g.getOp(1).reg == X86_REG_ESP)
+        continue;
       xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
 
       llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g.getOp(0).reg << ", "
@@ -358,10 +361,6 @@ void BinaryAutopsy::buildXchgGraph() {
 
   } else
     llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
-
-  for (auto &pair : xgraph.getPath(X86_REG_EDX, X86_REG_EBX)) {
-    llvm::dbgs() << "-> xchg " << pair.first << ", " << pair.second << "\n";
-  }
 }
 
 void BinaryAutopsy::assignGadgetClass() {
@@ -469,7 +468,7 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
   vector<Microgadget *> exchangePath;
   vector<pair<int, int>> path = xgraph.getPath(a, b);
-  llvm::dbgs() << "getting xchg path: " << a << ", " << b << "\n";
+
   for (auto &edge : path) {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
