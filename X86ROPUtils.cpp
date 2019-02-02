@@ -9,8 +9,10 @@ using namespace llvm;
 // Chain Element
 // ------------------------------------------------------------------------
 
-ChainElem::ChainElem(Microgadget &g) {
-  r = &g;
+ChainElem::ChainElem(Microgadget *g) {
+  // dbgs() << "\t ChainElem: gadget @ " << *r << "\n";
+  r = g;
+
   type = GADGET;
   s = ROPChain::BA->getRandomSymbol();
 };
@@ -18,6 +20,7 @@ ChainElem::ChainElem(Microgadget &g) {
 ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
 uint64_t ChainElem::getRelativeAddress() {
+
   return r->getAddress() - s->Address;
 }
 
@@ -34,7 +37,7 @@ void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
   // PROLOGUE: saves the EIP value before executing the ROP chain
   // pushf (EFLAGS register backup)
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
+  // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
   // call chain_X
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
       .addExternalSymbol(chainLabel);
@@ -59,17 +62,17 @@ void ROPChain::inject() {
     }
 
     case GADGET: {
-      // Push a random symbol that, when resolved by the dynamic linker, willbe
+      // Push a random symbol that, when resolved by the dynamic linker, will be
       // used as base address; then add the offset to point a specific
       // gadget
-      dbgs() << "Processing gadget: " << e->r->asmInstr << "\n";
+      // dbgs() << "Processing gadget: " << e->r->asmInstr << "\n";
       // call $opaquePredicate
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
-          .addExternalSymbol("opaquePredicate");
+      /*BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
+          .addExternalSymbol("opaquePredicate");*/
 
       // je $wrong_target
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
-          .addExternalSymbol(chainLabel);
+      // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
+      //    .addExternalSymbol(chainLabel);
       dbgs() << "Writing symver\n";
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name
@@ -105,7 +108,7 @@ void ROPChain::inject() {
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
   // popf (EFLAGS register restore)
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
+  // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
 
   // Deletes the initial instructions
   for (MachineInstr *MI : instructionsToDelete) {
@@ -163,7 +166,9 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
+
   unsigned opcode = MI.getOpcode();
+
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
@@ -175,6 +180,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // searches an ADD instruction with register-register flavour; if nothing
     // is found -> abort
+
     auto RR = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
     if (RR.size() == 0)
       return 1;
@@ -203,18 +209,18 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // TODO: DO I REALLY NEED TO DO THIS?
     SRT.popReg(MI, scratch);
 
-    std::vector<Microgadget> tmp = BA->getXchgPath(init, scratch);
+    std::vector<Microgadget *> tmp = BA->getXchgPath(init, scratch);
     if (tmp.size() == 0)
       dbgs() << "no xchg required between scratch and init\n";
     else
       dbgs() << tmp.size() << " xchg to perform:\n";
     for (auto &a : tmp) {
-      dbgs() << "x -> " << a.asmInstr << "\n";
-      chain.push_back(ChainElem(a));
+      dbgs() << "x -> " << a->asmInstr << "\n";
+      chain.emplace_back(ChainElem(a));
     }
 
     // here scratch = initilisable
-    Microgadget regInit = BA->gadgetLookup(X86_INS_POP, scratch).front();
+    Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, scratch).front();
 
     // exchange back
     tmp = BA->getXchgPath(scratch, init);
@@ -222,7 +228,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       dbgs() << "no xchg required between init and scratch\n";
 
     for (auto &a : tmp)
-      dbgs() << "x -> " << a.asmInstr << "\n";
+      dbgs() << "x -> " << a->asmInstr << "\n";
 
     // exchange dst gadget op
     tmp = BA->getXchgPath(o_dst, picked->getOp(0).reg);
@@ -230,7 +236,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       dbgs() << "no xchg required between original dst and gadget dst\n";
 
     for (auto &a : tmp)
-      dbgs() << "x -> " << a.asmInstr << "\n";
+      dbgs() << "x -> " << a->asmInstr << "\n";
 
     // exchange src gadget op
     tmp = BA->getXchgPath(scratch, picked->getOp(1).reg);
@@ -239,9 +245,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
                 "gadget src\n";
 
     for (auto &a : tmp)
-      dbgs() << "x -> " << a.asmInstr << "\n";
+      dbgs() << "x -> " << a->asmInstr << "\n";
     return 0;
   }
+  default:
+    return 1;
   }
 }
 

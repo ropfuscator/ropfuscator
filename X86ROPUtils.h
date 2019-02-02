@@ -32,7 +32,7 @@ struct ChainElem {
   };
   Symbol *s;
 
-  ChainElem(Microgadget &g);
+  ChainElem(Microgadget *g);
 
   ChainElem(int64_t value);
 

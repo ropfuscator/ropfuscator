@@ -306,9 +306,9 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   return res;
 }
 
-std::vector<Microgadget> BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0,
-                                                     x86_reg op1) {
-  std::vector<Microgadget> res;
+std::vector<Microgadget *>
+BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
+  std::vector<Microgadget *> res;
   if (Microgadgets.size() > 0) {
     for (auto &gadget : Microgadgets) {
       // do these checks:
@@ -323,7 +323,7 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0,
           (op1 == X86_REG_INVALID ||
            (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
 
-        res.push_back(gadget);
+        res.push_back(&gadget);
     }
   }
   return res;
@@ -466,8 +466,8 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
   return ret;
 }
 
-vector<Microgadget> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
-  vector<Microgadget> exchangePath;
+vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
+  vector<Microgadget *> exchangePath;
   vector<pair<int, int>> path = xgraph.getPath(a, b);
   llvm::dbgs() << "getting xchg path: " << a << ", " << b << "\n";
   for (auto &edge : path) {

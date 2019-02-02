@@ -176,8 +176,8 @@ public:
   Microgadget *gadgetLookup(std::string asmInstr);
   std::vector<Microgadget> gadgetLookup(x86_insn insn, x86_op_type op0,
                                         x86_op_type op1 = x86_op_type());
-  std::vector<Microgadget> gadgetLookup(x86_insn insn, x86_reg op0,
-                                        x86_reg op1 = X86_REG_INVALID);
+  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_reg op0,
+                                          x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget> gadgetLookup(GadgetClass_t Class);
   void assignGadgetClass();
 
@@ -190,7 +190,7 @@ public:
 
   // getXchgPath - gets the path between two registers edge by edge from
   // XChgGraph, then return a vector of the actual XCHG microgadgets.
-  std::vector<Microgadget> getXchgPath(x86_reg a, x86_reg b);
+  std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
 };
 
 #endif
