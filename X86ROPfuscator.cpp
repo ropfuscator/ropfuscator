@@ -63,8 +63,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
         dbgs() << "\n* " << MI;
-        // while (int r = deadRegs.getScratchRegister(MI))
-        //   dbgs() << "live: " << r << "\n";
 
         stats.processed++;
 
@@ -86,21 +84,22 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
            * processed, another chain will be created. This essentially means
            * that a chain is split every time an un-replaceable instruction is
            * encountered. */
-          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
+          dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
           if (lastChain->isEmpty()) {
             /* The last created chain is pointless at this point, since it's
              * empty. */
+            dbgs() << "last chain is empty\n";
             delete lastChain;
             ropChains.pop_back();
           } else
             lastChain->finalize();
         } else {
-          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
+          dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
           stats.replaced++;
         }
       }
     }
-
+    dbgs() << "now injecting " << ropChains.size() << " chains\n";
     /* IMPORTANT: the injection must occur only after that the entire Machine
      * Basic Block has been run through, otherwise an exception is thrown. For
      * this reason, we use a vector in which we put all the chains to be
