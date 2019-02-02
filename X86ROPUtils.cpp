@@ -65,7 +65,7 @@ void ROPChain::inject() {
       // Push a random symbol that, when resolved by the dynamic linker, will be
       // used as base address; then add the offset to point a specific
       // gadget
-      // dbgs() << "Processing gadget: " << e->r->asmInstr << "\n";
+      dbgs() << "Processing gadget: " << e->r->asmInstr << "\n";
       // call $opaquePredicate
       /*BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
           .addExternalSymbol("opaquePredicate");*/
@@ -73,7 +73,6 @@ void ROPChain::inject() {
       // je $wrong_target
       // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
       //    .addExternalSymbol(chainLabel);
-      dbgs() << "Writing symver\n";
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
@@ -81,23 +80,19 @@ void ROPChain::inject() {
           .addImm(0);
 
       // TODO: push+add in one single instruction (via inline ASM)
-      dbgs() << "Writing symbol\n";
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(e->s->Label);
 
       // add [esp], $offset
-      dbgs() << "Writing offset\n";
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
           .addImm(e->getRelativeAddress());
-      dbgs() << "\n\npanyny\n";
       break;
     }
     }
   }
-  dbgs() << "pane paazzo\n";
   // EPILOGUE Emits the `ret` instruction which will trigger the chain
   // execution, and a label to resume the normal execution flow when the chain
   // has finished.
@@ -150,11 +145,13 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
     // now we have to check whether the src operand of the RR gadget can be
     // directly or indirectly initialisable via a scratch register
     for (auto &initialisableReg : BA->getInitialisableRegs()) {
+      dbgs() << "init: " << initialisableReg << "\n";
       for (auto &scratchReg : *SRT.getRegs(MI)) {
 
         // convert LLVM register enum (e.g. X86::EAX) in capstone
         // (X86_REG_EAX);
         x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
+        dbgs() << "scratch: " << capScratchReg << "\n";
         if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
           xchgDirective = std::make_tuple(&g, initialisableReg, capScratchReg);
           return xchgDirective;
@@ -209,7 +206,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // TODO: DO I REALLY NEED TO DO THIS?
     SRT.popReg(MI, scratch);
 
-    std::vector<Microgadget *> tmp = BA->getXchgPath(init, scratch);
+    std::vector<Microgadget *> tmp = BA->getXchgPath(scratch, init);
     if (tmp.size() == 0)
       dbgs() << "no xchg required between scratch and init\n";
     else
@@ -220,32 +217,44 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     }
 
     // here scratch = initilisable
-    Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, scratch).front();
+    dbgs() << "looking for a pop " << init << "\n";
+    Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, init).front();
+    dbgs() << regInit->asmInstr << "\n";
+    chain.emplace_back(ChainElem(regInit));
+    chain.push_back(MI.getOperand(2).getImm());
 
     // exchange back
-    tmp = BA->getXchgPath(scratch, init);
+    tmp = BA->getXchgPath(init, scratch);
     if (tmp.size() == 0)
       dbgs() << "no xchg required between init and scratch\n";
 
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
       dbgs() << "x -> " << a->asmInstr << "\n";
+      chain.emplace_back(ChainElem(a));
+    }
 
     // exchange dst gadget op
     tmp = BA->getXchgPath(o_dst, picked->getOp(0).reg);
     if (tmp.size() == 0)
       dbgs() << "no xchg required between original dst and gadget dst\n";
 
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
       dbgs() << "x -> " << a->asmInstr << "\n";
-
+      chain.emplace_back(ChainElem(a));
+    }
     // exchange src gadget op
     tmp = BA->getXchgPath(scratch, picked->getOp(1).reg);
     if (tmp.size() == 0)
       dbgs() << "no xchg required between the loaded scratch register and "
                 "gadget src\n";
 
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
       dbgs() << "x -> " << a->asmInstr << "\n";
+      chain.emplace_back(ChainElem(a));
+    }
+    // rr instruction
+    chain.emplace_back(ChainElem(picked));
+
     return 0;
   }
   default:
