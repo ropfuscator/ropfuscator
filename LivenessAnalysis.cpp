@@ -66,6 +66,19 @@ int ScratchRegTracker::popReg(MachineInstr &MI) {
   return NULL;
 }
 
+int ScratchRegTracker::popReg(MachineInstr &MI, int reg) {
+  std::vector<int> *tmp = findRegs(MI);
+  auto it = find(tmp->begin(), tmp->end(), reg);
+  if (it != tmp->end()) {
+    int retVal = *it;
+    tmp->erase(it);
+    return retVal;
+  }
+
+  // assert(false && "Unable to pop given register! Not found!");
+  return NULL;
+}
+
 int ScratchRegTracker::count(MachineInstr &MI) {
   std::vector<int> *tmp = findRegs(MI);
   if (tmp)

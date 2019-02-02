@@ -313,9 +313,9 @@ std::vector<Microgadget> BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0,
     for (auto &gadget : Microgadgets) {
       if (gadget.getID() != insn)
         continue;
-      if (gadget.getOp(0).type == X86_OP_REG && gadget.getOp(0).reg != op0)
+      if (gadget.getOp(0).type != X86_OP_REG && gadget.getOp(0).reg != op0)
         continue;
-      if (op1 != X86_REG_INVALID && gadget.getOp(1).type == X86_OP_REG &&
+      if (op1 != X86_REG_INVALID && gadget.getOp(1).type != X86_OP_REG &&
           gadget.getOp(1).reg != op1)
         continue;
 
@@ -465,6 +465,7 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
 vector<Microgadget> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
   vector<Microgadget> exchangePath;
   vector<pair<int, int>> path = xgraph.getPath(a, b);
+  llvm::dbgs() << "getting xchg path: " << a << ", " << b << "\n";
   for (auto &edge : path) {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
@@ -475,7 +476,8 @@ vector<Microgadget> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
       res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
                          static_cast<x86_reg>(edge.first));
 
-    exchangePath.push_back(res[0]);
+    exchangePath.push_back(res.front());
+    llvm::dbgs() << ">> " << res.front().asmInstr << "\n";
   }
   return exchangePath;
 }

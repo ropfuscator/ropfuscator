@@ -62,6 +62,7 @@ public:
   // popReg - returns a scratch register and deletes it from the tracker. This
   // way it won't be used by anyone else.
   int popReg(llvm::MachineInstr &MI);
+  int popReg(llvm::MachineInstr &MI, int reg);
 
   // count - returns the number of available scratch registers.
   int count(llvm::MachineInstr &MI);
