@@ -309,19 +309,26 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
 std::vector<Microgadget> BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0,
                                                      x86_reg op1) {
   std::vector<Microgadget> res;
+  llvm::dbgs() << "\t lookup " << op0 << ", " << op1 << "\n";
   if (Microgadgets.size() > 0) {
     for (auto &gadget : Microgadgets) {
-      if (gadget.getID() != insn)
-        continue;
-      if (gadget.getOp(0).type != X86_OP_REG && gadget.getOp(0).reg != op0)
-        continue;
-      if (op1 != X86_REG_INVALID && gadget.getOp(1).type != X86_OP_REG &&
-          gadget.getOp(1).reg != op1)
-        continue;
+      // do these checks:
+      // - instruction opcode must be the same
+      // - op0 must be a register operand, and must be the same register
+      // - if op1 is set, it must be a register operand, and must be the same
+      // register; otherwise skip this check (we must do this to deal with
+      // gadgets with one operand).
 
-      res.push_back(gadget);
+      if (gadget.getID() == insn && gadget.getOp(0).type == X86_OP_REG &&
+          gadget.getOp(0).reg == op0 &&
+          (op1 == X86_REG_INVALID ||
+           (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
+
+        res.push_back(gadget);
     }
   }
+  for (auto &a : res)
+    llvm::dbgs() << "\t" << a.asmInstr << "\n";
   return res;
 }
 
@@ -477,7 +484,6 @@ vector<Microgadget> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
                          static_cast<x86_reg>(edge.first));
 
     exchangePath.push_back(res.front());
-    llvm::dbgs() << ">> " << res.front().asmInstr << "\n";
   }
   return exchangePath;
 }
