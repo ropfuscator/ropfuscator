@@ -20,7 +20,6 @@ ChainElem::ChainElem(Microgadget *g) {
 ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
 uint64_t ChainElem::getRelativeAddress() {
-  dbgs() << r->asmInstr << " @ " << &r->Instr[0] << "\n";
   return r->getAddress() - s->Address;
 }
 
@@ -31,8 +30,8 @@ uint64_t ChainElem::getRelativeAddress() {
 int ROPChain::globalChainID = 0;
 
 BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
-//"/home/user/llvm-build/examples/step1_add/libnaive.so");
+    BinaryAutopsy::getInstance( //"/lib/i386-linux-gnu/libc.so.6");
+        "/home/user/llvm-build/examples/step1_add/libnaive.so");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";

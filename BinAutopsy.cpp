@@ -412,7 +412,7 @@ void BinaryAutopsy::analyseGadgets() {
     }
 
     // debug prints
-    switch (g.Class) {
+    /*switch (g.Class) {
     case REG_INIT:
       llvm::dbgs() << g.asmInstr << " REG_INIT\n";
       break;
@@ -428,7 +428,7 @@ void BinaryAutopsy::analyseGadgets() {
     case REG_RESET:
       llvm::dbgs() << g.asmInstr << " REG_RESET\n";
       break;
-    }
+    }*/
   }
 }
 
@@ -499,7 +499,7 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
 }
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
-  vector<Microgadget *> exchangePath;
+  vector<Microgadget *> exchangePath, tmp;
   vector<pair<int, int>> path = xgraph.getPath(a, b);
 
   for (auto &edge : path) {
@@ -512,7 +512,16 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
       res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
                          static_cast<x86_reg>(edge.first));
 
-    exchangePath.push_back(res.front());
+    tmp.push_back(res.front());
   }
+
+  // copy in "exchangePath" all the elements in "tmp", excluding the last one
+  // and in reverse order. We do this to place back the content of all the other
+  // registers involved in the exchange chain, that otherwise would be scrambled
+  // across the whole path.
+  exchangePath.insert(exchangePath.begin(), tmp.begin(), tmp.end());
+  if (tmp.size() > 1)
+    exchangePath.insert(exchangePath.end(), tmp.rbegin() + 1, tmp.rend());
+
   return exchangePath;
 }
