@@ -289,9 +289,9 @@ Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   return nullptr;
 }
 
-std::vector<Microgadget>
+std::vector<Microgadget *>
 BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
-  std::vector<Microgadget> res;
+  std::vector<Microgadget *> res;
   if (Microgadgets.size() > 0) {
     for (auto &gadget : Microgadgets) {
       if (gadget.getID() != insn)
@@ -301,7 +301,7 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
       if (op1 != 0 && op1 != gadget.getOp(1).type)
         continue;
 
-      res.push_back(gadget);
+      res.push_back(&gadget);
     }
   }
   return res;
@@ -330,12 +330,12 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
   return res;
 }
 
-std::vector<Microgadget> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
-  std::vector<Microgadget> res;
+std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
+  std::vector<Microgadget *> res;
   if (Microgadgets.size() > 0) {
     for (auto &gadget : Microgadgets) {
       if (gadget.Class == Class)
-        res.push_back(gadget);
+        res.push_back(&gadget);
     }
   }
   return res;
@@ -350,14 +350,10 @@ void BinaryAutopsy::buildXchgGraph() {
 
   if (XchgGadgets.size() > 0) {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
-      // We skip XCHG gadgets with ESP as operand, since we cannot deal with the
-      // stack pointer using just microgadgets.
-      if (g.getOp(0).reg == X86_REG_ESP || g.getOp(1).reg == X86_REG_ESP)
-        continue;
-      xgraph.addEdge(g.getOp(0).reg, g.getOp(1).reg);
+      xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
 
-      llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g.getOp(0).reg << ", "
-                   << g.getOp(1).reg << "\n";
+      llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g->getOp(0).reg << ", "
+                   << g->getOp(1).reg << "\n";
     }
 
   } else
@@ -415,7 +411,6 @@ void BinaryAutopsy::analyseGadgets() {
       g.Class = UNDEFINED;
     }
 
-    /*
     // debug prints
     switch (g.Class) {
     case REG_INIT:
@@ -433,7 +428,7 @@ void BinaryAutopsy::analyseGadgets() {
     case REG_RESET:
       llvm::dbgs() << g.asmInstr << " REG_RESET\n";
       break;
-    }*/
+    }
   }
 }
 
@@ -461,7 +456,7 @@ void BinaryAutopsy::applyGadgetFilters() {
            (g->getOp(1).mem.base == X86_REG_INVALID ||
             g->getOp(1).mem.index != X86_REG_INVALID ||
             g->getOp(1).mem.segment != X86_REG_INVALID)))) {
-      // llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
+      llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
       g = Microgadgets.erase(g);
       excluded++;
     } else {
@@ -499,7 +494,7 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
 vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
   vector<x86_reg> ret;
   for (auto &g : gadgetLookup(REG_INIT))
-    ret.push_back(g.getOp(0).reg);
+    ret.push_back(g->getOp(0).reg);
   return ret;
 }
 

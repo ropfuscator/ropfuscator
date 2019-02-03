@@ -1,35 +1,39 @@
 void func1() {
-	asm("popl %ecx");
-	return;
+  asm("popl %ebp");
+  return;
 }
 
 void func2() {
-	asm("addl %ecx, %eax");
-	return;
+  asm("addl %eax, %ebx");
+  return;
 }
 
 void func3() {
-	asm("movl (%edx), %eax");
-	return;
+  asm("xchgl %ecx, %esi");
+  return;
 }
 
 void func4() {
-	asm("movl %eax, (%edx)");
-	return;
+  asm("xchgl %ebx, %esi");
+  return;
 }
 
 void func5() {
-	asm("xchgl %eax, %ebp");
-	return;
+  asm("xchgl %ebx, %edi");
+  return;
 }
 
 void func6() {
-	asm("xchgl %eax, %edx");
-	return;
+  asm("xchgl %edi, %edx");
+  return;
 }
 
 void func7() {
-	asm("movl %edx, %eax");
-	return;
+  asm("xchgl %edx, %eax");
+  return;
 }
 
+void func8() {
+  asm("xchgl %ebp, %eax");
+  return;
+}

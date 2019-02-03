@@ -20,7 +20,7 @@ ChainElem::ChainElem(Microgadget *g) {
 ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
 uint64_t ChainElem::getRelativeAddress() {
-
+  dbgs() << r->asmInstr << " @ " << &r->Instr[0] << "\n";
   return r->getAddress() - s->Address;
 }
 
@@ -31,7 +31,8 @@ uint64_t ChainElem::getRelativeAddress() {
 int ROPChain::globalChainID = 0;
 
 BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
+    BinaryAutopsy::getInstance( //"/lib/i386-linux-gnu/libc.so.6");
+        "/home/user/llvm-build/examples/step1_add/libnaive.so");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -123,14 +124,14 @@ int ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 std::tuple<Microgadget *, x86_reg, x86_reg>
-ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
+ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
                              MachineInstr &MI) {
   std::tuple<Microgadget *, x86_reg, x86_reg> xchgDirective;
 
-  for (Microgadget &g : RR) {
+  for (auto &g : RR) {
 
-    x86_reg g_dst = g.getOp(0).reg; // gadget dst operand
-    x86_reg g_src = g.getOp(1).reg; // gadget src operand
+    x86_reg g_dst = g->getOp(0).reg; // gadget dst operand
+    x86_reg g_src = g->getOp(1).reg; // gadget src operand
 
     // same src and dst operands -> skip
     if (g_src == g_dst)
@@ -150,7 +151,7 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
         // (X86_REG_EAX);
         x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
         if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
-          xchgDirective = std::make_tuple(&g, initialisableReg, capScratchReg);
+          xchgDirective = std::make_tuple(g, initialisableReg, capScratchReg);
           return xchgDirective;
         }
       }
@@ -204,9 +205,12 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     SRT.popReg(MI, scratch);
 
     // build xchg path (scratch -> init)
+    dbgs() << "\nscratch -> init\n";
     std::vector<Microgadget *> tmp = BA->getXchgPath(scratch, init);
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
+    }
 
     // now the contents of init are in scratch and viceversa, so we can pop
     // init
@@ -215,27 +219,36 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     chain.push_back(MI.getOperand(2).getImm());
 
     // build xchg path (scratch <- init)
+    dbgs() << "\ninit -> scratch\n";
     tmp = BA->getXchgPath(init, scratch);
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
+    }
 
     // Step 2: at this point we have indirectly initialised the scratch
     // register. Now it is time to exchange registers again in order to match
     // the operands of the RR instruction.
 
     //  build xchg path (o_dst -> g_dst)
+    dbgs() << "\no_dst -> g_dst\n";
     tmp = BA->getXchgPath(o_dst, picked->getOp(0).reg);
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
+    }
 
     // build xchg path (scratch -> g_src)
+    dbgs() << "\nscratch -> g_src\n";
     tmp = BA->getXchgPath(scratch, picked->getOp(1).reg);
-    for (auto &a : tmp)
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
+    }
 
     // rr instruction
     chain.emplace_back(ChainElem(picked));
-
+    dbgs() << picked->asmInstr;
     return 0;
   }
   case X86::MOV32rm: {
@@ -246,9 +259,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // searches an ADD instruction with register-register flavour; if nothing
     // is found -> abort
-    auto RR = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
-    for (auto &a : RR)
-      dbgs() << "-> " << a.asmInstr << "\n";
+    auto RR = BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG);
+    // for (auto &a : RR)
+    //  dbgs() << "-> " << a.asmInstr << "\n";
     if (RR.size() == 0)
       return 1;
 

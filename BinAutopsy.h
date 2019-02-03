@@ -85,7 +85,7 @@ struct Microgadget {
   // Instr - pointer to a capstone-engine data structure that contains details
   // on the overall semantics of the instruction, along with address, opcode,
   // etc.
-  cs_insn *Instr;
+  const cs_insn *Instr;
 
   // Class - gives basic semantic information about the instruction
   GadgetClass_t Class;
@@ -190,11 +190,11 @@ public:
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
   Microgadget *gadgetLookup(std::string asmInstr);
-  std::vector<Microgadget> gadgetLookup(x86_insn insn, x86_op_type op0,
-                                        x86_op_type op1 = x86_op_type());
+  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_op_type op0,
+                                          x86_op_type op1 = x86_op_type());
   std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_reg op0,
                                           x86_reg op1 = X86_REG_INVALID);
-  std::vector<Microgadget> gadgetLookup(GadgetClass_t Class);
+  std::vector<Microgadget *> gadgetLookup(GadgetClass_t Class);
 
   // canInitReg - tells if a given register can be initialised using a gadget.
   bool canInitReg(unsigned int reg);

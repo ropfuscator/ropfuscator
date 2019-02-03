@@ -89,7 +89,7 @@ public:
   // exchangeable
   // 2. as src operand a register that is at least indirectly initialisable via
   // a scratch register.
-  pickSuitableGadget(std::vector<Microgadget> &RR, x86_reg o_dst,
+  pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
                      llvm::MachineInstr &MI);
 
   static BinaryAutopsy *BA;
