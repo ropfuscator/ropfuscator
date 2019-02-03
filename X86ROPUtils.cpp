@@ -31,8 +31,8 @@ uint64_t ChainElem::getRelativeAddress() {
 int ROPChain::globalChainID = 0;
 
 BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance( //"/lib/i386-linux-gnu/libc.so.6");
-        "/home/user/llvm-build/examples/step1_add/libnaive.so");
+    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
+//"/home/user/llvm-build/examples/step1_add/libnaive.so");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -75,10 +75,14 @@ void ROPChain::inject() {
       // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
       //    .addExternalSymbol(chainLabel);
       // .symver directive: necessary to prevent aliasing when more
-      // symbols have the same name
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
-          .addExternalSymbol(e->s->getSymVerDirective())
-          .addImm(0);
+      // symbols have the same name. We do this exclusively when the symbol
+      // Version is not "Base" (i.e., it is the only one available).
+      if (strcmp(e->s->Version, "Base") != 0) {
+        BuildMI(*MBB, injectionPoint, nullptr,
+                TII->get(TargetOpcode::INLINEASM))
+            .addExternalSymbol(e->s->getSymVerDirective())
+            .addImm(0);
+      }
 
       // TODO: push+add in one single instruction (via inline ASM)
       // push $symbol
