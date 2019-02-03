@@ -144,6 +144,10 @@ public:
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
 
+  // -----------------------------------------------------------------------------
+  //  ANALYSES
+  // -----------------------------------------------------------------------------
+
   // dissect - dumps all the possible data and performs every analysis
   void dissect();
 
@@ -166,6 +170,18 @@ public:
   // XCHG gadgets that have been found.
   void buildXchgGraph();
 
+  // analyseGadgets - performs a very simple gadget classification based on the
+  // semantic of specific instructions.
+  void analyseGadgets();
+
+  // applyGadgetFilters - erases problematic gadgets basing on the defined
+  // filters.
+  void applyGadgetFilters();
+
+  // -----------------------------------------------------------------------------
+  //  HELPER METHODS
+  // -----------------------------------------------------------------------------
+
   // getRandomSymbol - returns a random symbol. This is used to reference each
   // gadget in the ROP chain as sum of a random symbol address and the gadget
   // offset from it.
@@ -179,10 +195,12 @@ public:
   std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_reg op0,
                                           x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget> gadgetLookup(GadgetClass_t Class);
-  void assignGadgetClass();
 
+  // canInitReg - tells if a given register can be initialised using a gadget.
   bool canInitReg(unsigned int reg);
 
+  // getInitialisableRegs - returns a vector of registers that can be
+  // initialised using appropriate gadgets.
   std::vector<x86_reg> getInitialisableRegs();
 
   // checkXchgPath - wrapper method for getPath() of the XChgGraph class.

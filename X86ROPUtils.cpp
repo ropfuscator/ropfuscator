@@ -238,6 +238,76 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     return 0;
   }
+  case X86::MOV32rm: {
+    // no scratch registers are available, or the dst operand is ESP (we are
+    // unable to modify it since we are using microgadgets) -> abort.
+    if (SRT.count(MI) < 2)
+      return 1;
+
+    // searches an ADD instruction with register-register flavour; if nothing
+    // is found -> abort
+    auto RR = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+    for (auto &a : RR)
+      dbgs() << "-> " << a.asmInstr << "\n";
+    if (RR.size() == 0)
+      return 1;
+
+    // original instr. dst operand
+    x86_reg o_dst = convertToCapstoneReg(MI.getOperand(0).getReg());
+
+    // iterate through all the RR gadgets until a suitable one is found
+    std::tuple<Microgadget *, x86_reg, x86_reg> suitable =
+        pickSuitableGadget(RR, o_dst, MI);
+    Microgadget *picked = std::get<0>(suitable);
+    x86_reg init = std::get<1>(suitable);
+    x86_reg scratch = std::get<2>(suitable);
+    if (picked == nullptr)
+      return 1;
+
+    dbgs() << "found the right gadget: " << std::get<0>(suitable)->asmInstr
+           << "\n";
+    dbgs() << "scratch reg: " << scratch << ", init reg: " << init << "\n";
+
+    // Step 1: initialise the register
+
+    // reserve the scratch register by popping it
+    SRT.popReg(MI, scratch);
+
+    // build xchg path (scratch -> init)
+    std::vector<Microgadget *> tmp = BA->getXchgPath(scratch, init);
+    for (auto &a : tmp)
+      chain.emplace_back(ChainElem(a));
+
+    // now the contents of init are in scratch and viceversa, so we can pop
+    // init
+    Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, init).front();
+    chain.emplace_back(ChainElem(regInit));
+    chain.push_back(MI.getOperand(2).getImm());
+
+    // build xchg path (scratch <- init)
+    tmp = BA->getXchgPath(init, scratch);
+    for (auto &a : tmp)
+      chain.emplace_back(ChainElem(a));
+
+    // Step 2: at this point we have indirectly initialised the scratch
+    // register. Now it is time to exchange registers again in order to match
+    // the operands of the RR instruction.
+
+    //  build xchg path (o_dst -> g_dst)
+    tmp = BA->getXchgPath(o_dst, picked->getOp(0).reg);
+    for (auto &a : tmp)
+      chain.emplace_back(ChainElem(a));
+
+    // build xchg path (scratch -> g_src)
+    tmp = BA->getXchgPath(scratch, picked->getOp(1).reg);
+    for (auto &a : tmp)
+      chain.emplace_back(ChainElem(a));
+
+    // rr instruction
+    chain.emplace_back(ChainElem(picked));
+
+    return 0;
+  }
   default:
     return 1;
   }

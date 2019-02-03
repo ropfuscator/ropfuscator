@@ -93,7 +93,8 @@ void BinaryAutopsy::dissect() {
   dumpSections();
   dumpDynamicSymbols();
   dumpGadgets();
-  assignGadgetClass();
+  analyseGadgets();
+  applyGadgetFilters();
   buildXchgGraph();
 }
 
@@ -363,7 +364,7 @@ void BinaryAutopsy::buildXchgGraph() {
     llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
 }
 
-void BinaryAutopsy::assignGadgetClass() {
+void BinaryAutopsy::analyseGadgets() {
   // Dumps gadgets if it wasn't already done
   if (Microgadgets.size() == 0)
     dumpGadgets();
@@ -434,6 +435,43 @@ void BinaryAutopsy::assignGadgetClass() {
       break;
     }*/
   }
+}
+
+void BinaryAutopsy::applyGadgetFilters() {
+  int excluded = 0;
+
+  for (auto g = Microgadgets.begin(); g != Microgadgets.end();) {
+    if
+        // gadgets with ESP as operand, since we cannot deal with the
+        // stack pointer using just microgadgets.
+        (((g->getOp(0).type == X86_OP_REG && g->getOp(0).reg == X86_REG_ESP) ||
+          (g->getOp(1).type == X86_OP_REG && g->getOp(1).reg == X86_REG_ESP) ||
+          (g->getOp(0).type == X86_OP_MEM &&
+           g->getOp(0).mem.base == X86_REG_ESP) ||
+          (g->getOp(1).type == X86_OP_MEM &&
+           g->getOp(1).mem.base == X86_REG_ESP)) ||
+
+         // gadgets with memory operands having index and segment
+         // registers, or invalid base register
+         ((g->getOp(0).type == X86_OP_MEM &&
+           (g->getOp(0).mem.base == X86_REG_INVALID ||
+            g->getOp(0).mem.index != X86_REG_INVALID ||
+            g->getOp(0).mem.segment != X86_REG_INVALID)) ||
+          (g->getOp(1).type == X86_OP_MEM &&
+           (g->getOp(1).mem.base == X86_REG_INVALID ||
+            g->getOp(1).mem.index != X86_REG_INVALID ||
+            g->getOp(1).mem.segment != X86_REG_INVALID)))) {
+      // llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
+      g = Microgadgets.erase(g);
+      excluded++;
+    } else {
+      ++g;
+    }
+  }
+
+  llvm::dbgs() << "[GadgetFilter]\t" << excluded
+               << " gadgets have been excluded!"
+               << "\n";
 }
 
 bool BinaryAutopsy::canInitReg(unsigned int reg) {
