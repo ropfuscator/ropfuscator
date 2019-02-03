@@ -252,6 +252,22 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // rr instruction
     chain.emplace_back(ChainElem(picked));
     dbgs() << picked->asmInstr;
+
+    dbgs() << "\nscratch <- g_src\n";
+    tmp = BA->getXchgPath(picked->getOp(1).reg, scratch);
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
+      chain.emplace_back(ChainElem(a));
+    }
+
+    //  build xchg path (o_dst -> g_dst)
+    dbgs() << "\no_dst <- g_dst\n";
+    tmp = BA->getXchgPath(picked->getOp(0).reg, o_dst);
+    for (auto &a : tmp) {
+      dbgs() << a->asmInstr << "\n";
+      chain.emplace_back(ChainElem(a));
+    }
+
     return 0;
   }
   case X86::MOV32rm: {
