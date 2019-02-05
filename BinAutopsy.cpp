@@ -294,14 +294,9 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
   if (Microgadgets.size() > 0) {
     for (auto &gadget : Microgadgets) {
-      if (gadget.getID() != insn)
-        continue;
-      if (op0 != gadget.getOp(0).type)
-        continue;
-      if (op1 != 0 && op1 != gadget.getOp(1).type)
-        continue;
-
-      res.push_back(&gadget);
+      if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
+          (op1 == 0 || op1 == gadget.getOp(1).type))
+        res.push_back(&gadget);
     }
   }
   return res;

@@ -82,15 +82,18 @@ public:
   int mapBindings(llvm::MachineInstr &MI);
   void inject();
   void loadEffectiveAddress(int64_t displacement);
-  std::tuple<Microgadget *, x86_reg, x86_reg>
 
   // pickSuitableGadget -  Among a set of RR gadgets, picks the one that has:
   // 1. as dst operand the register we supply, or at least one that is
   // exchangeable
   // 2. as src operand a register that is at least indirectly initialisable via
   // a scratch register.
+  std::tuple<Microgadget *, x86_reg, x86_reg>
   pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
                      llvm::MachineInstr &MI);
+  std::tuple<Microgadget *, x86_reg, x86_reg>
+  pickSuitableGadgetMem(std::vector<Microgadget *> &RR, x86_reg o_dst,
+                        llvm::MachineInstr &MI);
 
   static BinaryAutopsy *BA;
 
