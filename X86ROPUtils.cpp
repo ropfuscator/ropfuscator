@@ -4,6 +4,16 @@
 #include "llvm/Support/Debug.h"
 #include <z3++.h>
 
+// mk_or() belongs to the Z3 C++ API, but for some reason it is not possible to
+// call it from the library. Reporting it here.
+using namespace z3;
+inline expr mk_or(expr_vector const &args) {
+  array<Z3_ast> _args(args);
+  Z3_ast r = Z3_mk_or(args.ctx(), _args.size(), _args.ptr());
+  args.check_error();
+  return expr(args.ctx(), r);
+}
+
 using namespace llvm;
 
 // ------------------------------------------------------------------------
@@ -153,9 +163,8 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
 
         // convert LLVM register enum (e.g. X86::EAX) in capstone
         // (X86_REG_EAX);
-        x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
-        if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
-          xchgDirective = std::make_tuple(g, initialisableReg, capScratchReg);
+        if (BA->checkXchgPath(g_src, initialisableReg, scratchReg)) {
+          xchgDirective = std::make_tuple(g, initialisableReg, scratchReg);
           return xchgDirective;
         }
       }
@@ -201,14 +210,7 @@ ROPChain::pickSuitableGadgetMem(std::vector<Microgadget *> &RR, x86_reg o_dst,
     }*/
   return xchgDirective;
 }
-using namespace z3;
-inline expr mk_or(expr_vector const &args) {
-  array<Z3_ast> _args(args);
-  Z3_ast r = Z3_mk_or(args.ctx(), _args.size(), _args.ptr());
-  args.check_error();
-  return expr(args.ctx(), r);
-}
-using namespace llvm;
+
 int ROPChain::mapBindings(MachineInstr &MI) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
@@ -258,7 +260,6 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
-
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     if (SRT.count(MI) < 1)
@@ -289,7 +290,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // Step 1: initialise the register
 
     // reserve the scratch register by popping it
-    SRT.popReg(MI, scratch);
+    // SRT.popReg(MI, scratch);
 
     // build xchg path (scratch -> init)
     // dbgs() << "\nscratch -> init\n";
@@ -356,6 +357,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
+    for (auto &a : *SRT.getRegs(MI))
+      dbgs() << "scratch reg: " << a << "\n";
+
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     if (SRT.count(MI) < 2)
@@ -384,15 +388,20 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     expr r6 = c.int_const("r6");
     expr r7 = c.int_const("r7");
 
-    expr_vector args1(c);
-    expr_vector args2(c);
-    expr_vector args3(c);
-    expr_vector args4(c);
-    expr_vector args5(c);
-    expr_vector args6(c);
-    expr_vector args7(c);
+    expr_vector g1(c);
+    expr_vector g2(c);
+    expr_vector g3(c);
+    expr_vector g4(c);
+
     solver s(c);
-    // rules for MOV32rm
+
+    // rules for MOV32rm:
+    //    mov r1, r2
+    //    pop r3
+    //    add r4, r5
+    //    mov r6, [r7]
+    // r1, r4 and r7 must be the same register, or at least reacheable
+    // r3, r5 another register
     s.add(r1 == r4); // REG1
     s.add(r4 == r7);
     s.add(r3 == r5); // REG2
@@ -400,42 +409,106 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     using namespace llvm;
 
-    // for cycle to add all the operands
+    // mov
     for (auto &g : movRR) {
       dbgs() << "[MovRR] " << g->asmInstr << "\n";
       x86_reg op0 = g->getOp(0).reg;
       x86_reg op1 = g->getOp(1).reg;
 
-      // op0: check if is a scratch register, or at least can be exchange with a
-      // scratch register: if yes we add it to the constraints.
-      for (auto &sr : *SRT.getRegs(MI)) {
-        x86_reg sr_cap = convertToCapstoneReg(sr);
-        // dbgs() << "scratch reg: " << sr_cap << "\n";
+      expr_vector reachableFromOp0(c);
+      for (auto &r : BA->getReachableRegs(op0))
+        reachableFromOp0.push_back(r1 == r);
 
-        if (BA->checkXchgPath(op0, sr_cap)) {
-          dbgs() << "\t(r1) " << op0
-                 << " can be exchanged with scratch register " << sr_cap
-                 << "\n";
-          using namespace z3;
-          args1.push_back(r1 == op0);
-        }
-      }
+      expr_vector reachableFromOp1(c);
+      for (auto &r : BA->getReachableRegs(op1))
+        reachableFromOp1.push_back(r2 == r);
 
-      // op1: must be equal or at least exchangeable with o_src
-      if (BA->checkXchgPath(op1, o_src)) {
-        dbgs() << "\t(r2) " << op1 << " can be exchanged with scratch register "
-               << o_src << "\n";
-        using namespace z3;
-        args2.push_back(r2 == op1);
-      }
+      g1.push_back(mk_or(reachableFromOp0) && mk_or(reachableFromOp1));
     }
+    std::cout << mk_or(g1) << "\n";
+    s.add(mk_or(g1));
 
-    // popR
+    // pop
     for (auto &g : popR) {
       dbgs() << "[popR] " << g->asmInstr << "\n";
       x86_reg op0 = g->getOp(0).reg;
 
-      // op0: check if is a scratch register, or at least can be exchange with a
+      expr_vector reachableFromOp0(c);
+      for (auto &r : BA->getReachableRegs(op0))
+        reachableFromOp0.push_back(r3 == r);
+
+      g2.push_back(mk_or(reachableFromOp0));
+    }
+    std::cout << mk_or(g2) << "\n";
+    s.add(mk_or(g2));
+
+    // add
+    for (auto &g : addRR) {
+      dbgs() << "[addRR] " << g->asmInstr << "\n";
+      x86_reg op0 = g->getOp(0).reg;
+      x86_reg op1 = g->getOp(1).reg;
+
+      expr_vector reachableFromOp0(c);
+      for (auto &r : BA->getReachableRegs(op0))
+        reachableFromOp0.push_back(r4 == r);
+
+      expr_vector reachableFromOp1(c);
+      for (auto &r : BA->getReachableRegs(op1))
+        reachableFromOp1.push_back(r5 == r);
+
+      g3.push_back(mk_or(reachableFromOp0) && mk_or(reachableFromOp1));
+    }
+    std::cout << mk_or(g3) << "\n";
+    s.add(mk_or(g3));
+
+    // movRM
+    for (auto &g : movRM) {
+      dbgs() << "[movRM] " << g->asmInstr << "\n";
+      x86_reg op0 = g->getOp(0).reg;
+      x86_reg op1 = static_cast<x86_reg>(g->getOp(1).mem.base);
+
+      // TODO: REMOVE JUST DEBUG
+      if (op1 == X86_REG_EAX)
+        continue;
+
+      // for o_dst rules are much tighter
+      expr_vector reachableFromOp0(c);
+      if (BA->checkXchgPath(op0, o_dst)) {
+        for (auto &r : BA->getReachableRegs(op0))
+          reachableFromOp0.push_back(r6 == r);
+      }
+
+      expr_vector reachableFromOp1(c);
+      for (auto &r : BA->getReachableRegs(op1))
+        reachableFromOp1.push_back(r7 == r);
+
+      g4.push_back(mk_or(reachableFromOp0) && mk_or(reachableFromOp1));
+    }
+    std::cout << mk_or(g4) << "\n";
+    s.add(mk_or(g4));
+
+    s.check();
+
+    model smt_model = s.get_model();
+    std::cout << smt_model << "\n";
+
+    x86_reg movRR_op1 =
+        smt_model.get_const_interp(smt_model[1]).get_numeral_int();
+
+    /* std::vector<Microgadget *> tmp = BA->getXchgPath(scratch, init);
+     for (auto &a : tmp) {
+       // dbgs() << a->asmInstr << "\n";
+       chain.emplace_back(ChainElem(a));
+     }*/
+
+    // popR
+    /*
+    for (auto &g : popR) {
+      dbgs() << "[popR] " << g->asmInstr << "\n";
+      x86_reg op0 = g->getOp(0).reg;
+
+      // op0: check if is a scratch register, or at least can be exchange
+    with a
       // scratch register: if yes we add it to the constraints.
       for (auto &sr : *SRT.getRegs(MI)) {
         x86_reg sr_cap = convertToCapstoneReg(sr);
@@ -456,7 +529,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       x86_reg op0 = g->getOp(0).reg;
       x86_reg op1 = g->getOp(1).reg;
 
-      // op0: check if is a scratch register, or at least can be exchange with a
+      // op0: check if is a scratch register, or at least can be exchange
+    with a
       // scratch register: if yes we add it to the constraints.
       for (auto &sr : *SRT.getRegs(MI)) {
         x86_reg sr_cap = convertToCapstoneReg(sr);
@@ -473,24 +547,31 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
       // op1: must be equal or at least exchangeable with o_src
       if (BA->checkXchgPath(op1, o_src)) {
-        dbgs() << "\t(r5) " << op1 << " can be exchanged with scratch register "
+        dbgs() << "\t(r5) " << op1 << " can be exchanged with scratch
+    register "
                << o_src << "\n";
         using namespace z3;
-        args2.push_back(r5 == op1);
+        args5.push_back(r5 == op1);
       }
     }
 
     //    std::cout << z3::mk_or(args1) << "\n";
     using namespace z3;
     std::cout << mk_or(args1) << "\n";
+    std::cout << mk_or(args2) << "\n";
+    std::cout << mk_or(args3) << "\n";
+    std::cout << mk_or(args4) << "\n";
+    std::cout << mk_or(args5) << "\n";
+
     s.add(mk_or(args1));
     s.add(mk_or(args2));
     s.add(mk_or(args3));
     s.add(mk_or(args4));
+    s.add(mk_or(args5));
 
     s.check();
     model m = s.get_model();
-    std::cout << m << "\n";
+    std::cout << m << "\n";*/
     /*
         for (auto &a : movRR)
           dbgs() << a->asmInstr << "\n";
@@ -512,10 +593,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
         if (picked == nullptr)
           return 1;
 
-        dbgs() << "found the right gadget: " << std::get<0>(suitable)->asmInstr
+        dbgs() << "found the right gadget: " <<
+       std::get<0>(suitable)->asmInstr
                << "\n";
-        dbgs() << "scratch reg: " << scratch << ", init reg: " << init << "\n";
-        return 1;
+        dbgs() << "scratch reg: " << scratch << ", init reg: " << init <<
+       "\n"; return 1;
         // Step 1: initialise the register
 
         // reserve the scratch register by popping it
@@ -529,7 +611,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
           chain.emplace_back(ChainElem(a));
         }
 
-        // now the contents of init are in scratch and viceversa, so we can pop
+        // now the contents of init are in scratch and viceversa, so we can
+       pop
         // init
         Microgadget *regInit = BA->gadgetLookup(X86_INS_POP, init).front();
         chain.emplace_back(ChainElem(regInit));

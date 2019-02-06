@@ -23,8 +23,14 @@
 #ifndef LIVENESSANALYSIS_H
 #define LIVENESSANALYSIS_H
 
+// This switches between Capstone and LLVM enum representation of registers. If
+// this is enabled, registers are returned using capstone representation.
+#define CAPSTONE_REPRESENTATION
+
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include <capstone/capstone.h>
+#include <capstone/x86.h>
 #include <map>
 #include <vector>
 
@@ -33,7 +39,7 @@
 class ScratchRegTracker {
 private:
   // regs - maps each instruction with an array of available registers.
-  std::map<llvm::MachineInstr *, std::vector<int>> regs;
+  std::map<llvm::MachineInstr *, std::vector<x86_reg>> regs;
 
   // MBB - pointer to the basic block on which the analysis is performed.
   llvm::MachineBasicBlock &MBB;
@@ -46,7 +52,7 @@ private:
 
   // findRegs - just a backend search function that returns a pointer to the
   // array of available registers.
-  std::vector<int> *findRegs(llvm::MachineInstr &MI);
+  std::vector<x86_reg> *findRegs(llvm::MachineInstr &MI);
 
 public:
   // Constructor
@@ -54,15 +60,15 @@ public:
 
   // getRegs - returns an array of all the scratch registers available after the
   // given instruction.
-  std::vector<int> *getRegs(llvm::MachineInstr &MI);
+  std::vector<x86_reg> *getRegs(llvm::MachineInstr &MI);
 
   // getReg - returns a scratch register.
-  int getReg(llvm::MachineInstr &MI);
+  x86_reg getReg(llvm::MachineInstr &MI);
 
   // popReg - returns a scratch register and deletes it from the tracker. This
   // way it won't be used by anyone else.
-  int popReg(llvm::MachineInstr &MI);
-  int popReg(llvm::MachineInstr &MI, int reg);
+  // x86_reg popReg(llvm::MachineInstr &MI);
+  // x86_reg popReg(llvm::MachineInstr &MI, int reg);
 
   // count - returns the number of available scratch registers.
   int count(llvm::MachineInstr &MI);

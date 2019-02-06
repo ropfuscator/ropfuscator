@@ -11,9 +11,9 @@ void XchgGraph::addEdge(int Op0, int Op1) {
   adj[Op1].push_back(Op0);
 }
 
-bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[]) {
+bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
+                          bool visited[]) {
   list<int> queue;
-  bool visited[REGS];
 
   for (int i = 0; i < REGS; i++) {
     visited[i] = false;
@@ -27,7 +27,6 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[]) {
   visited[src] = true;
   dist[src] = 0;
   queue.push_back(src);
-
   while (!queue.empty()) {
     int u = queue.front();
     queue.pop_front();
@@ -38,8 +37,10 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[]) {
         pred[adj[u][i]] = u;
         queue.push_back(adj[u][i]);
 
-        if (adj[u][i] == dest)
+        if (adj[u][i] == dest) {
+
           return true;
+        }
       }
     }
   }
@@ -51,8 +52,9 @@ vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
   vector<pair<int, int>> exchangePath;
 
   int pred[REGS], dist[REGS];
+  bool visited[REGS];
 
-  assert(checkPath(src, dest, pred, dist) &&
+  assert(checkPath(src, dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
 
   vector<int> path;

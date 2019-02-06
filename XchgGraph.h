@@ -43,7 +43,7 @@ public:
   // returns tells whether two nodes are mutually reachable. If the two optional
   // output parameters are given, it is possible to compute the actual path
   // (this is done by getPath()).
-  bool checkPath(int src, int dest, int pred[], int dist[]);
+  bool checkPath(int src, int dest, int pred[], int dist[], bool visited[]);
 
   // getPath - returns the entire path from src to dest, edge by edge. The path
   // is specified as a vector of pairs, which in turn contain source and

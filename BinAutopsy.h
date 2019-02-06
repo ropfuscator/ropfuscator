@@ -205,10 +205,16 @@ public:
 
   // checkXchgPath - wrapper method for getPath() of the XChgGraph class.
   bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
+  bool checkXchgPath(x86_reg a, std::vector<x86_reg> B);
 
   // getXchgPath - gets the path between two registers edge by edge from
   // XChgGraph, then returns a vector of the actual XCHG microgadgets.
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
+
+  // getReachableRegs - returns a list of all the nodes that can be reached
+  // starting the exploration from the given register. If no other register can
+  // be reached, it returns just the src itself.
+  std::vector<int> getReachableRegs(int src);
 };
 
 #endif
