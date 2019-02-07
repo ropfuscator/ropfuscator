@@ -171,7 +171,8 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
 }
 
 x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
-                                 x86_reg outputReg, MachineInstr &MI) {
+                                 x86_reg outputReg,
+                                 std::vector<x86_reg> scratchRegs) {
 
   Microgadget *mov, *pop, *add;
   x86_reg mov_0, mov_1, pop_0, add_0, add_1;
@@ -188,6 +189,8 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
   // requirements, i.e. constraints on the operands of each instruction, that
   // are checked in the inner for cycle.
 
+  // We have to find a valid combination given three sets of gadgets for mov,
+  // pop and add instructions, and with only register operands.
   bool combinationFound = false;
 
   for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG)) {
@@ -227,11 +230,11 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 
         // REQ #5: mov_0 and pop_0 must be exchangeable with two different
         // scratch registers.
-        for (auto &sr1 : *SRT.getRegs(MI)) {
+        for (auto &sr1 : scratchRegs) {
           if (combinationFound)
             break;
 
-          for (auto &sr2 : *SRT.getRegs(MI)) {
+          for (auto &sr2 : scratchRegs) {
             if (sr1 == sr2)
               continue;
             if (BA->checkXchgPath(sr1, mov_0) &&
@@ -314,7 +317,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
-    if (SRT.count(MI) < 1)
+    auto scratchRegs = *SRT.getRegs(MI);
+    if (scratchRegs.size() < 2)
       return 1;
 
     // searches an ADD instruction with register-register flavour; if nothing
@@ -409,116 +413,134 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
-
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
-    if (SRT.count(MI) < 2)
+    auto scratchRegs = *SRT.getRegs(MI);
+    if (scratchRegs.size() < 2)
       return 1;
 
-    // original instr src operand
-    x86_reg o_src = convertToCapstoneReg(MI.getOperand(1).getReg());
-    // original instr dst operand
-    x86_reg o_dst = convertToCapstoneReg(MI.getOperand(0).getReg());
+    // dump all the useful operands from the MachineInstr we are processing:
+    //      mov     orig_0, [orig_1 + disp]
+    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
+    x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
+    int orig_disp = MI.getOperand(4).getImm(); // displacement
 
-    auto movRM_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+    // We will replace this instruction with its register-register variant,
+    // like this (parametrising the operands):
+    //      mov     mov_0, [mov_1]
 
-    x86_reg computedAddrReg;
-    Microgadget *picked_movRM;
+    x86_reg mov_0, mov_1;
+    x86_reg address = X86_REG_INVALID;
+    Microgadget *mov;
 
-    for (auto &movRM : movRM_v) {
-      x86_reg outputReg = static_cast<x86_reg>(movRM->getOp(1).mem.base);
-      uint64_t displacement =
-          MI.getOperand(4).getImm() - movRM->getOp(1).mem.disp;
+    for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
+      mov_0 = m->getOp(0).reg;
+      mov_1 = static_cast<x86_reg>(m->getOp(1).mem.base);
+      int mov_disp = m->getOp(1).mem.disp;
 
-      auto res = computeAddress(o_src, displacement, outputReg, MI);
+      // if the two dst operands aren't connected, skip the gadget
+      if (!BA->checkXchgPath(orig_0, mov_0))
+        continue;
+
+      // Of course, we do need to put in "mov_1" the value of "orig_1 + disp".
+      // To do this, we call the computeAddress function passing the following
+      // parameters:
+      //    - orig_1: input register, that is the register where the base
+      //    memory address is located
+      //    - orig_disp - mov_disp: difference of the displacement of the
+      //    original instruction and the gadget; we do this in order to
+      //    compensate the displacement that may be embedded in the gadget (e.g.
+      //    mov reg1, [reg2 + 0x50])
+      //    - mov_1: output register, namely the register in which we'd prefer
+      //    to retrieve the result; if this is not possible, the result is
+      //    placed in a register that is at least reachable via a series of xchg
+      //    gadgets
+      //    - scratchRegs: a list of scratch registers that can be clobbered
+      auto res =
+          computeAddress(orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
+
       if (res != X86_REG_INVALID) {
-        computedAddrReg = res;
-        picked_movRM = movRM;
+        address = res;
+        mov = m;
         break;
       }
     }
 
-    dbgs() << "Results returned in: " << computedAddrReg << "\n";
+    if (address == X86_REG_INVALID)
+      return 1;
+
+    dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << picked_movRM->asmInstr << "\n\n";
+    dbgs() << mov->asmInstr << "\n\n";
 
     // -----------
 
-    Xchg(o_dst, picked_movRM->getOp(0).reg);
+    Xchg(orig_0, mov_0);
+    Xchg(address, mov_1);
 
-    Xchg(computedAddrReg,
-         static_cast<x86_reg>(picked_movRM->getOp(1).mem.base));
+    chain.emplace_back(ChainElem(mov));
+    dbgs() << mov->asmInstr << "\n";
 
-    chain.emplace_back(ChainElem(picked_movRM));
-    dbgs() << picked_movRM->asmInstr << "\n";
-
-    /* tmp =
-     BA->getXchgPath(static_cast<x86_reg>(picked_movRM->getOp(1).mem.base),
-                           scratchr1);
-     for (auto &a : tmp) {
-       dbgs() << a->asmInstr << "\n";
-       chain.emplace_back(ChainElem(a));
-     }*/
-
-    Xchg(picked_movRM->getOp(0).reg, o_dst);
+    Xchg(mov_0, orig_0);
 
     return 0;
   }
   case X86::MOV32mr: {
+    // NOTE: for more comments, please check the case MOV32rm: we adopt the very
+    // same strategies.
 
-    // no scratch registers are available, or the dst operand is ESP (we are
-    // unable to modify it since we are using microgadgets) -> abort.
-    if (SRT.count(MI) < 2)
+    // no scratch registers are available, or the dst operand is ESP
+    // (we are unable to modify it since we are using microgadgets) -> abort.
+    auto scratchRegs = *SRT.getRegs(MI);
+    if (scratchRegs.size() < 2)
       return 1;
 
-    // original instr src operand
-    x86_reg o_src = convertToCapstoneReg(MI.getOperand(5).getReg());
-    // original instr dst operand
-    x86_reg o_dst = convertToCapstoneReg(MI.getOperand(0).getReg());
+    // dump all the useful operands from the MachineInstr we are processing:
+    //      mov     [orig_0 + disp], orig_1
+    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
+    x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
+    int orig_disp = MI.getOperand(3).getImm(); // displacement
 
-    auto movMR_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG);
+    x86_reg mov_0, mov_1;
+    x86_reg address = X86_REG_INVALID;
+    Microgadget *mov;
 
-    x86_reg computedAddrReg;
-    Microgadget *picked_movMR;
+    for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
+      //      mov     [mov_0], mov_1
+      mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
+      mov_1 = m->getOp(1).reg;
+      int mov_disp = m->getOp(0).mem.disp;
 
-    for (auto &movMR : movMR_v) {
-      if (!BA->checkXchgPath(o_src, movMR->getOp(1).reg))
+      // if the two src operands aren't connected, skip the gadget
+      if (!BA->checkXchgPath(orig_1, mov_1))
         continue;
-      x86_reg outputReg = static_cast<x86_reg>(movMR->getOp(0).mem.base);
-      uint64_t displacement =
-          MI.getOperand(3).getImm() - movMR->getOp(0).mem.disp;
 
-      auto res = computeAddress(o_dst, displacement, outputReg, MI);
+      auto res =
+          computeAddress(orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
+
       if (res != X86_REG_INVALID) {
-        computedAddrReg = res;
-        picked_movMR = movMR;
+        address = res;
+        mov = m;
         break;
       }
     }
 
-    dbgs() << "Results returned in: " << computedAddrReg << "\n";
+    if (address == X86_REG_INVALID)
+      return 1;
+
+    dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << picked_movMR->asmInstr << "\n\n";
+    dbgs() << mov->asmInstr << "\n\n";
 
     // -----------
 
-    Xchg(computedAddrReg,
-         static_cast<x86_reg>(picked_movMR->getOp(0).mem.base));
+    Xchg(address, mov_0);
+    Xchg(orig_1, mov_1);
 
-    Xchg(o_src, picked_movMR->getOp(1).reg);
+    chain.emplace_back(ChainElem(mov));
+    dbgs() << mov->asmInstr << "\n";
 
-    chain.emplace_back(ChainElem(picked_movMR));
-    dbgs() << picked_movMR->asmInstr << "\n";
-
-    /* tmp =
-     BA->getXchgPath(static_cast<x86_reg>(picked_movMR->getOp(1).mem.base),
-                           scratchr1);
-     for (auto &a : tmp) {
-       dbgs() << a->asmInstr << "\n";
-       chain.emplace_back(ChainElem(a));
-     }*/
-
-    Xchg(picked_movMR->getOp(1).reg, o_src);
+    Xchg(mov_1, orig_1);
 
     return 0;
   }
