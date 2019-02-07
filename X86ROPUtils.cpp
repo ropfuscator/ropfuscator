@@ -170,85 +170,83 @@ ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
   return xchgDirective;
 }
 
-std::tuple<Microgadget *, x86_reg, x86_reg>
-ROPChain::pickSuitableGadgetMem(std::vector<Microgadget *> &RR, x86_reg o_dst,
-                                MachineInstr &MI) {
-  std::tuple<Microgadget *, x86_reg, x86_reg> xchgDirective;
-  /*
-    for (auto &g : RR) {
-
-      x86_reg g_dst = g->getOp(0).reg; // gadget dst operand
-      x86_reg g_src =
-          static_cast<x86_reg>(g->getOp(1).mem.base; // gadget src operand
-
-      // same src and dst operands -> skip
-      // if (g_src == g_dst)
-      //  continue;
-
-      // dst operands of original instr. and RR gadget don't belong to a
-      // feasible exchange path -> skip
-      if (!BA->checkXchgPath(o_dst, g_dst))
-        continue;
-
-      // now we have to check whether the src operand of the RR gadget can be
-      // directly or indirectly initialisable via a scratch register
-      for (auto &initialisableReg : BA->getInitialisableRegs()) {
-        for (auto &scratchReg : *SRT.getRegs(MI)) {
-
-          // convert LLVM register enum (e.g. X86::EAX) in capstone
-          // (X86_REG_EAX);
-          x86_reg capScratchReg = convertToCapstoneReg(scratchReg);
-          if (BA->checkXchgPath(g_src, initialisableReg, capScratchReg)) {
-            xchgDirective = std::make_tuple(g, initialisableReg, capScratchReg);
-            return xchgDirective;
-          }
-        }
-      }
-    }*/
-  return xchgDirective;
-}
-
 x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
                                  x86_reg outputReg, MachineInstr &MI) {
-  std::vector<ChainElem> retVect;
-  std::vector<Microgadget *> tmp;
 
-  auto movRR_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG);
-  auto popR_v = BA->gadgetLookup(X86_INS_POP, X86_OP_REG);
-  auto addRR_v = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
+  Microgadget *mov, *pop, *add;
+  x86_reg mov_0, mov_1, pop_0, add_0, add_1;
+  x86_reg scratchR1 = X86_REG_INVALID;
+  x86_reg scratchR2 = X86_REG_INVALID;
 
-  Microgadget *picked_movRR, *picked_popR, *picked_addRR;
-  x86_reg scratchr1 = X86_REG_INVALID;
-  x86_reg scratchr2 = X86_REG_INVALID;
+  // To successfully compute the address, we need a compatible set of gadgets
+  // like this (parametrising the operands):
+  //    mov     mov_0, mov_1
+  //    pop     pop_0
+  //    add     add_0, add_1
+  //
+  // In order to be suitable, this set of gadgets must meet several
+  // requirements, i.e. constraints on the operands of each instruction, that
+  // are checked in the inner for cycle.
 
-  // mov REG1, inputSrc
-  // pop REG2
-  // add REG1, REG2
-  // REG1 must be exchangeable with outputSrc
-  for (auto &movRR : movRR_v) {
-    for (auto &popR : popR_v) {
-      for (auto &addRR : addRR_v) {
-        // check exchangeability between related operands
-        if ((!BA->checkXchgPath(outputReg, addRR->getOp(0).reg,
-                                movRR->getOp(0).reg)) ||
-            !BA->checkXchgPath(addRR->getOp(1).reg, popR->getOp(0).reg) ||
-            !BA->checkXchgPath(movRR->getOp(1).reg, inputReg) ||
-            movRR->getOp(0).reg == popR->getOp(0).reg)
+  bool combinationFound = false;
+
+  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG)) {
+    if (combinationFound)
+      break;
+    mov_0 = m->getOp(0).reg;
+    mov_1 = m->getOp(1).reg;
+
+    for (auto &p : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
+      if (combinationFound)
+        break;
+      pop_0 = p->getOp(0).reg;
+
+      for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
+        if (combinationFound)
+          break;
+        add_0 = a->getOp(0).reg;
+        add_1 = a->getOp(1).reg;
+
+        // REQ #1: mov_0, add_0 and outputReg must belong to the same exchange
+        // path (i.e. they are exchangeable)
+        if (!BA->checkXchgPath(mov_0, add_0, outputReg))
           continue;
 
+        // REQ #2: pop_0, add_1 must belong to the same exchange path
+        if (!BA->checkXchgPath(pop_0, add_1))
+          continue;
+
+        // REQ #3: mov_1, inputReg must belong to the same exchange path
+        if (!BA->checkXchgPath(mov_1, inputReg))
+          continue;
+
+        // REQ #4: mov_0 and pop_0 must be different, because we need the two
+        // operands (base address and displacement) in different registers.
+        if (mov_0 == pop_0)
+          continue;
+
+        // REQ #5: mov_0 and pop_0 must be exchangeable with two different
+        // scratch registers.
         for (auto &sr1 : *SRT.getRegs(MI)) {
+          if (combinationFound)
+            break;
+
           for (auto &sr2 : *SRT.getRegs(MI)) {
             if (sr1 == sr2)
               continue;
-            if (BA->checkXchgPath(sr1, movRR->getOp(0).reg) &&
-                BA->checkXchgPath(sr2, popR->getOp(0).reg)) {
-              scratchr1 = sr1;
-              scratchr2 = sr2;
+            if (BA->checkXchgPath(sr1, mov_0) &&
+                BA->checkXchgPath(sr2, pop_0)) {
+              scratchR1 = sr1;
+              scratchR2 = sr2;
 
-              // pick the whole gadget combination
-              picked_addRR = addRR;
-              picked_popR = popR;
-              picked_movRR = movRR;
+              // if all these requirements are met, the whole gadget combination
+              // is saved.
+              add = a;
+              pop = p;
+              mov = m;
+
+              combinationFound = true;
+              break;
             }
           }
         }
@@ -256,50 +254,48 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     }
   }
 
-  // if scratchr1 hasn't been set, then no any other pointer has, so the search
-  // for a suitable gadget-set failed.
-  if (scratchr1) {
+  if (combinationFound) {
 
     dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << picked_movRR->asmInstr << "\n"
-           << picked_popR->asmInstr << "\n"
-           << picked_addRR->asmInstr << "\n";
-    dbgs() << "[*] Scratch regs: " << scratchr1 << ", " << scratchr2 << "\n";
+    dbgs() << mov->asmInstr << "\n"
+           << pop->asmInstr << "\n"
+           << add->asmInstr << "\n";
+    dbgs() << "[*] Scratch regs: " << scratchR1 << ", " << scratchR2 << "\n";
 
     // Okay, now it's time to build the chain!
 
-    // ---------
+    // MOV
+    Xchg(scratchR1, mov_0);
+    Xchg(inputReg, mov_1);
 
-    Xchg(scratchr1, picked_movRR->getOp(0).reg);
-    Xchg(inputReg, picked_movRR->getOp(1).reg);
+    chain.emplace_back(ChainElem(mov));
+    dbgs() << mov->asmInstr << "\n";
 
-    chain.emplace_back(ChainElem(picked_movRR));
-    dbgs() << picked_movRR->asmInstr << "\n";
+    Xchg(mov_1, inputReg);
+    Xchg(mov_0, scratchR1);
 
-    Xchg(picked_movRR->getOp(1).reg, inputReg);
-    Xchg(picked_movRR->getOp(0).reg, scratchr1);
+    // POP
+    Xchg(scratchR2, pop_0);
 
-    // ----------
-    Xchg(scratchr2, picked_popR->getOp(0).reg);
-
-    chain.emplace_back(ChainElem(picked_popR));
-    dbgs() << picked_popR->asmInstr << "\n";
-    dbgs() << "displacement: " << displacement;
+    chain.emplace_back(ChainElem(pop));
+    dbgs() << pop->asmInstr << "\n"
+           << "displacement: " << displacement;
     chain.push_back(displacement);
 
-    Xchg(picked_popR->getOp(0).reg, scratchr2);
-    // ------------
-    Xchg(scratchr1, picked_addRR->getOp(0).reg);
-    Xchg(scratchr2, picked_addRR->getOp(1).reg);
+    Xchg(pop_0, scratchR2);
 
-    chain.emplace_back(ChainElem(picked_addRR));
-    dbgs() << picked_addRR->asmInstr << "\n";
+    // ADD
+    Xchg(scratchR1, add_0);
+    Xchg(scratchR2, add_1);
 
-    Xchg(picked_addRR->getOp(1).reg, scratchr2);
-    Xchg(picked_addRR->getOp(0).reg, scratchr1);
+    chain.emplace_back(ChainElem(add));
+    dbgs() << add->asmInstr << "\n";
+
+    Xchg(add_1, scratchR2);
+    Xchg(add_0, scratchR1);
   }
 
-  return scratchr1;
+  return scratchR1;
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
@@ -308,7 +304,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
       return 1;
   }
-
+  for (auto &a : *SRT.getRegs(MI))
+    dbgs() << "scratch: " << a << " \n";
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
@@ -412,6 +409,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
+
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     if (SRT.count(MI) < 2)

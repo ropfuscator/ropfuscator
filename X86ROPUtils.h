@@ -101,9 +101,6 @@ public:
   std::tuple<Microgadget *, x86_reg, x86_reg>
   pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
                      llvm::MachineInstr &MI);
-  std::tuple<Microgadget *, x86_reg, x86_reg>
-  pickSuitableGadgetMem(std::vector<Microgadget *> &RR, x86_reg o_dst,
-                        llvm::MachineInstr &MI);
 
   static BinaryAutopsy *BA;
 

@@ -96,12 +96,12 @@ void ScratchRegTracker::performLivenessAnalysis() {
   const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MRI = MF->getRegInfo();
   LivePhysRegs LiveRegs(TRI);
-  LiveRegs.addLiveOuts(MBB);
+  LiveRegs.addLiveIns(MBB);
 
   // Data-flow analysis is performed starting from the end of each basic block,
   // iterating each instruction backwards to find USEs and DEFs of each physical
   // register
-  for (auto I = MBB.rbegin(); I != MBB.rend(); ++I) {
+  for (auto I = MBB.begin(); I != MBB.end(); ++I) {
     MachineInstr *MI = &*I;
 
     for (unsigned reg : X86::GR32RegClass) {
@@ -109,8 +109,8 @@ void ScratchRegTracker::performLivenessAnalysis() {
         addReg(*MI, reg);
       }
     }
-
-    LiveRegs.stepBackward(*MI);
+    SmallVector<std::pair<unsigned, const MachineOperand *>, 2> Clobbers;
+    LiveRegs.stepForward(*MI, Clobbers);
   }
 
   dbgs() << "[*] Register liveness analysis performed on basic block "
