@@ -83,6 +83,16 @@ public:
   void inject();
   void loadEffectiveAddress(int64_t displacement);
 
+  // computeAddress - finds the correct set of gadgets such that:
+  // the value in "inputReg" is copied in a scratch register, incremented by the
+  // value of "displacement", and placed in any register that can be exchanged
+  // with "outputReg".
+  // The return value is the actual register in which the computed value is
+  // saved. This is useful to whom calls this method, in order to create an
+  // exchange chain to move the results onto another register.
+  x86_reg computeAddress(x86_reg inputReg, uint64_t displacement,
+                         x86_reg outputReg, llvm::MachineInstr &MI);
+
   // pickSuitableGadget -  Among a set of RR gadgets, picks the one that has:
   // 1. as dst operand the register we supply, or at least one that is
   // exchangeable
@@ -101,6 +111,9 @@ public:
   bool isFinalized();
   void finalize();
   bool isEmpty();
+
+  // Xchg - Helper method. Adds a series of XCHG gadgets to the chain.
+  void Xchg(x86_reg a, x86_reg b);
 
   ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
            ScratchRegTracker &SRT)

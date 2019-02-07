@@ -30,8 +30,9 @@ uint64_t ChainElem::getRelativeAddress() {
 int ROPChain::globalChainID = 0;
 
 BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(
-    "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
-// "/home/user/llvm-build/examples/step1_add/libnaive.so");
+    // "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
+    //"/home/user/llvm-build/examples/step1_add/libnaive.so");
+    "/lib/i386-linux-gnu/libc.so.6");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -126,6 +127,13 @@ int ROPChain::addInstruction(MachineInstr &MI) {
   return err;
 }
 
+void ROPChain::Xchg(x86_reg a, x86_reg b) {
+  for (auto &a : BA->getXchgPath(a, b)) {
+    dbgs() << "\t" << a->asmInstr << "\n";
+    chain.emplace_back(ChainElem(a));
+  }
+}
+
 std::tuple<Microgadget *, x86_reg, x86_reg>
 ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
                              MachineInstr &MI) {
@@ -200,6 +208,100 @@ ROPChain::pickSuitableGadgetMem(std::vector<Microgadget *> &RR, x86_reg o_dst,
   return xchgDirective;
 }
 
+x86_reg ROPChain::computeAddress(x86_reg inputReg, uint64_t displacement,
+                                 x86_reg outputReg, MachineInstr &MI) {
+  std::vector<ChainElem> retVect;
+  std::vector<Microgadget *> tmp;
+
+  auto movRR_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG);
+  auto popR_v = BA->gadgetLookup(X86_INS_POP, X86_OP_REG);
+  auto addRR_v = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
+
+  Microgadget *picked_movRR, *picked_popR, *picked_addRR;
+  x86_reg scratchr1 = X86_REG_INVALID;
+  x86_reg scratchr2 = X86_REG_INVALID;
+
+  // mov REG1, inputSrc
+  // pop REG2
+  // add REG1, REG2
+  // REG1 must be exchangeable with outputSrc
+  for (auto &movRR : movRR_v) {
+    for (auto &popR : popR_v) {
+      for (auto &addRR : addRR_v) {
+        // check exchangeability between related operands
+        if ((!BA->checkXchgPath(outputReg, addRR->getOp(0).reg,
+                                movRR->getOp(0).reg)) ||
+            !BA->checkXchgPath(addRR->getOp(1).reg, popR->getOp(0).reg) ||
+            !BA->checkXchgPath(movRR->getOp(1).reg, inputReg) ||
+            movRR->getOp(0).reg == popR->getOp(0).reg)
+          continue;
+
+        for (auto &sr1 : *SRT.getRegs(MI)) {
+          for (auto &sr2 : *SRT.getRegs(MI)) {
+            if (sr1 == sr2)
+              continue;
+            if (BA->checkXchgPath(sr1, movRR->getOp(0).reg) &&
+                BA->checkXchgPath(sr2, popR->getOp(0).reg)) {
+              scratchr1 = sr1;
+              scratchr2 = sr2;
+
+              // pick the whole gadget combination
+              picked_addRR = addRR;
+              picked_popR = popR;
+              picked_movRR = movRR;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // if scratchr1 hasn't been set, then no any other pointer has, so the search
+  // for a suitable gadget-set failed.
+  if (scratchr1) {
+
+    dbgs() << "[*] Chosen gadgets: \n";
+    dbgs() << picked_movRR->asmInstr << "\n"
+           << picked_popR->asmInstr << "\n"
+           << picked_addRR->asmInstr << "\n";
+    dbgs() << "[*] Scratch regs: " << scratchr1 << ", " << scratchr2 << "\n";
+
+    // Okay, now it's time to build the chain!
+
+    // ---------
+
+    Xchg(scratchr1, picked_movRR->getOp(0).reg);
+    Xchg(inputReg, picked_movRR->getOp(1).reg);
+
+    chain.emplace_back(ChainElem(picked_movRR));
+    dbgs() << picked_movRR->asmInstr << "\n";
+
+    Xchg(picked_movRR->getOp(1).reg, inputReg);
+    Xchg(picked_movRR->getOp(0).reg, scratchr1);
+
+    // ----------
+    Xchg(scratchr2, picked_popR->getOp(0).reg);
+
+    chain.emplace_back(ChainElem(picked_popR));
+    dbgs() << picked_popR->asmInstr << "\n";
+    dbgs() << "displacement: " << displacement;
+    chain.push_back(displacement);
+
+    Xchg(picked_popR->getOp(0).reg, scratchr2);
+    // ------------
+    Xchg(scratchr1, picked_addRR->getOp(0).reg);
+    Xchg(scratchr2, picked_addRR->getOp(1).reg);
+
+    chain.emplace_back(ChainElem(picked_addRR));
+    dbgs() << picked_addRR->asmInstr << "\n";
+
+    Xchg(picked_addRR->getOp(1).reg, scratchr2);
+    Xchg(picked_addRR->getOp(0).reg, scratchr1);
+  }
+
+  return scratchr1;
+}
+
 int ROPChain::mapBindings(MachineInstr &MI) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
@@ -207,48 +309,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       return 1;
   }
 
-  /*void pane1() {
-    for (auto &initialisableReg : BA->getInitialisableRegs()) {
-      for (auto &scratchReg : *SRT.getRegs(MI)) {
-        for (auto &movRR :
-             BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG)) {
-          for (auto &popR : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
-            for (auto &addRR :
-                 BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
-              for (auto &movMR :
-                   BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
-                // mov REG1, o_src
-                if (!BA->checkXchgPath(movRR->getOp(1).reg, o_src))
-                  continue;
-
-                if (!BA->checkXchgPath(movRR->getOp(0).reg, initialisableReg,
-                                       scratchReg))
-                  continue;
-
-                if (!BA->checkXchgPath(
-                        movRR->getOp(0).reg, addRR->getOp(0).reg,
-                        static_cast<x86_reg>(movMR->getOp(1).mem.base)))
-                  continue;
-                if (!BA->checkXchgPath(popR->getOp(0).reg, addRR->getOp(1).reg))
-                  continue;
-
-                dbgs() << "\n[*] Found first gadget combination!\n";
-                dbgs() << movRR->asmInstr << "\n"
-                       << popR->asmInstr << "\n"
-                       << addRR->asmInstr << "\n"
-                       << movRR->asmInstr << "\n";
-              }
-            }
-          }
-        }
-      }
-    }
-  }*/
-
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
+    return 1;
 
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
@@ -347,9 +412,6 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
-    for (auto &a : *SRT.getRegs(MI))
-      dbgs() << "scratch reg: " << a << "\n";
-
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     if (SRT.count(MI) < 2)
@@ -360,152 +422,34 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // original instr dst operand
     x86_reg o_dst = convertToCapstoneReg(MI.getOperand(0).getReg());
 
-    auto movRR_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG);
-    auto popR_v = BA->gadgetLookup(X86_INS_POP, X86_OP_REG);
-    auto addRR_v = BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
     auto movRM_v = BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
 
-    Microgadget *picked_movRR, *picked_popR, *picked_addRR, *picked_movRM;
-    x86_reg scratchr1, scratchr2;
+    x86_reg computedAddrReg;
+    Microgadget *picked_movRM;
 
-    for (auto &movRR : movRR_v) {
-      for (auto &popR : popR_v) {
-        for (auto &addRR : addRR_v) {
-          for (auto &movRM : movRM_v) {
-            // check exchangeability between related operands
-            if ((!BA->checkXchgPath(
-                    static_cast<x86_reg>(movRM->getOp(1).mem.base),
-                    addRR->getOp(0).reg, movRR->getOp(0).reg)) ||
-                !BA->checkXchgPath(addRR->getOp(1).reg, popR->getOp(0).reg) ||
-                !BA->checkXchgPath(movRR->getOp(1).reg, o_src) ||
-                !BA->checkXchgPath(movRM->getOp(0).reg, o_dst) ||
-                movRR->getOp(0).reg == popR->getOp(0).reg)
-              continue;
+    for (auto &movRM : movRM_v) {
+      x86_reg outputReg = static_cast<x86_reg>(movRM->getOp(1).mem.base);
+      uint64_t displacement =
+          MI.getOperand(4).getImm() - movRM->getOp(1).mem.disp;
 
-            for (auto &sr1 : *SRT.getRegs(MI)) {
-              for (auto &sr2 : *SRT.getRegs(MI)) {
-                if (sr1 == sr2)
-                  continue;
-                if (BA->checkXchgPath(sr1, movRR->getOp(0).reg) &&
-                    BA->checkXchgPath(sr2, popR->getOp(0).reg)) {
-                  scratchr1 = sr1;
-                  scratchr2 = sr2;
-
-                  // pick the whole gadget combination
-                  picked_movRM = movRM;
-                  picked_addRR = addRR;
-                  picked_popR = popR;
-                  picked_movRR = movRR;
-                }
-              }
-            }
-          }
-        }
+      auto res = computeAddress(o_src, displacement, outputReg, MI);
+      if (res != X86_REG_INVALID) {
+        computedAddrReg = res;
+        picked_movRM = movRM;
+        break;
       }
     }
 
+    dbgs() << "Results returned in: " << computedAddrReg << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << picked_movRR->asmInstr << "\n"
-           << picked_popR->asmInstr << "\n"
-           << picked_addRR->asmInstr << "\n"
-           << picked_movRM->asmInstr << "\n";
-    dbgs() << "[*] Scratch regs: " << scratchr1 << ", " << scratchr2 << "\n";
-
-    // Okay, now it's time to build the chain!
-
-    // ---------
-    std::vector<Microgadget *> tmp;
-    tmp = BA->getXchgPath(scratchr1, picked_movRR->getOp(0).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    tmp = BA->getXchgPath(o_src, picked_movRR->getOp(1).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    chain.emplace_back(ChainElem(picked_movRR));
-    dbgs() << picked_movRR->asmInstr << "\n";
-
-    tmp = BA->getXchgPath(picked_movRR->getOp(1).reg, o_src);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    tmp = BA->getXchgPath(picked_movRR->getOp(0).reg, scratchr1);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    // ----------
-    tmp = BA->getXchgPath(scratchr2, picked_popR->getOp(0).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    chain.emplace_back(ChainElem(picked_popR));
-    dbgs() << picked_popR->asmInstr << "\n";
-    dbgs() << "original disp: " << MI.getOperand(4).getImm()
-           << "\ngadget disp: " << picked_movRM->getOp(1).mem.disp << "\n";
-    dbgs() << "computed disp: "
-           << MI.getOperand(4).getImm() - picked_movRM->getOp(1).mem.disp
-           << "\n";
-    chain.push_back(MI.getOperand(4).getImm() -
-                    picked_movRM->getOp(1).mem.disp);
-
-    tmp = BA->getXchgPath(picked_popR->getOp(0).reg, scratchr2);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    // ------------
-    tmp = BA->getXchgPath(scratchr1, picked_addRR->getOp(0).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    tmp = BA->getXchgPath(scratchr2, picked_addRR->getOp(1).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    chain.emplace_back(ChainElem(picked_addRR));
-    dbgs() << picked_addRR->asmInstr << "\n";
-
-    tmp = BA->getXchgPath(picked_addRR->getOp(1).reg, scratchr2);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
-
-    tmp = BA->getXchgPath(picked_addRR->getOp(0).reg, scratchr1);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
+    dbgs() << picked_movRM->asmInstr << "\n\n";
 
     // -----------
-    tmp = BA->getXchgPath(o_dst, picked_movRM->getOp(0).reg);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
 
-    tmp = BA->getXchgPath(
-        scratchr1, static_cast<x86_reg>(picked_movRM->getOp(1).mem.base));
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
+    Xchg(o_dst, picked_movRM->getOp(0).reg);
+
+    Xchg(computedAddrReg,
+         static_cast<x86_reg>(picked_movRM->getOp(1).mem.base));
 
     chain.emplace_back(ChainElem(picked_movRM));
     dbgs() << picked_movRM->asmInstr << "\n";
@@ -518,15 +462,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
        chain.emplace_back(ChainElem(a));
      }*/
 
-    tmp = BA->getXchgPath(picked_movRM->getOp(0).reg, o_dst);
-    for (auto &a : tmp) {
-      dbgs() << a->asmInstr << "\n";
-      chain.emplace_back(ChainElem(a));
-    }
+    Xchg(picked_movRM->getOp(0).reg, o_dst);
+
     return 0;
   }
   case X86::MOV32mr: {
-    return 1;
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     if (SRT.count(MI) < 2)
@@ -551,11 +491,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
           for (auto &movMR : movMR_v) {
             // check exchangeability between related operands
             if ((!BA->checkXchgPath(
-                    static_cast<x86_reg>(movMR->getOp(1).mem.base),
+                    static_cast<x86_reg>(movMR->getOp(0).mem.base),
                     addRR->getOp(0).reg, movRR->getOp(0).reg)) ||
                 !BA->checkXchgPath(addRR->getOp(1).reg, popR->getOp(0).reg) ||
-                !BA->checkXchgPath(movRR->getOp(1).reg, o_src) ||
-                !BA->checkXchgPath(movMR->getOp(0).reg, o_dst) ||
+                !BA->checkXchgPath(movRR->getOp(1).reg, o_dst) ||
+                !BA->checkXchgPath(movMR->getOp(1).reg, o_src) ||
                 movRR->getOp(0).reg == popR->getOp(0).reg)
               continue;
 
@@ -598,7 +538,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       chain.emplace_back(ChainElem(a));
     }
 
-    tmp = BA->getXchgPath(o_src, picked_movRR->getOp(1).reg);
+    tmp = BA->getXchgPath(o_dst, picked_movRR->getOp(1).reg);
     for (auto &a : tmp) {
       dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
@@ -607,7 +547,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     chain.emplace_back(ChainElem(picked_movRR));
     dbgs() << picked_movRR->asmInstr << "\n";
 
-    tmp = BA->getXchgPath(picked_movRR->getOp(1).reg, o_src);
+    tmp = BA->getXchgPath(picked_movRR->getOp(1).reg, o_dst);
     for (auto &a : tmp) {
       dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
@@ -628,13 +568,14 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     chain.emplace_back(ChainElem(picked_popR));
     dbgs() << picked_popR->asmInstr << "\n";
-    dbgs() << "original disp: " << MI.getOperand(4).getImm()
-           << "\ngadget disp: " << picked_movMR->getOp(1).mem.disp << "\n";
+    dbgs() << "original disp: " << MI.getOperand(3).getImm()
+           << "\ngadget disp: " << picked_movMR->getOp(0).mem.disp << "\n";
     dbgs() << "computed disp: "
-           << MI.getOperand(4).getImm() - picked_movMR->getOp(1).mem.disp
+           << MI.getOperand(3).getImm() - picked_movMR->getOp(0).mem.disp
            << "\n";
-    chain.push_back(MI.getOperand(4).getImm() -
-                    picked_movMR->getOp(1).mem.disp);
+
+    chain.push_back(MI.getOperand(3).getImm() -
+                    picked_movMR->getOp(0).mem.disp);
 
     tmp = BA->getXchgPath(picked_popR->getOp(0).reg, scratchr2);
     for (auto &a : tmp) {
@@ -671,14 +612,15 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     }
 
     // -----------
-    tmp = BA->getXchgPath(o_dst, picked_movMR->getOp(0).reg);
+    dbgs() << scratchr1 << "->" << picked_movMR->getOp(0).mem.base << "\n";
+    tmp = BA->getXchgPath(
+        scratchr1, static_cast<x86_reg>(picked_movMR->getOp(0).mem.base));
     for (auto &a : tmp) {
       dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
     }
-
-    tmp = BA->getXchgPath(
-        scratchr1, static_cast<x86_reg>(picked_movMR->getOp(1).mem.base));
+    dbgs() << "l'altro\n";
+    tmp = BA->getXchgPath(o_src, picked_movMR->getOp(1).reg);
     for (auto &a : tmp) {
       dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
@@ -695,7 +637,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
        chain.emplace_back(ChainElem(a));
      }*/
 
-    tmp = BA->getXchgPath(picked_movMR->getOp(0).reg, o_dst);
+    tmp = BA->getXchgPath(picked_movMR->getOp(1).reg, o_src);
     for (auto &a : tmp) {
       dbgs() << a->asmInstr << "\n";
       chain.emplace_back(ChainElem(a));
