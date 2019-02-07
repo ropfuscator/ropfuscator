@@ -90,8 +90,8 @@ public:
   // The return value is the actual register in which the computed value is
   // saved. This is useful to whom calls this method, in order to create an
   // exchange chain to move the results onto another register.
-  x86_reg computeAddress(x86_reg inputReg, uint64_t displacement,
-                         x86_reg outputReg, llvm::MachineInstr &MI);
+  x86_reg computeAddress(x86_reg inputReg, int displacement, x86_reg outputReg,
+                         llvm::MachineInstr &MI);
 
   // pickSuitableGadget -  Among a set of RR gadgets, picks the one that has:
   // 1. as dst operand the register we supply, or at least one that is
