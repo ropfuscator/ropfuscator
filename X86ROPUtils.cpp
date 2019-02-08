@@ -29,8 +29,8 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libglib-2.0.so.0");
+BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance("/lib32/libc.so.6");
+// "/lib/i386-linux-gnu/libglib-2.0.so.0");
 // "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
 //"/home/user/llvm-build/examples/step1_add/libnaive.so");
 //"/lib/i386-linux-gnu/libc.so.6");
@@ -490,7 +490,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // -----------
 
     Xchg(orig_0, mov_0);
-    Xchg(address, mov_1);
+    if (address != mov_0 && orig_0 != mov_1)
+      Xchg(address, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
@@ -551,7 +552,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // -----------
 
     Xchg(address, mov_0);
-    Xchg(orig_1, mov_1);
+    if (address != mov_1 && orig_1 != mov_0)
+      Xchg(orig_1, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";

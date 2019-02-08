@@ -13,6 +13,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 - Only the following instructions are currently supported: `ADD32ri(8)`, `SUB32ri(8)`, `MOV32ri`, `MOV32rm` and `MOV32mr`.
 
 ##### Dependencies
+- `pkg-config`
 - `libcapstone-dev`
 - `binutils-dev`
 
