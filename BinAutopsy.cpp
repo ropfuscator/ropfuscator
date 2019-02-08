@@ -157,6 +157,8 @@ void BinaryAutopsy::dumpDynamicSymbols() {
     if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
       symbolName = bfd_asymbol_name(sym);
 
+      // those two symbols are very often subject to aliasing (they can be found
+      // in many different libraries loaded in memory), so better avoiding them!
       if (strcmp(symbolName, "_init") == 0 || strcmp(symbolName, "_fini") == 0)
         continue;
 
@@ -165,13 +167,21 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       // Get version string to avoid symbol aliasing
       const char *versionString = NULL;
       bfd_boolean hidden = false;
-      // TODO: if version = Base, then skip
+
       if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
         versionString = bfd_get_symbol_version_string(BfdHandle, sym, &hidden);
 
-      Symbol s = Symbol(symbolName, versionString, addr);
-      // printf("Found symbol: %s at %#08x\n", symbolName, addr);
-      Symbols.push_back(s);
+      // we cannot use multiple versions of the same symbol, so we discard any
+      // duplicate.
+      bool alreadyPresent = false;
+      for (auto &s : Symbols) {
+        if (strcmp(s.Label, symbolName) == 0) {
+          alreadyPresent = true;
+          break;
+        }
+      }
+      if (!alreadyPresent)
+        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
 

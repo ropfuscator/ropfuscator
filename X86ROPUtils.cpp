@@ -420,7 +420,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
-    return 1;
+
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
@@ -494,7 +494,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32mr: {
-    return 1;
+
     // NOTE: for more comments, please check the case MOV32rm: we adopt the very
     // same strategies.
 
