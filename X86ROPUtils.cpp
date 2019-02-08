@@ -29,10 +29,11 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(
-    // "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
-    //"/home/user/llvm-build/examples/step1_add/libnaive.so");
-    "/lib/i386-linux-gnu/libc.so.6");
+BinaryAutopsy *ROPChain::BA =
+    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libglib-2.0.so.0");
+// "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
+//"/home/user/llvm-build/examples/step1_add/libnaive.so");
+//"/lib/i386-linux-gnu/libc.so.6");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -128,6 +129,7 @@ int ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 void ROPChain::Xchg(x86_reg a, x86_reg b) {
+  dbgs() << "-> XCHG " << a << ", " << b << "\n";
   for (auto &a : BA->getXchgPath(a, b)) {
     dbgs() << "\t" << a->asmInstr << "\n";
     chain.emplace_back(ChainElem(a));
@@ -185,12 +187,14 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     if (combinationFound)
       break;
     pop_0 = p->getOp(0).reg;
+    dbgs() << p->asmInstr << "\n";
 
     for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
       if (combinationFound)
         break;
       add_0 = a->getOp(0).reg;
       add_1 = a->getOp(1).reg;
+      dbgs() << a->asmInstr << "\n";
 
       // REQ #1: src and dst operands cannot be the same
       if (add_0 == add_1)
@@ -299,25 +303,29 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
         add_0 = a->getOp(0).reg;
         add_1 = a->getOp(1).reg;
 
-        // REQ #1: mov_0, add_0 and outputReg must belong to the same exchange
+        // REQ #1: src and dst operands cannot be the same
+        if (add_0 == add_1)
+          continue;
+
+        // REQ #2: mov_0, add_0 and outputReg must belong to the same exchange
         // path (i.e. they are exchangeable)
         if (!BA->checkXchgPath(mov_0, add_0, outputReg))
           continue;
 
-        // REQ #2: pop_0, add_1 must belong to the same exchange path
+        // REQ #3: pop_0, add_1 must belong to the same exchange path
         if (!BA->checkXchgPath(pop_0, add_1))
           continue;
 
-        // REQ #3: mov_1, inputReg must belong to the same exchange path
+        // REQ #4: mov_1, inputReg must belong to the same exchange path
         if (!BA->checkXchgPath(mov_1, inputReg))
           continue;
 
-        // REQ #4: mov_0 and pop_0 must be different, because we need the two
+        // REQ #5: mov_0 and pop_0 must be different, because we need the two
         // operands (base address and displacement) in different registers.
         if (mov_0 == pop_0)
           continue;
 
-        // REQ #5: mov_0 and pop_0 must be exchangeable with two different
+        // REQ #6: mov_0 and pop_0 must be exchangeable with two different
         // scratch registers.
         for (auto &sr1 : scratchRegs) {
           if (combinationFound)
@@ -414,8 +422,6 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     auto res = addImmToReg(orig_0, imm, scratchRegs);
     if (res == X86_REG_INVALID)
       return 1;
-
-    Xchg(res, orig_0);
 
     return 0;
   }
@@ -515,6 +521,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     Microgadget *mov;
 
     for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
+      dbgs() << m->asmInstr << "\n";
       //      mov     [mov_0], mov_1
       mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
       mov_1 = m->getOp(1).reg;
