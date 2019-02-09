@@ -40,6 +40,9 @@ private:
   // MBB - pointer to the basic block on which the analysis is performed.
   llvm::MachineBasicBlock &MBB;
 
+  // addInstr - adds a new MachineInstr entry on the map, with an empty vector.
+  void addInstr(llvm::MachineInstr &MI);
+
   // addReg - adds a new scratch register.
   void addReg(llvm::MachineInstr &MI, int reg);
 

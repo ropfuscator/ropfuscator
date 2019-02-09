@@ -16,28 +16,30 @@ ScratchRegTracker::ScratchRegTracker(MachineBasicBlock &MBB) : MBB(MBB) {
   performLivenessAnalysis();
 }
 
+void ScratchRegTracker::addInstr(MachineInstr &MI) {
+  std::vector<x86_reg> emptyVect;
+  regs.insert(std::make_pair(&MI, emptyVect));
+  return;
+}
+
 void ScratchRegTracker::addReg(MachineInstr &MI, int reg) {
   auto it = regs.find(&MI);
   // IMPORTANT: Here the register representation is converted from LLVM to
   // capstone and stored in the map.
   if (it != regs.end()) {
     it->second.push_back(convertToCapstoneReg(reg));
-  } else {
-    std::vector<x86_reg> tmp;
-    tmp.push_back(convertToCapstoneReg(reg));
-    regs.insert(std::make_pair(&MI, tmp));
-  }
+  } else
+    assert(false && "No matching MachineInstr found in regs map!");
+  return;
 }
 
 std::vector<x86_reg> *ScratchRegTracker::findRegs(MachineInstr &MI) {
   auto it = regs.find(&MI);
   if (it != regs.end()) {
-    std::vector<x86_reg> *tmp = &it->second;
-    if (tmp->size() > 0) {
-      return tmp;
-    }
+    // std::vector<x86_reg> *tmp = &it->second;
+    return &it->second;
   }
-  return nullptr;
+  assert(false && "No vector");
 }
 
 x86_reg ScratchRegTracker::getReg(MachineInstr &MI) {
@@ -70,7 +72,7 @@ void ScratchRegTracker::performLivenessAnalysis() {
 
   for (auto I = MBB.begin(); I != MBB.end(); ++I) {
     MachineInstr *MI = &*I;
-
+    addInstr(*MI);
     for (unsigned reg : X86::GR32RegClass) {
       if (LiveRegs.available(MRI, reg)) {
         addReg(*MI, reg);
