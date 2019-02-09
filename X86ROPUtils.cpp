@@ -39,8 +39,12 @@ BinaryAutopsy *ROPChain::BA = BinaryAutopsy::
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
   // PROLOGUE: saves the EIP value before executing the ROP chain
-  // pushf (EFLAGS register backup)
-  // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
+
+  // pushf (EFLAGS register backup): important because the opaque predicate
+  // validation, and in general all the operations performed during the rop
+  // chain execution, may alter the flags. If that happens, subsequent
+  // conditional jumps may act in an unpredictable way!
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
   // call chain_X
   BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
       .addExternalSymbol(chainLabel);
@@ -109,7 +113,7 @@ void ROPChain::inject() {
       .addExternalSymbol(resumeLabel_C)
       .addImm(0);
   // popf (EFLAGS register restore)
-  // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
+  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
 
   // Deletes the initial instructions
   for (MachineInstr *MI : instructionsToDelete) {
@@ -377,52 +381,56 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
-    /*case X86::SUB32ri8:
-    case X86::SUB32ri:
-    case X86::INC32r:
-    case X86::DEC32r:*/
-    {
+  case X86::SUB32ri8:
+  case X86::SUB32ri:
+  case X86::INC32r:
+  case X86::DEC32r: {
+    return 1;
+    // no scratch registers are available -> abort.
+    auto scratchRegs = *SRT.getRegs(MI);
+    if (scratchRegs.size() < 1)
       return 1;
-      // no scratch registers are available -> abort.
-      auto scratchRegs = *SRT.getRegs(MI);
-      if (scratchRegs.size() < 1)
-        return 1;
 
-      x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
-      int imm;
-      switch (opcode) {
-      case X86::ADD32ri8:
-      case X86::ADD32ri: {
-        imm = MI.getOperand(2).getImm();
-        break;
-      }
-        /* case X86::SUB32ri8:
-         case X86::SUB32ri: {
-           imm = -MI.getOperand(2).getImm();
-           break;
-         }
-         case X86::INC32r: {
-           imm = 1;
-           break;
-         }
-         case X86::DEC32r: {
-           imm = -1;
-           break;
-         }*/
-      }
-
-      auto res = addImmToReg(orig_0, imm, scratchRegs);
-      if (res == X86_REG_INVALID)
-        return 1;
-
-      return 0;
+    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
+    int imm;
+    switch (opcode) {
+    case X86::ADD32ri8:
+    case X86::ADD32ri: {
+      imm = MI.getOperand(2).getImm();
+      break;
     }
-  case X86::MOV32rm: {
+    case X86::SUB32ri8:
+    case X86::SUB32ri: {
+      imm = -MI.getOperand(2).getImm();
+      break;
+    }
+    case X86::INC32r: {
+      imm = 1;
+      break;
+    }
+    case X86::DEC32r: {
+      imm = -1;
+      break;
+    }
+    }
 
+    auto res = addImmToReg(orig_0, imm, scratchRegs);
+    if (res == X86_REG_INVALID)
+      return 1;
+
+    return 0;
+  }
+  case X86::MOV32rm: {
+    return 1;
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.size() < 2)
+      return 1;
+
+    // sometimes mov instructions have operands that use segment registers, and
+    // we just cannot handle them
+    if (MI.getOperand(0).getReg() == 0 || MI.getOperand(1).getReg() == 0)
       return 1;
 
     // dump all the useful operands from the MachineInstr we are processing:
@@ -495,7 +503,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32mr: {
-    return 1;
+
     // NOTE: for more comments, please check the case MOV32rm: we adopt the
     // very same strategies.
 
@@ -503,6 +511,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // (we are unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.size() < 2)
+      return 1;
+
+    // sometimes mov instructions have operands that use segment registers, and
+    // we just cannot handle them
+    if (MI.getOperand(0).getReg() == 0 || MI.getOperand(5).getReg() == 0)
       return 1;
 
     // dump all the useful operands from the MachineInstr we are processing:
@@ -545,14 +558,15 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // -----------
 
-    Xchg(address, mov_0);
-    if (address != mov_1 && orig_1 != mov_0)
+    int x = Xchg(address, mov_0);
+    if ((address != mov_1 && orig_1 != mov_0) || x == 0)
       Xchg(orig_1, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
 
-    Xchg(mov_1, orig_1);
+    if ((address != mov_1 && orig_1 != mov_0) || x == 0)
+      Xchg(mov_1, orig_1);
 
     return 0;
   }
