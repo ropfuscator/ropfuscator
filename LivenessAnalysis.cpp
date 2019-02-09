@@ -1,9 +1,3 @@
-//
-// LivenessAnalysis
-// Analyses the liveness of physical registers in order to get an unused
-// (dead/killed) register when we have the need of a scratch register
-//
-
 #include "LivenessAnalysis.h"
 #include "../X86.h"
 #include "../X86Subtarget.h"
@@ -60,30 +54,6 @@ std::vector<x86_reg> *ScratchRegTracker::getRegs(MachineInstr &MI) {
   return nullptr;
 }
 
-/*int ScratchRegTracker::popReg(MachineInstr &MI) {
-  std::vector<int> *tmp = findRegs(MI);
-  if (tmp) {
-    int retval = tmp->back();
-    tmp->pop_back();
-    return retval;
-  }
-
-  return NULL;
-}
-
-int ScratchRegTracker::popReg(MachineInstr &MI, int reg) {
-  std::vector<int> *tmp = findRegs(MI);
-  auto it = find(tmp->begin(), tmp->end(), reg);
-  if (it != tmp->end()) {
-    int retVal = *it;
-    tmp->erase(it);
-    return retVal;
-  }
-
-  // assert(false && "Unable to pop given register! Not found!");
-  return NULL;
-}
-*/
 int ScratchRegTracker::count(MachineInstr &MI) {
   std::vector<x86_reg> *tmp = findRegs(MI);
   if (tmp)
@@ -98,9 +68,6 @@ void ScratchRegTracker::performLivenessAnalysis() {
   LivePhysRegs LiveRegs(TRI);
   LiveRegs.addLiveIns(MBB);
 
-  // Data-flow analysis is performed starting from the end of each basic block,
-  // iterating each instruction backwards to find USEs and DEFs of each physical
-  // register
   for (auto I = MBB.begin(); I != MBB.end(); ++I) {
     MachineInstr *MI = &*I;
 

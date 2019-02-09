@@ -16,10 +16,6 @@
 
 using namespace std;
 
-// Max bytes before the RET to be examined (RET included!)
-// see BinaryAutopsy::extractGadgets()
-#define MAXDEPTH 4
-
 // ------------------------------------------------------------------------
 // Symbol
 // ------------------------------------------------------------------------

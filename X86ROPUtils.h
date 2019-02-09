@@ -1,6 +1,13 @@
-//
-// Created by Daniele Ferla on 22/10/2018.
-//
+// ==============================================================================
+//   X86 ROP Utils
+//   part of the ROPfuscator project
+// ==============================================================================
+// This is the main module of the whole project.
+// It provides high-level reasoning about the actual ROP chain creation by
+// mapping each instruction, given as input, to a series of microgadgets that
+// have the very same semantic.
+// It is also responsible to inject the newly built ROP chain and remove the
+// instructions that have been replaced.
 
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
@@ -21,41 +28,62 @@ struct Stats {
   Stats() : processed(0), replaced(0){};
 };
 
+// Generic element to be put in the chain.
 struct ChainElem {
-  // Element to be pushed onto the stack (gadget or immediate value)
-  // Each ChainElem is associated with a specific symbol: by doing this, we can
-  // avoid to associate one gadget with always the same symbol
+  // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
+  // type because we will use different strategies during the creation of
+  // machine instructions to push elements of the chain onto the stack.
   type_t type;
+
   union {
+    // value - immediate value
     int64_t value;
+
+    // r - pointer to a microgadget
     const Microgadget *r;
   };
+
+  // s - pointer to a symbol.
+  // We bind symbols to chain elements because, if we'd do that to actual
+  // microgadgets, it would be fairly easy to predict which gadget is referenced
+  // with a symbol, since during the chain execution very few gadgets are
+  // executed.
   Symbol *s;
 
+  // Constructor (type: GADGET)
   ChainElem(Microgadget *g);
 
+  // Constructor (type: IMMEDIATE)
   ChainElem(int64_t value);
 
+  // getRelativeAddress - returns the gadget address relative to the symbol it
+  // is anchored to.
   uint64_t getRelativeAddress();
 };
 
+// Keeps track of all the instructions to be replaced with the obfuscated
+// ones. Handles the injection of auxiliary machine code to guarantee the
+// correct chain execution and to resume the non-obfuscated code execution
+// afterwards.
 class ROPChain {
-  // Keeps track of all the instructions to be replaced with the obfuscated
-  // ones. Handles the injection of auxiliary machine code to guarantee the
-  // correct chain execution and to resume the non-obfuscated code execution
-  // afterwards.
-
-  // IDs
+  // globalChainID - just an incremental ID number for all the chains that will
+  // be created.
   static int globalChainID;
+
+  // chainID - chain number.
   int chainID;
 
-  // A finalized chain can't get gadgets anymore
+  // finalized - this flag tells if the chain has to be closed. This happens
+  // when an unsupported instruction is encountered: the chain is closed, the
+  // unsupported instruction remains untouched, and possibly a new chain is
+  // created as soon as a supported instruction is processed.
   bool finalized = false;
 
-  // Input instructions that we want to replace with obfuscated ones
+  // instructionsToDelete - keeps track of all the instructions that we want to
+  // replace with obfuscated ones
   std::vector<llvm::MachineInstr *> instructionsToDelete;
 
-  // Gadgets to be pushed onto the stack during the injection phase
+  // chain - holds all the elements of the ROP chain
   std::vector<ChainElem> chain;
 
 public:
@@ -70,6 +98,9 @@ public:
   llvm::MachineFunction *MF;
   llvm::MachineInstr *injectionPoint;
   llvm::MCInstrInfo const *TII;
+
+  // SRT - holds data about the available registers that can be used as scratch
+  // registers (see LivenessAnalysis).
   ScratchRegTracker &SRT;
 
   // addInstruction - wrapper method: if a correct binding can be found between
@@ -115,7 +146,7 @@ public:
   bool isEmpty();
 
   // Xchg - Helper method. Adds a series of XCHG gadgets to the chain.
-  void Xchg(x86_reg a, x86_reg b);
+  int Xchg(x86_reg a, x86_reg b);
 
   ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
            ScratchRegTracker &SRT)

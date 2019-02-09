@@ -20,14 +20,14 @@ ROPLIB_RPATH = lib
 OP_NAME = op
 ROPLIB_NAME = naive
 ROPLIB_SRC = lib$(ROPLIB_NAME).c
-APP_NAME = example1
+APP_NAME = example4
 
 all: directories $(OUT_DIR)/$(APP_NAME)
 
 # Final ROPfuscated executable
 $(OUT_DIR)/$(APP_NAME): $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so
 	$(info --> Compiling the ROPfuscated executable)
-	LD_RUN_PATH='$$ORIGIN/$(ROPLIB_RPATH)' gcc $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -l:lib$(ROPLIB_NAME).so -o $@ 
+	LD_RUN_PATH='$$ORIGIN/$(ROPLIB_RPATH)' gcc $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -lc -o $@ 
 # ROP support library
 $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so: $(ROPLIB_SRCDIR)/lib$(ROPLIB_NAME).c
 	$(info --> Compiling support library)

@@ -1,14 +1,11 @@
-//===-- X86ROPfuscationPass.cpp - ROP Obfuscation Prototype pass
-//---------------------------===//
+// ==============================================================================
+//   X86 ROPFUSCATOR
+//   part of the ROPfuscator project
+// ==============================================================================
+// This module is simply the frontend of ROPfuscator for LLVM.
+// It also provides statics about the processed functions.
 //
-// Written by Daniele Ferla.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file implements an obfuscating transformation prototype
-// as a MachineFunctionPass.
-//
-//===----------------------------------------------------------------------===//
+
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
 #include "../X86MachineFunctionInfo.h"
@@ -35,9 +32,7 @@ class X86ROPfuscator : public MachineFunctionPass {
 public:
   static char ID;
 
-  X86ROPfuscator() : MachineFunctionPass(ID) {
-    // initializeX86ROPfuscatorPass(*PassRegistry::getPassRegistry());
-  }
+  X86ROPfuscator() : MachineFunctionPass(ID) {}
 
   StringRef getPassName() const override { return "X86 ROPfuscator"; }
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -67,10 +62,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         stats.processed++;
 
         if (ropChains.empty() || ropChains.back()->isFinalized()) {
-          /* Since we are forced to do the actual injection only when the whole
-           * Machine Basic Block has been processed, we have to pass the
-           * MachineInstr by value, because it is an iterator and, at some
-           * point, it will be invalidated. */
+          // Since we are forced to do the actual injection only when the whole
+          // Machine Basic Block has been processed, we have to pass the
+          // MachineInstr by value, because it is an iterator and, at some
+          // point, it will be invalidated.
           ROPChain *ropChain = new ROPChain(MBB, MI, scratchRegTracker);
           ropChains.push_back(ropChain);
         }
@@ -79,15 +74,15 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
         int err = lastChain->addInstruction(MI);
         if (err) {
-          /* An error means that the current instruction isn't supported, hence
-           * the chain is finalized. When a new supported instruction will be
-           * processed, another chain will be created. This essentially means
-           * that a chain is split every time an un-replaceable instruction is
-           * encountered. */
+          // An error means that the current instruction isn't supported, hence
+          // the chain is finalized. When a new supported instruction will be
+          // processed, another chain will be created. This essentially means
+          // that a chain is split every time an un-replaceable instruction is
+          // encountered.
           dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
           if (lastChain->isEmpty()) {
-            /* The last created chain is pointless at this point, since it's
-             * empty. */
+            // The last created chain is pointless at this point, since it's
+            // empty.
             delete lastChain;
             ropChains.pop_back();
           } else
@@ -99,10 +94,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       }
     }
 
-    /* IMPORTANT: the injection must occur only after that the entire Machine
-     * Basic Block has been run through, otherwise an exception is thrown. For
-     * this reason, we use a vector in which we put all the chains to be
-     * injected only at this point. */
+    // IMPORTANT: the injection must occur only after that the entire Machine
+    // Basic Block has been run through, otherwise an exception is thrown. For
+    // this reason, we use a vector in which we put all the chains to be
+    // injected only at this point.
     for (ROPChain *rc : ropChains) {
       dbgs() << " >  Injecting ROP Chain: " << rc->chainLabel << "\n";
       rc->inject();
@@ -122,5 +117,5 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 }
 
 static RegisterPass<X86ROPfuscator>
-    X("x86-ropfuscator", "Obfuscate machine code through ROP chains",
-      false /* Only looks at CFG */, false /* Analysis Pass */);
+    X("x86-ropfuscator", "Obfuscate machine code through ROP chains", false,
+      false);

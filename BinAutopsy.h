@@ -9,7 +9,7 @@
 // More in detail, the module is able to extract:
 //      - data about ELF sections
 //      - symbols from the .dynsym section
-//      - microgadgets from executable section
+//      - microgadgets from executable sections
 //
 // Microgadgets are a subset of what are commonly known as ROP Gadgets, with the
 // only difference that we grab only the ones composed by a single instruction
@@ -17,9 +17,8 @@
 //        mov eax, ebx
 //        ret
 //
-// This module offers also a set of methods to look for a specific microgadget
-// among the ones discovered and a lately described "exchange path" analyser.
-//
+// This module offers also a set of helper methods to search for a specific
+// microgadget or verify the exchangeability of its operands.
 
 #ifndef BINAUTOPSY_H
 #define BINAUTOPSY_H
@@ -30,6 +29,10 @@
 #include <capstone/x86.h>
 #include <string>
 #include <vector>
+
+// Max bytes before the RET to be examined (RET included!)
+// see BinaryAutopsy::extractGadgets()
+#define MAXDEPTH 4
 
 // Symbol - entry of the dynamic symbol table. We use them as references
 // to locate the needed gadgets.
@@ -110,8 +113,8 @@ struct Microgadget {
 };
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.
-// It provides also methods to look for specific gadgets and performs the
-// "exchange path" analysis.
+// It provides also methods to look for specific gadgets and performs
+// operand exchangeability analyses.
 // This class has been designed as singleton to simplify the interaction with
 // the ROPChain class. Indeed, we don't want to analyse the same file every time
 // that a new ROPChain is instanciated.
@@ -148,7 +151,7 @@ public:
   //  ANALYSES
   // -----------------------------------------------------------------------------
 
-  // dissect - dumps all the possible data and performs every analysis
+  // dissect - dumps all the data and performs every analysis.
   void dissect();
 
   // dumpSections - parses the ELF header using LibBFD to obtain a list of
@@ -174,8 +177,8 @@ public:
   // semantic of specific instructions.
   void analyseGadgets();
 
-  // applyGadgetFilters - erases problematic gadgets basing on the defined
-  // filters.
+  // applyGadgetFilters - removes problematic gadgets from the set of discovered
+  // ones, basing on the defined filters.
   void applyGadgetFilters();
 
   // -----------------------------------------------------------------------------
@@ -203,12 +206,13 @@ public:
   // initialised using appropriate gadgets.
   std::vector<x86_reg> getInitialisableRegs();
 
-  // checkXchgPath - wrapper method for getPath() of the XChgGraph class.
+  // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
+  // be mutually exchanged.
   bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
   bool checkXchgPath(x86_reg a, std::vector<x86_reg> B);
 
-  // getXchgPath - gets the path between two registers edge by edge from
-  // XChgGraph, then returns a vector of the actual XCHG microgadgets.
+  // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
+  // given two registers.
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
 
   // getReachableRegs - returns a list of all the nodes that can be reached

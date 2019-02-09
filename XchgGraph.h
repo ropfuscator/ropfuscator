@@ -19,9 +19,10 @@
 //          mov eax, ebx  < === >    mov eax, esi
 //                                   xchg esi, ebx
 //
-// NOTE: XchgGraph only handles registers ID, without knowing any abstraction
-// about gadgets and so on. BinAutopsy is in charge of taking the graph data and
-// find the actual xchg gadgets to fulfill our needs.
+// NOTE: XchgGraph only handles the graph data structure and fills it with
+// register IDs, without knowing any abstraction about gadgets.
+// BinAutopsy is in charge of taking the graph data and find the actual xchg
+// gadgets to fulfill our needs.
 
 #ifndef XCHGGRAPH_H
 #define XCHGGRAPH_H
@@ -46,7 +47,7 @@ public:
   bool checkPath(int src, int dest, int pred[], int dist[], bool visited[]);
 
   // getPath - returns the entire path from src to dest, edge by edge. The path
-  // is specified as a vector of pairs, which in turn contain source and
+  // is specified as a vector of pairs, which one of them contains source and
   // destination of each edge.
   std::vector<std::pair<int, int>> getPath(int src, int dest);
 };

@@ -21,14 +21,14 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
 ### Getting started
 #### Joining with LLVM source tree
-1. **Download** LLVM 7.0 **sources** from http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
-2. **Unpack** them in a directory of your choice which will refer to as `[SRC-DIR]`. 
-3. **Clone** this repository specifically in `[SRC-DIR]/lib/Target/X86/ropfuscator`:
+1. Download LLVM 7.0 sources from http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
+2. Unpack them in a directory of your choice which will refer to as `[SRC-DIR]`. 
+3. Clone this repository specifically in `[SRC-DIR]/lib/Target/X86/ropfuscator`:
 
         git clone git@bitbucket.org:s2lab/ropfuscator.git [SRC-DIR]/lib/Target/X86/ropfuscator
 
 
-4. **Patch** the following LLVM backend source files, in order to enable the pass execution when compiling:
+4. Patch the following LLVM backend source files, in order to enable the pass execution when compiling:
 
         cd [SRC-DIR]/lib/Target/X86/
         patch X86.h ropfuscator/patches/X86.patch
@@ -40,16 +40,16 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
 #### Compiling
 
-1. **Install** all the **prerequisites**:
+1. Install all the prerequisites:
 
-        sudo apt install cmake ninja-build clang
+        sudo apt install cmake ninja-build clang pkg-config libcapstone-dev binutils-dev
 
-3. Create a **build directory** which will refer to as `[BUILD-DIR]`:
+3. Create a build directory which will refer to as `[BUILD-DIR]`:
 
         mkdir [BUILD-DIR]
         cd [BUILD-DIR]
 
-4. Let's **configure** the build environment, instructing `cmake` as follows:
+4. Let's configure the build environment, instructing `cmake` as follows:
 
         cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -GNinja [SRC-DIR] 
 
@@ -60,7 +60,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
     - `-DBUILD_SHARED_LIBS=ON`: shared code is moved in `.so` libraries, that can be linked at runtime, thus speeding up the compilation process even more.
     - `-GNinja`: specifies to use `ninja` as build generator. By using `ninja` the overall compile time can decrease by more than 50% (it seems that it has better support to multithreading), but most importantly we can invoke a specific command to compile only `llc`.
     
-5. Now start the actual **compilation** within your build directory
+5. Now start the actual compilation within your build directory
 
         cmake --build .
 
@@ -81,6 +81,27 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 ----------
 
 ### Usage
+1. Convert the source code file to obfuscate in LLVM IR:
+        clang -O0 -S -emit-llvm example.c
+    this will create a new file `example.ll`.
+2. Compile using our custom LLVM `llc` tool:
+        ropf-llc example.ll [ -march=x86 ]
+
+    - `-march=x86`: compile in 32-bit mode from a x64 platform
+    The output is an asm `example.s` file.
+3. Assemble and link:
+        [ LD_RUN_PATH='$ORIGIN/' ] gcc example1.s -o example [ -m32 ] [ -lc | -L. -l:libcustom.so ]
+
+
+    - `-m32`: compile in 32-bit mode from a x64 platform (you will need to have `gcc-multilib` installed for this)
+
+    - `-lc`: only if you used `libc` to extract gadgets and symbols during the linking phase. This will enforce the static linker to resolve the symbols we injected using only `libc`.
+
+    - `-L. -l:libcustom.so`: only if you used a custom library. 
+    - `LD_RUN_PATH`: only if you used a custom library. Enforce the dynamic loader to look for the needed libraries in the specified library at first. This will ensure that the loader will load your library first, as soon as it is shipped along with the binary.
+
+    Note: we use `gcc` only because, in its default behaviour, it doesn't use **lazy binding** during the symbol resolution phase. This is crucial since we need to have all the symbols resolved as soon as the program has been loaded in memory.
+
 ##### Compiling examples
 
     cd examples

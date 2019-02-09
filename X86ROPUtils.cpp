@@ -29,11 +29,12 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance("/lib32/libc.so.6");
-// "/lib/i386-linux-gnu/libglib-2.0.so.0");
-// "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
-//"/home/user/llvm-build/examples/step1_add/libnaive.so");
-//"/lib/i386-linux-gnu/libc.so.6");
+BinaryAutopsy *ROPChain::BA = BinaryAutopsy::
+    getInstance( //"/lib32/libc.so.6");
+                 // "/lib/i386-linux-gnu/libglib-2.0.so.0");
+                 // "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
+                 //"/home/user/llvm-build/examples/step1_add/libnaive.so");
+        "/lib/i386-linux-gnu/libc.so.6");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -67,14 +68,14 @@ void ROPChain::inject() {
       // Push a random symbol that, when resolved by the dynamic linker, will be
       // used as base address; then add the offset to point a specific
       // gadget
-      // dbgs() << "Processing gadget: " << e->r->asmInstr << "\n";
       // call $opaquePredicate
       /*BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
-          .addExternalSymbol("opaquePredicate");*/
+          .addExternalSymbol("opaquePredicate");
 
       // je $wrong_target
-      // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
-      //    .addExternalSymbol(chainLabel);
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
+          .addExternalSymbol(chainLabel);*/
+
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
       // Version is not "Base" (i.e., it is the only one available).
@@ -85,7 +86,6 @@ void ROPChain::inject() {
             .addImm(0);
       }
 
-      // TODO: push+add in one single instruction (via inline ASM)
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(e->s->Label);
@@ -128,48 +128,15 @@ int ROPChain::addInstruction(MachineInstr &MI) {
   return err;
 }
 
-void ROPChain::Xchg(x86_reg a, x86_reg b) {
+int ROPChain::Xchg(x86_reg a, x86_reg b) {
   dbgs() << "-> XCHG " << a << ", " << b << "\n";
-  for (auto &a : BA->getXchgPath(a, b)) {
+  auto xchgPath = BA->getXchgPath(a, b);
+  for (auto &a : xchgPath) {
     dbgs() << "\t" << a->asmInstr << "\n";
     chain.emplace_back(ChainElem(a));
   }
-}
-
-std::tuple<Microgadget *, x86_reg, x86_reg>
-ROPChain::pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
-                             MachineInstr &MI) {
-  std::tuple<Microgadget *, x86_reg, x86_reg> xchgDirective;
-
-  for (auto &g : RR) {
-
-    x86_reg g_dst = g->getOp(0).reg; // gadget dst operand
-    x86_reg g_src = g->getOp(1).reg; // gadget src operand
-
-    // same src and dst operands -> skip
-    if (g_src == g_dst)
-      continue;
-
-    // dst operands of original instr. and RR gadget don't belong to a
-    // feasible exchange path -> skip
-    if (!BA->checkXchgPath(o_dst, g_dst))
-      continue;
-
-    // now we have to check whether the src operand of the RR gadget can be
-    // directly or indirectly initialisable via a scratch register
-    for (auto &initialisableReg : BA->getInitialisableRegs()) {
-      for (auto &scratchReg : *SRT.getRegs(MI)) {
-
-        // convert LLVM register enum (e.g. X86::EAX) in capstone
-        // (X86_REG_EAX);
-        if (BA->checkXchgPath(g_src, initialisableReg, scratchReg)) {
-          xchgDirective = std::make_tuple(g, initialisableReg, scratchReg);
-          return xchgDirective;
-        }
-      }
-    }
-  }
-  return xchgDirective;
+  dbgs() << "performed " << xchgPath.size() << " exchanges\n";
+  return xchgPath.size();
 }
 
 x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
@@ -409,22 +376,47 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
-  case X86::ADD32ri: {
-
-    // no scratch registers are available -> abort.
-    auto scratchRegs = *SRT.getRegs(MI);
-    if (scratchRegs.size() < 1)
+  case X86::ADD32ri:
+    /*case X86::SUB32ri8:
+    case X86::SUB32ri:
+    case X86::INC32r:
+    case X86::DEC32r:*/
+    {
       return 1;
+      // no scratch registers are available -> abort.
+      auto scratchRegs = *SRT.getRegs(MI);
+      if (scratchRegs.size() < 1)
+        return 1;
 
-    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
-    int imm = MI.getOperand(2).getImm();
+      x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
+      int imm;
+      switch (opcode) {
+      case X86::ADD32ri8:
+      case X86::ADD32ri: {
+        imm = MI.getOperand(2).getImm();
+        break;
+      }
+        /* case X86::SUB32ri8:
+         case X86::SUB32ri: {
+           imm = -MI.getOperand(2).getImm();
+           break;
+         }
+         case X86::INC32r: {
+           imm = 1;
+           break;
+         }
+         case X86::DEC32r: {
+           imm = -1;
+           break;
+         }*/
+      }
 
-    auto res = addImmToReg(orig_0, imm, scratchRegs);
-    if (res == X86_REG_INVALID)
-      return 1;
+      auto res = addImmToReg(orig_0, imm, scratchRegs);
+      if (res == X86_REG_INVALID)
+        return 1;
 
-    return 0;
-  }
+      return 0;
+    }
   case X86::MOV32rm: {
 
     // no scratch registers are available, or the dst operand is ESP (we are
@@ -463,12 +455,12 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       //    memory address is located
       //    - orig_disp - mov_disp: difference of the displacement of the
       //    original instruction and the gadget; we do this in order to
-      //    compensate the displacement that may be embedded in the gadget (e.g.
-      //    mov reg1, [reg2 + 0x50])
+      //    compensate the displacement that may be embedded in the gadget
+      //    (e.g. mov reg1, [reg2 + 0x50])
       //    - mov_1: output register, namely the register in which we'd prefer
       //    to retrieve the result; if this is not possible, the result is
-      //    placed in a register that is at least reachable via a series of xchg
-      //    gadgets
+      //    placed in a register that is at least reachable via a series of
+      //    xchg gadgets
       //    - scratchRegs: a list of scratch registers that can be clobbered
       auto res =
           computeAddress(orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
@@ -489,8 +481,10 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // -----------
 
-    Xchg(orig_0, mov_0);
-    if (address != mov_0 && orig_0 != mov_1)
+    int x = Xchg(orig_0, mov_0);
+    // this resolves data corruption when two equal exchange chains are
+    // executed, one avoiding the effect of the other
+    if ((address != mov_0 && orig_0 != mov_1) || x == 0)
       Xchg(address, mov_1);
 
     chain.emplace_back(ChainElem(mov));
@@ -501,9 +495,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32mr: {
-
-    // NOTE: for more comments, please check the case MOV32rm: we adopt the very
-    // same strategies.
+    return 1;
+    // NOTE: for more comments, please check the case MOV32rm: we adopt the
+    // very same strategies.
 
     // no scratch registers are available, or the dst operand is ESP
     // (we are unable to modify it since we are using microgadgets) -> abort.
