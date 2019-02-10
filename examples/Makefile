@@ -21,7 +21,7 @@ ROPLIB_RPATH = lib
 OP_NAME = op
 ROPLIB_NAME = naive
 ROPLIB_SRC = lib$(ROPLIB_NAME).c
-APP_NAME = example7
+APP_NAME = example5
 
 all: directories $(OUT_DIR)/$(APP_NAME)
 

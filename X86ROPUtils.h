@@ -103,16 +103,31 @@ public:
   // registers (see LivenessAnalysis).
   ScratchRegTracker &SRT;
 
-  // addInstruction - wrapper method: if a correct binding can be found between
-  // the original instruction and some gadgets, the original instruction is put
-  // in a vector. We keep track of all the instructions to remove in order to
-  // defer the actual deletion to the moment in which we'll inject the ROP
-  // Chain. We do this because currently MI is just an iterator
+  // BA - shared instance of Binary Autopsy.
+  static BinaryAutopsy *BA;
+
+  // Constructor
+  ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
+           ScratchRegTracker &SRT);
+
+  // Destructor
+  ~ROPChain();
+
+  // addInstruction - wrapper method: if a correct binding can be found
+  // between the original instruction and some gadgets, the original
+  // instruction is put in a vector. We keep track of all the instructions
+  // to remove in order to defer the actual deletion to the moment in which
+  // we'll inject the ROP Chain. We do this because currently MI is just an
+  // iterator
   int addInstruction(llvm::MachineInstr &MI);
 
+  // mapBindings - determines the gadgets to use to replace a single input
+  // instruction.
   int mapBindings(llvm::MachineInstr &MI);
+
+  // inject - injects the new instructions to build the ROP chain and removes
+  // the original ones.
   void inject();
-  void loadEffectiveAddress(int64_t displacement);
 
   // addImmToReg - adds an immediate value (stored into a scratch register) to
   // the given register.
@@ -129,41 +144,19 @@ public:
   x86_reg computeAddress(x86_reg inputReg, int displacement, x86_reg outputReg,
                          std::vector<x86_reg> scratchRegs);
 
-  // pickSuitableGadget -  Among a set of RR gadgets, picks the one that has:
-  // 1. as dst operand the register we supply, or at least one that is
-  // exchangeable
-  // 2. as src operand a register that is at least indirectly initialisable via
-  // a scratch register.
-  std::tuple<Microgadget *, x86_reg, x86_reg>
-  pickSuitableGadget(std::vector<Microgadget *> &RR, x86_reg o_dst,
-                     llvm::MachineInstr &MI);
+  // Xchg - Concatenates a series of XCHG gadget in order to exchange reg a with
+  // reg b.
+  int Xchg(x86_reg a, x86_reg b);
 
-  static BinaryAutopsy *BA;
+  // DoubleXchg - Concatenates a series of XCHG gadget in order to exchange reg
+  // a with reg b, and c with d. This method helps to prevent two exchange
+  // chains that have the same operands to undo each other.
+  void DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d);
 
   // Helper methods
   bool isFinalized();
   void finalize();
   bool isEmpty();
-
-  // Xchg - Helper method. Adds a series of XCHG gadgets to the chain.
-  int Xchg(x86_reg a, x86_reg b);
-  void DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d);
-
-  ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
-           ScratchRegTracker &SRT)
-      : MBB(&MBB), injectionPoint(&injectionPoint), SRT(SRT) {
-    MF = MBB.getParent();
-    TII = MF->getTarget().getMCInstrInfo();
-    chainID = globalChainID++;
-
-    // Creates all the labels
-    sprintf(chainLabel, ".chain_%d", chainID);
-    sprintf(chainLabel_C, ".chain_%d:", chainID);
-    sprintf(resumeLabel, ".resume_%d", chainID);
-    sprintf(resumeLabel_C, ".resume_%d:", chainID);
-  }
-
-  ~ROPChain() { globalChainID--; }
 };
 
 #endif

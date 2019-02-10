@@ -3,14 +3,17 @@
 ROPfuscator is an LLVM backend extension that aims to perform code obfuscation taking advantage of ROP chains: supported instructions are replaced by semantically equivalent ROP gadgets.
 
 ##### Features
-- Available gadgets and symbols are automatically extracted from `libc`.
-- Gadgets are referenced using **symbol hooking**, i.e. each gadget is referenced using a random symbol within `libc` and its offset from it. Since symbol addresses are automatically resolved at runtime by the dynamic loader (`ld`), we can guarantee to reach the wanted gadget even if the library is mapped in memory at a non-static address.
+- Gadgets are automatically extracted from `libc` or from a custom library, if provided.
+- Gadgets are referenced using **symbol anchoring**: each gadget is referenced using a random symbol within the provided library and its offset from it. Since symbol addresses are automatically resolved at runtime by the dynamic loader (`ld`), we can guarantee to reach the wanted gadget even if the library is mapped in memory at a non-static address.
 - ASLR-resilient: works flawlessly with ASLR enabled.
+- **Data-flow analysis**: in case of need of a scratch register where to compute temporary values, only registers that don't hold useful data are used. 
+- **Gadget generalisation** through the **Xchg graph** allows to parametrise gadget instruction operands, giving the possibility to re-use the same gadgets but with different operands. This way we ensure that instructions are correctly obfuscated even in case the number of extracted gadgets is very restricted.
 
 ##### Limitations
 - Dependence on the specific version of `libc` used at compile time.  
-    To avoid this, you can potentially use a library that will be distributed along with the binary as source for ROP gadgets.
-- Only the following instructions are currently supported: `ADD32ri(8)`, `SUB32ri(8)`, `MOV32ri`, `MOV32rm` and `MOV32mr`.
+    To avoid this, you can potentially use a library that will be distributed along with the binary.
+- Support is currently limited to x86 platforms.
+- Only the following instructions are currently supported: `ADD32ri(8)`, `SUB32ri(8)`, `INC32r`, `DEC32r`, `MOV32rm` and `MOV32mr`.
 
 ##### Dependencies
 - `pkg-config`
@@ -18,7 +21,12 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 - `binutils-dev`
 
 -------
+### Project architecture
 
+
+![Imgur](https://i.imgur.com/ipResnS.png)
+
+-------
 ### Getting started
 #### Joining with LLVM source tree
 1. Download LLVM 7.0 sources from http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
@@ -38,7 +46,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
     Now ROPfuscator has been merged to the LLVM backend. Time to compile everything!
 
-#### Compiling
+#### Compiling LLVM
 
 1. Install all the prerequisites:
 
@@ -70,7 +78,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
         sudo ln -s [BUILD-DIR]/bin/llc $(HOME)/.local/bin/ropf-llc
 
-Make sure that `$(HOME)/.local/bin/` is set in your `PATH` environmental variable.
+    Make sure that `$(HOME)/.local/bin/` is set in your `PATH` environmental variable.
 
 #### Recompiling LLC 
 Since ROPfuscator is a `MachineFunctionPass`, we have to recompile `llc` (LLVM system compiler) each time we modify the pass. 
@@ -82,14 +90,22 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 
 ### Usage
 1. Convert the source code file to obfuscate in LLVM IR:
+
         clang -O0 -S -emit-llvm example.c
+
     this will create a new file `example.ll`.
+
 2. Compile using our custom LLVM `llc` tool:
+
         ropf-llc example.ll [ -march=x86 ]
 
-    - `-march=x86`: compile in 32-bit mode from a x64 platform
+    - `-march=x86`: compile in 32-bit mode from a x64 platform  
+
+
     The output is an asm `example.s` file.
+
 3. Assemble and link:
+
         [ LD_RUN_PATH='$ORIGIN/' ] gcc example1.s -o example [ -m32 ] [ -lc | -L. -l:libcustom.so ]
 
 
@@ -98,9 +114,9 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
     - `-lc`: only if you used `libc` to extract gadgets and symbols during the linking phase. This will enforce the static linker to resolve the symbols we injected using only `libc`.
 
     - `-L. -l:libcustom.so`: only if you used a custom library. 
-    - `LD_RUN_PATH`: only if you used a custom library. Enforce the dynamic loader to look for the needed libraries in the specified library at first. This will ensure that the loader will load your library first, as soon as it is shipped along with the binary.
+    - `LD_RUN_PATH`: only if you used a custom library. Enforce the dynamic loader to look for the needed libraries in the specified path first. This will ensure that the loader will load your library first, as soon as it is shipped along with the binary.
 
-    Note: we use `gcc` only because, in its default behaviour, it doesn't use **lazy binding** during the symbol resolution phase. This is crucial since we need to have all the symbols resolved as soon as the program has been loaded in memory.
+    Note: we use `gcc` only because, in its default behaviour, it doesn't use **lazy binding** to resolve symbols. This is crucial since we need to have all the symbols resolved as soon as the program has been loaded in memory.
 
 ##### Compiling examples
 
@@ -108,4 +124,18 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
     make
 
 The example file (`example1.c`) will be ROPfuscated and put in the `examples/bin/` folder.
+
+----------
+
+### Known issues:
+- When compiling a program on a 64-bit platform, the custom `llc` compiler may disrupt the correct functioning of library calls.   
+It seems to be caused by the fact that certain integer parameter values are pushed onto the stack as if they were 64-bit types, even if we're compiling using the `-march=x86` switch.
+This happens even if the ROPfuscator pass is disabled (naively by putting a `return false` at the beginning of `runOnMachineFunction()`).  
+    An example of this behaviour can be observed in `example7`.
+The program has been compiled with plain `clang` compiler once, and with our custom `llc` but with ROPfuscator pass disabled.
+Setting up a breakpoint on the `fseek` call (in `count_characters` function) we have this:
+
+![Imgur](https://i.imgur.com/qmW6LPj.png)
+
+
 

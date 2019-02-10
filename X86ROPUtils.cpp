@@ -35,6 +35,22 @@ int ROPChain::globalChainID = 0;
 BinaryAutopsy *ROPChain::BA =
     BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
 
+ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
+                   llvm::MachineInstr &injectionPoint, ScratchRegTracker &SRT)
+    : MBB(&MBB), injectionPoint(&injectionPoint), SRT(SRT) {
+  MF = MBB.getParent();
+  TII = MF->getTarget().getMCInstrInfo();
+  chainID = globalChainID++;
+
+  // Creates all the labels
+  sprintf(chainLabel, ".chain_%d", chainID);
+  sprintf(chainLabel_C, ".chain_%d:", chainID);
+  sprintf(resumeLabel, ".resume_%d", chainID);
+  sprintf(resumeLabel_C, ".resume_%d:", chainID);
+}
+
+ROPChain::~ROPChain() { globalChainID--; }
+
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
   // PROLOGUE: saves the EIP value before executing the ROP chain
@@ -72,12 +88,12 @@ void ROPChain::inject() {
       // used as base address; then add the offset to point a specific
       // gadget
       // call $opaquePredicate
-      /*BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
+      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
           .addExternalSymbol("opaquePredicate");
 
       // je $wrong_target
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
-          .addExternalSymbol(chainLabel);*/
+          .addExternalSymbol(chainLabel);
 
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
@@ -132,22 +148,21 @@ int ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 int ROPChain::Xchg(x86_reg a, x86_reg b) {
-  dbgs() << "-> XCHG " << a << ", " << b << "\n";
+  // dbgs() << "-> XCHG " << a << ", " << b << "\n";
   auto xchgPath = BA->getXchgPath(a, b);
   for (auto &a : xchgPath) {
-    dbgs() << "\t" << a->asmInstr << "\n";
+    // dbgs() << "\t" << a->asmInstr << "\n";
     chain.emplace_back(ChainElem(a));
   }
-  dbgs() << "performed " << xchgPath.size() << " exchanges\n";
+  // dbgs() << "performed " << xchgPath.size() << " exchanges\n";
   return xchgPath.size();
 }
 
 void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
-  int x = Xchg(a, b);
+  Xchg(a, b);
 
-  // this ensures that if the operands in the second xchg are the same as the
-  // first, it won't be executed, unless the first xchg implied 0 exchanges
-  // (explain better)
+  // just a fancy way to check if the two pairs of operands are the same,
+  // regardless of their order.
   if (((std::min(a, b) == std::min(c, d)) &&
        (std::max(a, b) == std::max(c, d)))) {
 
