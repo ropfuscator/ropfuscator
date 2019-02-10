@@ -6,5 +6,4 @@ GTAGS
 examples/tmp/*
 examples/bin/*
 examples/lib/*
-examples/.gdb_history
-
+examples/.*

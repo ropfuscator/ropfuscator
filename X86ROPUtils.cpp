@@ -233,14 +233,12 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     Xchg(pop_0, scratch);
 
     // ADD
-    Xchg(reg, add_0);
-    Xchg(scratch, add_1);
+    DoubleXchg(reg, add_0, scratch, add_1);
 
     chain.emplace_back(ChainElem(add));
     dbgs() << add->asmInstr << "\n";
 
-    Xchg(add_1, scratch);
-    Xchg(add_0, reg);
+    DoubleXchg(add_1, scratch, add_0, reg);
 
     return add_0;
   }
@@ -380,7 +378,7 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
-  return 1;
+
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -396,7 +394,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    return 1;
+
     // no scratch registers are available -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.size() < 1)
@@ -510,7 +508,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32mr: {
-    return 1;
+
     // NOTE: for more comments, please check the case MOV32rm: we adopt the
     // very same strategies.
 
@@ -565,24 +563,12 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // -----------
 
-    int x = Xchg(address, mov_0);
-    if (((address != mov_1 && orig_1 != mov_0) &&
-         (address != orig_1 && mov_0 != mov_1)) ||
-        x == 0)
-      Xchg(orig_1, mov_1);
-
-    /* if (((address != mov_0 && orig_0 != mov_1) &&
-          (address != orig_0 && mov_0 != mov_1)) ||
-         x == 0)
-       Xchg(address, mov_1);*/
+    DoubleXchg(address, mov_0, orig_1, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
 
-    if (((address != mov_1 && orig_1 != mov_0) &&
-         (address != orig_1 && mov_0 != mov_1)) ||
-        x == 0)
-      Xchg(mov_1, orig_1);
+    Xchg(mov_1, orig_1);
 
     return 0;
   }

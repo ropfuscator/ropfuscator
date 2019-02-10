@@ -44,6 +44,7 @@ char X86ROPfuscator::ID = 0;
 FunctionPass *llvm::createX86ROPfuscator() { return new X86ROPfuscator(); }
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
+
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
   dbgs() << "\n[*] Processing function: " << funcName << "\n";
