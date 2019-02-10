@@ -29,12 +29,11 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::
-    getInstance( //"/lib32/libc.so.6");
-                 // "/lib/i386-linux-gnu/libglib-2.0.so.0");
-                 // "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
-                 //"/home/user/llvm-build/examples/step1_add/libnaive.so");
-        "/lib/i386-linux-gnu/libc.so.6");
+BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance("/lib32/libc.so.6");
+// "/lib/i386-linux-gnu/libglib-2.0.so.0");
+// "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
+//"/home/user/llvm-build/examples/step1_add/libnaive.so");
+//"/lib/i386-linux-gnu/libc.so.6");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
@@ -141,6 +140,21 @@ int ROPChain::Xchg(x86_reg a, x86_reg b) {
   }
   dbgs() << "performed " << xchgPath.size() << " exchanges\n";
   return xchgPath.size();
+}
+
+void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
+  int x = Xchg(a, b);
+
+  // this ensures that if the operands in the second xchg are the same as the
+  // first, it won't be executed, unless the first xchg implied 0 exchanges
+  // (explain better)
+  if (((std::min(a, b) == std::min(c, d)) &&
+       (std::max(a, b) == std::max(c, d)))) {
+
+    dbgs() << "# avoiding xchg between " << c << " and " << d << "\n";
+  } else {
+    Xchg(c, d);
+  }
 }
 
 x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
@@ -336,14 +350,12 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     // Okay, now it's time to build the chain!
 
     // MOV
-    Xchg(scratchR1, mov_0);
-    Xchg(inputReg, mov_1);
+    DoubleXchg(scratchR1, mov_0, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
 
-    Xchg(mov_1, inputReg);
-    Xchg(mov_0, scratchR1);
+    DoubleXchg(mov_1, inputReg, mov_0, scratchR1);
 
     // POP
     Xchg(scratchR2, pop_0);
@@ -356,20 +368,19 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     Xchg(pop_0, scratchR2);
 
     // ADD
-    Xchg(scratchR1, add_0);
-    Xchg(scratchR2, add_1);
+    DoubleXchg(scratchR1, add_0, scratchR2, add_1);
 
     chain.emplace_back(ChainElem(add));
     dbgs() << add->asmInstr << "\n";
 
-    Xchg(add_1, scratchR2);
-    Xchg(add_0, scratchR1);
+    DoubleXchg(add_1, scratchR2, add_0, scratchR1);
   }
 
   return scratchR1;
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
+  return 1;
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -421,7 +432,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32rm: {
-    return 1;
+
     // no scratch registers are available, or the dst operand is ESP (we are
     // unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
@@ -489,11 +500,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // -----------
 
-    int x = Xchg(orig_0, mov_0);
-    // this resolves data corruption when two equal exchange chains are
-    // executed, one avoiding the effect of the other
-    if ((address != mov_0 && orig_0 != mov_1) || x == 0)
-      Xchg(address, mov_1);
+    DoubleXchg(orig_0, mov_0, address, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
@@ -503,7 +510,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 0;
   }
   case X86::MOV32mr: {
-
+    return 1;
     // NOTE: for more comments, please check the case MOV32rm: we adopt the
     // very same strategies.
 
@@ -559,13 +566,22 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // -----------
 
     int x = Xchg(address, mov_0);
-    if ((address != mov_1 && orig_1 != mov_0) || x == 0)
+    if (((address != mov_1 && orig_1 != mov_0) &&
+         (address != orig_1 && mov_0 != mov_1)) ||
+        x == 0)
       Xchg(orig_1, mov_1);
+
+    /* if (((address != mov_0 && orig_0 != mov_1) &&
+          (address != orig_0 && mov_0 != mov_1)) ||
+         x == 0)
+       Xchg(address, mov_1);*/
 
     chain.emplace_back(ChainElem(mov));
     dbgs() << mov->asmInstr << "\n";
 
-    if ((address != mov_1 && orig_1 != mov_0) || x == 0)
+    if (((address != mov_1 && orig_1 != mov_0) &&
+         (address != orig_1 && mov_0 != mov_1)) ||
+        x == 0)
       Xchg(mov_1, orig_1);
 
     return 0;

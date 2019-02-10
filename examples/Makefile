@@ -5,9 +5,10 @@ MKDIR = mkdir -p
 # Compiler vars
 CC = clang
 CFLAGS = -m32 -c -fomit-frame-pointer -fno-pie
-IRFLAGS = -m32 -O0 -S -emit-llvm
+IRFLAGS = -O0 -S -emit-llvm
 ROPLIB_CFLAGS = -m32 -shared
-ROPF_LLC = llc
+ROPF_LLC = ropf-llc
+ROPF_LLC_FLAGS = -march=x86
 
 # Directories vars
 OUT_DIR = bin
@@ -27,7 +28,7 @@ all: directories $(OUT_DIR)/$(APP_NAME)
 # Final ROPfuscated executable
 $(OUT_DIR)/$(APP_NAME): $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so
 	$(info --> Compiling the ROPfuscated executable)
-	LD_RUN_PATH='$$ORIGIN/$(ROPLIB_RPATH)' gcc $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -lc -o $@ 
+	LD_RUN_PATH='$$ORIGIN/$(ROPLIB_RPATH)' gcc -m32 $(TMP_DIR)/$(APP_NAME).s $(TMP_DIR)/$(OP_NAME).a -lc -o $@ 
 # ROP support library
 $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so: $(ROPLIB_SRCDIR)/lib$(ROPLIB_NAME).c
 	$(info --> Compiling support library)
@@ -36,7 +37,7 @@ $(ROPLIB_RPATH)/lib$(ROPLIB_NAME).so: $(ROPLIB_SRCDIR)/lib$(ROPLIB_NAME).c
 # LLVM compiler (the ROPfuscator MachineFunctionPass runs here)
 $(TMP_DIR)/$(APP_NAME).s: $(TMP_DIR)/$(APP_NAME).ll
 	$(info --> Generating machine code using LLVM compiler)
-	$(ROPF_LLC) $(TMP_DIR)/$(APP_NAME).ll 
+	$(ROPF_LLC) $(TMP_DIR)/$(APP_NAME).ll $(ROPF_LLC_FLAGS)
 
 # Translation from C to LLVM IR
 $(TMP_DIR)/$(APP_NAME).ll: $(APP_NAME).c
@@ -66,9 +67,3 @@ directories: $(TMP_DIR) $(ROPLIB_RPATH) $(OUT_DIR)
 
 clean:
 	@-rm -r $(TMP_DIR) $(ROPLIB_RPATH) $(OUT_DIR) 2> /dev/null
-
-# ROP LIBRARY \
-  In this PoC the dynamic library used by the ROPfuscated binary is \
-  made up artificially with all the needed gadgets.					\
-  This approach was chosen only to simplify the testing phase,  	\
-  but an arbitrary library can still be used.

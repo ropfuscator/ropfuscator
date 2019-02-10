@@ -147,6 +147,7 @@ public:
 
   // Xchg - Helper method. Adds a series of XCHG gadgets to the chain.
   int Xchg(x86_reg a, x86_reg b);
+  void DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d);
 
   ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
            ScratchRegTracker &SRT)
