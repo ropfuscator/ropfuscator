@@ -29,11 +29,11 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance("/lib32/libc.so.6");
-// "/lib/i386-linux-gnu/libglib-2.0.so.0");
-// "examples/step1_add/libwebkitgtk-3.0.so.0.22.17");
-//"/home/user/llvm-build/examples/step1_add/libnaive.so");
-//"/lib/i386-linux-gnu/libc.so.6");
+// For libc, use:
+//    /lib32/libc.so.6, if you're in a 64-bit platform
+//    /lib/i386-linux-gnu/libc.so.6, in a 32-bit platform
+BinaryAutopsy *ROPChain::BA =
+    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
 
 void ROPChain::inject() {
   dbgs() << "injecting " << chain.size() << " gadgets!\n";
