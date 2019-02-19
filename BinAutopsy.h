@@ -23,6 +23,8 @@
 #ifndef BINAUTOPSY_H
 #define BINAUTOPSY_H
 
+#define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
+
 #include "XchgGraph.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
