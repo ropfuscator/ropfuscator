@@ -41,7 +41,7 @@ public:
 char X86ROPfuscator::ID = 0;
 } // namespace
 
-FunctionPass *llvm::createX86ROPfuscator() { return new X86ROPfuscator(); }
+FunctionPass *llvm::createX86ROPfuscationPass() { return new X86ROPfuscator(); }
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
