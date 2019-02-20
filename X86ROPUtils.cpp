@@ -2,8 +2,80 @@
 #include "CapstoneLLVMAdpt.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
+#include <dirent.h>
 
 using namespace llvm;
+
+
+// TODO: plz improve me
+bool recurseLibcDir(const char *path, std::string &libcPath, uint current_depth) {
+  DIR *dir;
+  struct dirent *entry;
+
+  if (!current_depth) {
+    return false;
+  }
+
+  dir = opendir(path);
+
+  if (dir == NULL)
+    return false;
+
+  // searching for libc in regular files only
+  while ((entry = readdir(dir)) != NULL) {
+    if (!strcmp(entry->d_name, "libc.so.6")) {
+      libcPath += path;
+      libcPath += "/";
+      libcPath += entry->d_name;
+
+      // llvm::dbgs() << "libc found here: " << libcPath << "\n";
+
+      return true;
+    }
+  }
+
+  // could not find libc, recursing into directories
+  dir = opendir(path);
+
+  if (dir == NULL)
+    return false;
+
+  while ((entry = readdir(dir)) != NULL) {
+    // must be a dir and not "." or ".."
+    if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") &&
+        strcmp(entry->d_name, "..")) {
+
+      // constructing path to dir
+      std::string newpath = std::string();
+
+      newpath += path;
+      newpath += "/";
+      newpath += entry->d_name;
+
+      // llvm::dbgs() << "recursing into: " << newpath << "\n";
+
+      // recurse into dir
+      if (recurseLibcDir(newpath.c_str(), libcPath, current_depth - 1))
+        return true;
+    }
+  }
+
+  return false;
+}
+
+// TODO: plz improve me
+bool getLibcPath(std::string &libcPath) {
+  uint maxrecursedepth = 3;
+
+  libcPath.clear();
+
+  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
+    if (recurseLibcDir(folder.c_str(), libcPath, maxrecursedepth))
+      return true;
+  }
+  return false;
+}
+
 
 // ------------------------------------------------------------------------
 // Chain Element
@@ -29,11 +101,11 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-// For libc, use:
-//    /lib32/libc.so.6, if you're in a 64-bit platform
-//    /lib/i386-linux-gnu/libc.so.6, in a 32-bit platform
+std::string libcPath;
+bool libcFound = getLibcPath(libcPath);
+
 BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance("/lib/i386-linux-gnu/libc.so.6");
+    BinaryAutopsy::getInstance(libcPath);
 
 ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
                    llvm::MachineInstr &injectionPoint, ScratchRegTracker &SRT)
