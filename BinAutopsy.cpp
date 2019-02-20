@@ -71,7 +71,7 @@ uint8_t Microgadget::getNumOp() const {
 
 BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
-  strcpy(BinaryPath, path.c_str());
+  strncpy(BinaryPath, path.c_str(), path.length());
 
   ifstream f(path);
   assert(f.good() && "Given file doesn't exist or is invalid!");
