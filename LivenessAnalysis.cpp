@@ -82,6 +82,6 @@ void ScratchRegTracker::performLivenessAnalysis() {
     LiveRegs.stepForward(*MI, Clobbers);
   }
 
-  dbgs() << "[*] Register liveness analysis performed on basic block "
-         << MBB.getNumber() << "\n";
+  // dbgs() << "[*] Register liveness analysis performed on basic block "
+  //      << MBB.getNumber() << "\n";
 }

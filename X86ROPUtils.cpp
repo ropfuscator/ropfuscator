@@ -6,9 +6,9 @@
 
 using namespace llvm;
 
-
 // TODO: plz improve me
-bool recurseLibcDir(const char *path, std::string &libcPath, uint current_depth) {
+bool recurseLibcDir(const char *path, std::string &libcPath,
+                    uint current_depth) {
   DIR *dir;
   struct dirent *entry;
 
@@ -76,7 +76,6 @@ bool getLibcPath(std::string &libcPath) {
   return false;
 }
 
-
 // ------------------------------------------------------------------------
 // Chain Element
 // ------------------------------------------------------------------------
@@ -104,8 +103,7 @@ int ROPChain::globalChainID = 0;
 std::string libcPath;
 bool libcFound = getLibcPath(libcPath);
 
-BinaryAutopsy *ROPChain::BA =
-    BinaryAutopsy::getInstance(libcPath);
+BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libcPath);
 
 ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
                    llvm::MachineInstr &injectionPoint, ScratchRegTracker &SRT)
@@ -124,7 +122,7 @@ ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
 ROPChain::~ROPChain() { globalChainID--; }
 
 void ROPChain::inject() {
-  dbgs() << "injecting " << chain.size() << " gadgets!\n";
+  // dbgs() << "injecting " << chain.size() << " gadgets!\n";
   // PROLOGUE: saves the EIP value before executing the ROP chain
 
   // pushf (EFLAGS register backup): important because the opaque predicate
@@ -238,7 +236,7 @@ void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
   if (((std::min(a, b) == std::min(c, d)) &&
        (std::max(a, b) == std::max(c, d)))) {
 
-    dbgs() << "# avoiding xchg between " << c << " and " << d << "\n";
+    // dbgs() << "# avoiding xchg between " << c << " and " << d << "\n";
   } else {
     Xchg(c, d);
   }
@@ -259,14 +257,14 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     if (combinationFound)
       break;
     pop_0 = p->getOp(0).reg;
-    dbgs() << p->asmInstr << "\n";
+    // dbgs() << p->asmInstr << "\n";
 
     for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
       if (combinationFound)
         break;
       add_0 = a->getOp(0).reg;
       add_1 = a->getOp(1).reg;
-      dbgs() << a->asmInstr << "\n";
+      // dbgs() << a->asmInstr << "\n";
 
       // REQ #1: src and dst operands cannot be the same
       if (add_0 == add_1)
@@ -303,9 +301,9 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
 
   if (combinationFound) {
 
-    dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
-    dbgs() << "[*] Scratch reg: " << scratch << "\n";
+    // dbgs() << "[*] Chosen gadgets: \n";
+    // dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
+    // dbgs() << "[*] Scratch reg: " << scratch << "\n";
 
     // Okay, now it's time to build the chain!
 
@@ -313,8 +311,8 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     Xchg(scratch, pop_0);
 
     chain.emplace_back(ChainElem(pop));
-    dbgs() << pop->asmInstr << "\n"
-           << "imm: " << immediate;
+    // dbgs() << pop->asmInstr << "\n"
+    //<< "imm: " << immediate;
     chain.push_back(immediate);
 
     Xchg(pop_0, scratch);
@@ -323,7 +321,7 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     DoubleXchg(reg, add_0, scratch, add_1);
 
     chain.emplace_back(ChainElem(add));
-    dbgs() << add->asmInstr << "\n";
+    // dbgs() << add->asmInstr << "\n";
 
     DoubleXchg(add_1, scratch, add_0, reg);
 
@@ -426,19 +424,19 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 
   if (combinationFound) {
 
-    dbgs() << "[*] Chosen gadgets: \n";
+    /*dbgs() << "[*] Chosen gadgets: \n";
     dbgs() << mov->asmInstr << "\n"
            << pop->asmInstr << "\n"
            << add->asmInstr << "\n";
     dbgs() << "[*] Scratch regs: " << scratchR1 << ", " << scratchR2 << "\n";
-
+*/
     // Okay, now it's time to build the chain!
 
     // MOV
     DoubleXchg(scratchR1, mov_0, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
-    dbgs() << mov->asmInstr << "\n";
+    // dbgs() << mov->asmInstr << "\n";
 
     DoubleXchg(mov_1, inputReg, mov_0, scratchR1);
 
@@ -446,8 +444,8 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     Xchg(scratchR2, pop_0);
 
     chain.emplace_back(ChainElem(pop));
-    dbgs() << pop->asmInstr << "\n"
-           << "displacement: " << displacement;
+    // dbgs() << pop->asmInstr << "\n"
+    //       << "displacement: " << displacement;
     chain.push_back(displacement);
 
     Xchg(pop_0, scratchR2);
@@ -456,7 +454,7 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     DoubleXchg(scratchR1, add_0, scratchR2, add_1);
 
     chain.emplace_back(ChainElem(add));
-    dbgs() << add->asmInstr << "\n";
+    // dbgs() << add->asmInstr << "\n";
 
     DoubleXchg(add_1, scratchR2, add_0, scratchR1);
   }
@@ -471,8 +469,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
       return 1;
   }
-  for (auto &a : *SRT.getRegs(MI))
-    dbgs() << "scratch: " << a << " \n";
+  // for (auto &a : *SRT.getRegs(MI))
+  // dbgs() << "scratch: " << a << " \n";
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
@@ -579,16 +577,16 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (address == X86_REG_INVALID)
       return 1;
 
-    dbgs() << "Results returned in: " << address << "\n";
+    /*dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
     dbgs() << mov->asmInstr << "\n\n";
-
+*/
     // -----------
 
     DoubleXchg(orig_0, mov_0, address, mov_1);
 
     chain.emplace_back(ChainElem(mov));
-    dbgs() << mov->asmInstr << "\n";
+    // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_0, orig_0);
 
@@ -621,7 +619,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     Microgadget *mov;
 
     for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
-      dbgs() << m->asmInstr << "\n";
+      // dbgs() << m->asmInstr << "\n";
       //      mov     [mov_0], mov_1
       mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
       mov_1 = m->getOp(1).reg;
@@ -644,16 +642,16 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (address == X86_REG_INVALID)
       return 1;
 
-    dbgs() << "Results returned in: " << address << "\n";
+    /*dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
     dbgs() << mov->asmInstr << "\n\n";
-
+*/
     // -----------
 
     DoubleXchg(address, mov_0, orig_1, mov_1);
 
     chain.emplace_back(ChainElem(mov));
-    dbgs() << mov->asmInstr << "\n";
+    // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_1, orig_1);
 

@@ -47,7 +47,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  dbgs() << "\n[*] Processing function: " << funcName << "\n";
+  // dbgs() << "\n[*] Processing function: " << funcName << "\n";
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -58,7 +58,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
-        dbgs() << "\n* " << MI;
+        // dbgs() << "\n* " << MI;
 
         stats.processed++;
 
@@ -80,7 +80,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           // processed, another chain will be created. This essentially means
           // that a chain is split every time an un-replaceable instruction is
           // encountered.
-          dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
+          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
           if (lastChain->isEmpty()) {
             // The last created chain is pointless at this point, since it's
             // empty.
@@ -89,7 +89,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           } else
             lastChain->finalize();
         } else {
-          dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
+          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
           stats.replaced++;
         }
       }
@@ -100,18 +100,16 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     // this reason, we use a vector in which we put all the chains to be
     // injected only at this point.
     for (ROPChain *rc : ropChains) {
-      dbgs() << " >  Injecting ROP Chain: " << rc->chainLabel << "\n";
+      // dbgs() << " >  Injecting ROP Chain: " << rc->chainLabel << "\n";
       rc->inject();
     }
   }
 
-  dbgs() << "\n--------------------------------------------\n";
-  dbgs() << " \033[1mSTATISTICS for function \033[4m" << funcName
-         << "\033[24m:\n";
-  dbgs() << "   Total instr.:\t" << stats.processed << "\n";
-  dbgs() << "   Replaced:\t\t" << stats.replaced << " ("
-         << (stats.replaced * 100) / stats.processed << "%)\033[0m";
-  dbgs() << "\n--------------------------------------------\n";
+  // dbgs() << "\n--------------------------------------------\n";
+  dbgs() << "   " << funcName << ":  \t" << stats.processed << "/"
+         << stats.replaced << " (" << (stats.replaced * 100) / stats.processed
+         << "%) instructions obfuscated\n";
+  // dbgs() << "\n--------------------------------------------\n";
 
   // the MachineFunction has been modified
   return true;

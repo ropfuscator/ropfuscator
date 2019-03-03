@@ -73,7 +73,6 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
   strncpy(BinaryPath, path.c_str(), path.length());
 
-
   ifstream f(path);
   assert(f.good() && "Given file doesn't exist or is invalid!");
 
@@ -114,7 +113,7 @@ void BinaryAutopsy::dumpSections() {
   uint64_t vma, size;
   const char *sec_name;
 
-  llvm::dbgs() << "[*] Looking for CODE sections... \n";
+  // llvm::dbgs() << "[*] Looking for CODE sections... \n";
 
   // Iterates through all the sections, picking only the ones that contain
   // executable code
@@ -142,7 +141,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   if (Sections.size() == 0)
     dumpSections();
 
-  llvm::dbgs() << "[*] Scanning for symbols... \n";
+  // llvm::dbgs() << "[*] Scanning for symbols... \n";
 
   // Allocate memory and get the symbol table
   size = bfd_get_dynamic_symtab_upper_bound(BfdHandle);
@@ -186,7 +185,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   }
 
   free(asymtab);
-  llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
+  // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
 
   assert(Symbols.size() > 0 && "No symbols found!");
 }
@@ -216,7 +215,7 @@ void BinaryAutopsy::dumpGadgets() {
   // Initizialises capstone engine
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-  llvm::dbgs() << "[*] Looking for gadgets in " << BinaryPath << "\n";
+  // llvm::dbgs() << "[*] Looking for gadgets in " << BinaryPath << "\n";
 
   ifstream input_file(BinaryPath, ios::binary);
   assert(input_file.good() && "Unable to open given binary file!");
@@ -224,8 +223,8 @@ void BinaryAutopsy::dumpGadgets() {
   // Get input size
   input_file.seekg(0, ios::end);
   streamoff input_size = input_file.tellg();
-  llvm::dbgs() << "[*] Scanning the whole binary (" << input_size
-               << " bytes) ...\n";
+  // llvm::dbgs() << "[*] Scanning the whole binary (" << input_size
+  //             << " bytes) ...\n";
 
   // Read the whole file
   input_file.seekg(0, ios::beg);
@@ -233,7 +232,7 @@ void BinaryAutopsy::dumpGadgets() {
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   for (auto &s : Sections) {
-    llvm::dbgs() << "[*] Searching gadgets in section " + s.Label + " ... ";
+    // llvm::dbgs() << "[*] Searching gadgets in section " + s.Label + " ... ";
     int cnt = 0;
 
     // Scan for RET instructions
@@ -274,13 +273,13 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
-    llvm::dbgs() << cnt << " found!\n";
+    // llvm::dbgs() << cnt << " found!\n";
   }
   delete[] buf;
   input_file.close();
 
-  llvm::dbgs() << "[*] Found " << Microgadgets.size()
-               << " unique microgadgets!\n";
+  // llvm::dbgs() << "[*] Found " << Microgadgets.size()
+  //             << " unique microgadgets!\n";
 
   /*for (auto const &gadget : Microgadgets) {
     llvm::dbgs() << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr
@@ -347,7 +346,7 @@ std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... \n";
+  // llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... \n";
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
@@ -357,12 +356,13 @@ void BinaryAutopsy::buildXchgGraph() {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
       xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
 
-      llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g->getOp(0).reg << ", "
-                   << g->getOp(1).reg << "\n";
+      // llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g->getOp(0).reg <<
+      // ", "
+      //             << g->getOp(1).reg << "\n";
     }
 
-  } else
-    llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
+  } // else
+  // llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
 }
 
 void BinaryAutopsy::analyseGadgets() {
@@ -461,7 +461,7 @@ void BinaryAutopsy::applyGadgetFilters() {
            (g->getOp(1).mem.base == X86_REG_INVALID ||
             g->getOp(1).mem.index != X86_REG_INVALID ||
             g->getOp(1).mem.segment != X86_REG_INVALID)))) {
-      llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
+      // llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
       g = Microgadgets.erase(g);
       excluded++;
     } else {
@@ -469,9 +469,9 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
   }
 
-  llvm::dbgs() << "[GadgetFilter]\t" << excluded
+  /*llvm::dbgs() << "[GadgetFilter]\t" << excluded
                << " gadgets have been excluded!"
-               << "\n";
+               << "\n";*/
 }
 
 bool BinaryAutopsy::canInitReg(unsigned int reg) {
