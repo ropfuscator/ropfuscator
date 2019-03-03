@@ -106,8 +106,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   }
 
   // dbgs() << "\n--------------------------------------------\n";
-  dbgs() << "   " << funcName << ":  \t" << stats.processed << "/"
-         << stats.replaced << " (" << (stats.replaced * 100) / stats.processed
+  dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
+         << stats.processed << " (" << (stats.replaced * 100) / stats.processed
          << "%) instructions obfuscated\n";
   // dbgs() << "\n--------------------------------------------\n";
 
