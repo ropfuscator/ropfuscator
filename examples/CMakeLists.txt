@@ -1,4 +1,5 @@
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+set(CMAKE_ASM_COMPILER "gcc")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32i")
 set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32")
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
@@ -7,8 +8,10 @@ foreach(filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
 
     add_executable(${exec_name} ${exec_name}.s)
-    target_link_libraries(${exec_name} naive opaquepredicate)
+    target_link_libraries(${exec_name} opaquepredicate)
+    target_link_libraries(${exec_name} c)
 
+  
     add_custom_command(
         OUTPUT 
             ${exec_name}.s
@@ -24,6 +27,6 @@ foreach(filename ${files})
             -march=x86 ${exec_name}.o -o ${exec_name}.s
     )
 
-    target_link_options(${exec_name} PRIVATE -rpath .)
+    #target_link_options(${exec_name} PRIVATE -rpath . )
 endforeach()
 

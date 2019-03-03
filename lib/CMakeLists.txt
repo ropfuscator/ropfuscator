@@ -13,5 +13,5 @@ target_link_options(
 
 target_compile_options(
     opaquepredicate PRIVATE
-    -m32 -c -fomit-frame-pointer -fno-pie 
+    -m32 -lc -fomit-frame-pointer -fno-pie 
 )

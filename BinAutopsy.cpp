@@ -73,6 +73,7 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
   strncpy(BinaryPath, path.c_str(), path.length());
 
+
   ifstream f(path);
   assert(f.good() && "Given file doesn't exist or is invalid!");
 
