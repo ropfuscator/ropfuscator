@@ -17,7 +17,8 @@ BINARIES_DIR = "../build/bin"
 BIN_NAME_RE = re.compile("example[0-9]+$")
 CMDS = {
     "perf": ["perf", "stat", "-e",
-             "branches,bus-cycles,cache-misses,cache-references,cycles,ref-cycles,instructions,task-clock"]
+             "branches,bus-cycles,cache-misses,cache-references,cycles,ref-cycles,instructions,task-clock"],
+    "llvm-profdata": ["llvm-profdata", "show", "-all-functions", "-counts", "-ic-targets"]
 }
 TEST_INPUTS = {
     "example1": {
@@ -58,6 +59,38 @@ TEST_INPUTS = {
 }
 
 
+def TEST_LOG_TEMPLATE(bin1_name, bin2_name, perf1_out, llvm1_prof_out, bin1_out, perf2_out, llvm2_prof_out, bin2_out): return \
+    """
+{} | {} TEST RESULTS
+
+##########
+# {}
+##########
+
+{}
+
+{}
+
+PROGRAM OUTPUT:
+
+{}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+##########
+# {}
+##########
+
+{}
+
+{}
+
+PROGRAM OUTPUT:
+
+{}
+""".format(bin1_name, bin2_name, bin1_name, perf1_out, llvm1_prof_out, bin1_out, bin2_name, perf2_out, llvm2_prof_out, bin2_out)
+
+
 def main():
     binaries_list = [f for f in listdir(BINARIES_DIR) if isfile(
         join(BINARIES_DIR, f)) and BIN_NAME_RE.match(f)]
@@ -66,29 +99,31 @@ def main():
         b_path = "{}/{}".format(BINARIES_DIR, b)
         ropb_path = "{}/{}".format(BINARIES_DIR, ropb)
 
-        (b_out, b_err) = perf_test(b_path, b)
-        (ropb_out, ropb_err) = perf_test(ropb_path, b)
+        b_out, b_perf_out = perf_test(b_path, b)
+        ropb_out, ropb_perf_out = perf_test(ropb_path, b)
+        b_llvm_out, _ = extract_llvm_profdata(b, b)
+        ropb_llvm_out, _ = extract_llvm_profdata(ropb, b)
 
         with open("{}-results.txt".format(b), "w") as f:
-            f.write("TESTED BINARIES: {} | {}\n\n".format(b, ropb))
-
-            f.write("######\n# {}\n######\n".format(b))
-            f.write("{}\n".format(b_err))
-            f.write("OUT:\n\n")
-            f.write("{}\n".format(b_out))
-
-            f.write("######\n# {}\n######\n".format(ropb))
-            f.write("{}\n".format(ropb_err))
-            f.write("OUT:\n")
-            f.write("{}\n".format(ropb_out))
+            f.write(TEST_LOG_TEMPLATE(b, ropb, b_perf_out, b_llvm_out,
+                                      b_out, ropb_perf_out, ropb_llvm_out, ropb_out))
 
     return
+
 
 def perf_test(test_bin_path, test_bin_name):
     cmd = CMDS["perf"][:]
     cmd.append(test_bin_path)
 
     return call_cmd(cmd, test_bin_path, test_bin_name)
+
+
+def extract_llvm_profdata(test_bin_path, test_bin_name):
+    cmd = CMDS["llvm-profdata"][:]
+    cmd.append("{}.profdata".format(test_bin_path))
+
+    return call_cmd(cmd, test_bin_path, test_bin_name)
+
 
 def call_cmd(cmd, test_bin_path, test_bin_name):
     if test_bin_name in TEST_INPUTS:
@@ -125,6 +160,7 @@ def call_cmd(cmd, test_bin_path, test_bin_name):
 
         return (out.decode("utf-8"), err.decode("utf-8"))
     return (None, None)
+
 
 if __name__ == "__main__":
     main()
