@@ -3,8 +3,8 @@
 //   part of the ROPfuscator project
 // ==============================================================================
 
-#include "BinAutopsy.h"
-#include "CapstoneLLVMAdpt.h"
+#include "RopfuscatorBinAutopsy.h"
+#include "RopfuscatorCapstoneLLVMAdpt.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <assert.h>

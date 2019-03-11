@@ -6,13 +6,13 @@
 // It also provides statics about the processed functions.
 //
 
-#include "../X86.h"
-#include "../X86InstrBuilder.h"
-#include "../X86MachineFunctionInfo.h"
-#include "../X86RegisterInfo.h"
-#include "../X86Subtarget.h"
-#include "../X86TargetMachine.h"
-#include "LivenessAnalysis.h"
+#include "X86.h"
+#include "X86InstrBuilder.h"
+#include "X86MachineFunctionInfo.h"
+#include "X86RegisterInfo.h"
+#include "X86Subtarget.h"
+#include "X86TargetMachine.h"
+#include "RopfuscatorLivenessAnalysis.h"
 #include "X86ROPUtils.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"

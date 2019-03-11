@@ -25,7 +25,7 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "XchgGraph.h"
+#include "RopfuscatorXchgGraph.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>

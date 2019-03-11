@@ -9,11 +9,11 @@
 // It is also responsible to inject the newly built ROP chain and remove the
 // instructions that have been replaced.
 
-#include "../X86.h"
-#include "../X86InstrBuilder.h"
-#include "../X86TargetMachine.h"
-#include "BinAutopsy.h"
-#include "LivenessAnalysis.h"
+#include "X86.h"
+#include "X86InstrBuilder.h"
+#include "X86TargetMachine.h"
+#include "RopfuscatorBinAutopsy.h"
+#include "RopfuscatorLivenessAnalysis.h"
 #include <tuple>
 
 #ifndef X86ROPUTILS_H
