@@ -30,6 +30,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 ### Quick Start
 
     wget http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
+    tar -xf llvm-7.0.0.src.tar.xz
     cd llvm-7.0.0.src/lib/Target/X86
     git init
     git remote add origin git@bitbucket.org:s2lab/ropfuscator.git
