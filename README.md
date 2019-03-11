@@ -27,6 +27,20 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 ![Imgur](https://i.imgur.com/ipResnS.png)
 
 -------
+### Quick Start
+
+    wget http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
+    cd llvm-7.0.0.src/lib/Target/X86
+    git init
+    git remote add origin git@bitbucket.org:s2lab/ropfuscator.git
+    git fetch --all
+    git reset --hard origin/cmake-intree
+    cd ../../../
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -GNinja ..
+    ninja llc
+
 ### Getting started
 #### Joining with LLVM source tree
 1. Download LLVM 7.0 sources from http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz
@@ -45,11 +59,11 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
 
     Now ROPfuscator has been merged to the LLVM backend. Time to compile everything!
+ites:
 
 #### Compiling LLVM
 
-1. Install all the prerequisites:
-
+1. Install all the prerequis
         sudo apt install cmake ninja-build clang pkg-config libcapstone-dev binutils-dev
 
 3. Create a build directory which will refer to as `[BUILD-DIR]`:
