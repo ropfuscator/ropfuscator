@@ -27,9 +27,9 @@ foreach(filename ${files})
         COMMAND
             clang
         ARGS 
-        -g -fprofile-instr-generate=${ropfuscated_exec_name}.profdata -fcoverage-mapping -O0 -S -emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+            -g -fprofile-instr-generate=${ropfuscated_exec_name}.profdata -fcoverage-mapping -O0 -S -emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
         COMMAND
-            ropf-llc
+	        ${ROPF_LLC}
         ARGS
             -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
     )
