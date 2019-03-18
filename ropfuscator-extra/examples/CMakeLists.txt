@@ -1,4 +1,5 @@
 cmake_minimum_required (VERSION 3.13)
+
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -21,13 +22,8 @@ if (NOT ROPF_LLC)
     message(FATAL_ERROR "Could not find ropfuscator's llc.")
 endif()
 
-option(ROPF_PROFILE 
-    "Enable profiling in ropfuscated program." 
-    OFF)
-
-option(ROPF_LIBNAIVE_ENABLE
-    "Link ropfuscated binary with libnaive"
-    OFF)
+option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
+option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
 
 message("Using ropfuscator llc found at ${ROPF_LLC}")
 
