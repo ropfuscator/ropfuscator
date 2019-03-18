@@ -1,5 +1,9 @@
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32 -fpie")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
+set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
+set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
+set(ROPF_IR_FLAGS -O0 -S -emit-llvm)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
@@ -12,10 +16,11 @@ foreach(filename ${files})
     #######################
 
     add_executable(${exec_name} ${exec_name}.c)
-    
     if(ROPF_PROFILE)
-        target_link_options(${exec_name} PRIVATE -fprofile-instr-generate)
-        target_compile_options(${exec_name} PRIVATE -g -fprofile-instr-generate=${exec_name}.profdata -fcoverage-mapping)    
+        target_link_options(${exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
+        target_compile_options(${exec_name} PRIVATE 
+            ${COMPILER_PROFILING_FLAGS} 
+            -fprofile-instr-generate=${exec_name}.profdata)    
     endif()
 
     #######################
@@ -30,7 +35,7 @@ foreach(filename ${files})
     endif()
 
     if(ROPF_PROFILE)
-        target_link_options(${ropfuscated_exec_name} PRIVATE -fprofile-instr-generate)
+        target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
         add_custom_command(
             OUTPUT 
                 ${ropfuscated_exec_name}.s
@@ -39,7 +44,7 @@ foreach(filename ${files})
             COMMAND
                 clang
             ARGS 
-                -g -fprofile-instr-generate=${ropfuscated_exec_name}.profdata -fcoverage-mapping -O0 -S -emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+                ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
             COMMAND
                 ${ROPF_LLC}
             ARGS
@@ -54,14 +59,12 @@ foreach(filename ${files})
             COMMAND
                 clang
             ARGS 
-                -O0 -S -emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+                ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
             COMMAND
                 ${ROPF_LLC}
             ARGS
                 -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
     endif()
-
-    #target_link_options(${exec_name} PRIVATE -rpath . )
 endforeach()
 
