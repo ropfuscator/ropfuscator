@@ -1,31 +1,70 @@
-cmake_minimum_required (VERSION 3.13)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32 -fpie")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
+set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
+set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
+set(ROPF_IR_FLAGS -O0 -S -emit-llvm)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
-project (ropfuscator-examples C ASM)
+foreach(filename ${files})
+    get_filename_component(exec_name ${filename} NAME_WE)
+    set(ropfuscated_exec_name "${exec_name}-ropfuscated")
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(default_build_type "Debug")
-endif(NOT CMAKE_BUILD_TYPE)
+    #######################
+    # standard binaries
+    #######################
 
-find_path(ROPF_LLC_DIR llc 
-    NO_DEFAULT_PATH 
-    PATHS ${PROJECT_SOURCE_DIR}/../../../../../
-    PATH_SUFFIXES bin build build/bin)
+    add_executable(${exec_name} ${exec_name}.c)
+    if(ROPF_PROFILE)
+        target_link_options(${exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
+        target_compile_options(${exec_name} PRIVATE 
+            ${COMPILER_PROFILING_FLAGS} 
+            -fprofile-instr-generate=${exec_name}.profdata)    
+    endif()
 
-set(ROPF_LLC ${ROPF_LLC_DIR}/llc)
+    #######################
+    # ROPFfuscated binaries
+    #######################
 
-if (NOT ROPF_LLC)
-    message(FATAL_ERROR "Could not find ropfuscator's llc.")
-endif()
+    add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)
+    target_link_libraries(${ropfuscated_exec_name} c opaquepredicate)
 
-option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
-option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
+    if(ROPF_LIBNAIVE_ENABLE)
+        target_link_libraries(${ropfuscated_exec_name} naive)
+    endif()
 
-message("Using ropfuscator llc found at ${ROPF_LLC}")
+    if(ROPF_PROFILE)
+        target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
+        add_custom_command(
+            OUTPUT 
+                ${ropfuscated_exec_name}.s
+            DEPENDS
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+            COMMAND
+                clang
+            ARGS 
+                ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+            COMMAND
+                ${ROPF_LLC}
+            ARGS
+                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
+        )
+    else()
+        add_custom_command(
+            OUTPUT 
+                ${ropfuscated_exec_name}.s
+            DEPENDS
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+            COMMAND
+                clang
+            ARGS 
+                ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+            COMMAND
+                ${ROPF_LLC}
+            ARGS
+                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
+        )
+    endif()
+endforeach()
 
-add_subdirectory("lib")
-add_subdirectory("src")
