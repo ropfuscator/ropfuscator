@@ -27,6 +27,6 @@ option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
 
 message("Using ropfuscator llc found at ${ROPF_LLC}")
 
-# add_subdirectory("binutils")
+add_subdirectory("binutils" EXCLUDE_FROM_ALL)
 add_subdirectory("examples")
 add_subdirectory("lib")
