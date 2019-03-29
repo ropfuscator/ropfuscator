@@ -35,7 +35,7 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
     git init
     git remote add origin git@bitbucket.org:s2lab/ropfuscator.git
     git fetch --all
-    git reset --hard origin/cmake-intree
+    git reset --hard origin/master
     cd ../../../
     mkdir build
     cd build
