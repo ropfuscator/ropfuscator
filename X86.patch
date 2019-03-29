@@ -1,0 +1,15 @@
+--- ../../../../../Desktop/llvm-7.0.0.src/lib/Target/X86/X86.h	2018-07-13 13:13:58.000000000 +0200
++++ X86.h	2018-11-29 13:25:23.000000000 +0100
+@@ -129,6 +129,12 @@
+ 
+ FunctionPass *createX86SpeculativeLoadHardeningPass();
+ 
++
++
++
++// ROPfuscation Machine Pass
++FunctionPass *createX86ROPfuscationPass();
++
+ } // End llvm namespace
+ 
+ #endif

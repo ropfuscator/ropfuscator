@@ -487,14 +487,19 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
     int imm;
+
     switch (opcode) {
     case X86::ADD32ri8:
     case X86::ADD32ri: {
+      if (!MI.getOperand(2).isImm())
+        return 1;
       imm = MI.getOperand(2).getImm();
       break;
     }
     case X86::SUB32ri8:
     case X86::SUB32ri: {
+      if (!MI.getOperand(2).isImm())
+        return 1;
       imm = -MI.getOperand(2).getImm();
       break;
     }
