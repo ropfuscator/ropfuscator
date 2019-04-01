@@ -463,7 +463,7 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
-
+  // dbgs() << "[*] " << MI;
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -498,6 +498,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     }
     case X86::SUB32ri8:
     case X86::SUB32ri: {
+      StringRef cmp = "sym_id_parse";
+      if (MF->getName().equals(cmp))
+        dbgs() << "[*]" << MI;
       if (!MI.getOperand(2).isImm())
         return 1;
       imm = -MI.getOperand(2).getImm();
@@ -536,6 +539,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     orig_0, [orig_1 + disp]
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
+
+    if (!MI.getOperand(4).isImm())
+      return 1;
     int orig_disp = MI.getOperand(4).getImm(); // displacement
 
     // We will replace this instruction with its register-register variant,
@@ -617,6 +623,9 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     [orig_0 + disp], orig_1
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
+
+    if (!MI.getOperand(3).isImm())
+      return 1;
     int orig_disp = MI.getOperand(3).getImm(); // displacement
 
     x86_reg mov_0, mov_1;

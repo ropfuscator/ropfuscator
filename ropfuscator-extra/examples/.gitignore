@@ -17,4 +17,5 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
-*-ropfuscated.o
+**/*-ropfuscated.o
+**/*-ropfuscated.s
