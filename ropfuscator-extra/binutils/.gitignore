@@ -2,3 +2,4 @@
 
 !.gitignore
 !*.bc
+!CMakeLists.txt
