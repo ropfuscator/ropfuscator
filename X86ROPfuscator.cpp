@@ -6,14 +6,14 @@
 // It also provides statics about the processed functions.
 //
 
+#include "RopfuscatorLivenessAnalysis.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86MachineFunctionInfo.h"
+#include "X86ROPUtils.h"
 #include "X86RegisterInfo.h"
 #include "X86Subtarget.h"
 #include "X86TargetMachine.h"
-#include "RopfuscatorLivenessAnalysis.h"
-#include "X86ROPUtils.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
@@ -47,7 +47,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  // dbgs() << "\n[*] Processing function: " << funcName << "\n";
+  dbgs() << "\n[*] Processing function: " << funcName;
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -106,9 +106,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   }
 
   // dbgs() << "\n--------------------------------------------\n";
-  dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
+  /*dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
          << stats.processed << " (" << (stats.replaced * 100) / stats.processed
-         << "%) instructions obfuscated\n";
+         << "%) instructions obfuscated\n";*/
   // dbgs() << "\n--------------------------------------------\n";
 
   // the MachineFunction has been modified
