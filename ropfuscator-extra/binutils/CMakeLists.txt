@@ -2,7 +2,7 @@ add_custom_target(binutils)
 
 set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
-set(ROPF_IR_FLAGS -O0 -S -emit-llvm)
+set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)
 
 find_library(BFD bfd)
 find_library(DL dl)
@@ -59,7 +59,7 @@ foreach(filename ${files})
             COMMAND
                 ${ROPF_LLC}
             ARGS
-                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
+                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s #--disable-fp-elim
         )
     endif()
 endforeach()
