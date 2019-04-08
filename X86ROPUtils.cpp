@@ -520,7 +520,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (res == X86_REG_INVALID)
       return 1;
 
-    return 0;
+    break;
   }
   case X86::MOV32rm: {
 
@@ -600,8 +600,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_0, orig_0);
-
-    return 0;
+    break;
   }
   case X86::MOV32mr: {
 
@@ -668,11 +667,21 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_1, orig_1);
-
-    return 0;
+    break;
   }
   default:
     return 1;
+  }
+
+  dbgs() << "\n[*] Generated chain for instr. " << MI;
+  for (auto &g : chain) {
+    if (g.type == GADGET)
+      dbgs() << "    " << g.r->asmInstr << "                    \t"
+             << g.s->Label << ", " << format_hex(g.getRelativeAddress(), 2)
+             << " (" << static_cast<int>(g.getRelativeAddress()) << ")\n";
+    else
+      dbgs() << "    " << format_hex(g.value, 2) << " (" << g.value
+             << ")           \t(immediate value)\n";
   }
 }
 
