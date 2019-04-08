@@ -47,7 +47,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  dbgs() << "\n[*] Processing function: " << funcName;
+  // dbgs() << "[*] Processing function: " << funcName << "\n";
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -55,6 +55,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     auto scratchRegTracker = ScratchRegTracker(MBB);
 
     for (MachineInstr &MI : MBB) {
+      if (MI.isDebugInstr())
+        continue;
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
@@ -80,7 +82,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           // processed, another chain will be created. This essentially means
           // that a chain is split every time an un-replaceable instruction is
           // encountered.
-          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
+          // dbgs() << "\033[31;2m ✗ \033[0m\t" << MI;
           if (lastChain->isEmpty()) {
             // The last created chain is pointless at this point, since it's
             // empty.
@@ -89,7 +91,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           } else
             lastChain->finalize();
         } else {
-          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
+          // dbgs() << "\033[32m ✓ \033[0m\t" << MI;
           stats.replaced++;
         }
       }
@@ -106,9 +108,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   }
 
   // dbgs() << "\n--------------------------------------------\n";
-  /*dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
+  dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
          << stats.processed << " (" << (stats.replaced * 100) / stats.processed
-         << "%) instructions obfuscated\n";*/
+         << "%) instructions obfuscated\n";
   // dbgs() << "\n--------------------------------------------\n";
 
   // the MachineFunction has been modified
