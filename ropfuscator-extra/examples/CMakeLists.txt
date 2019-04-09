@@ -1,6 +1,7 @@
 set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
-set(ROPF_IR_FLAGS -O0 -S -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer  -emit-llvm)
+set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)
+set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
@@ -56,12 +57,11 @@ foreach(filename ${files})
             COMMAND
                 clang
             ARGS 
-                ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}
-	    COMMAND
-		 ${ROPF_LLC}
-	    ARGS
-		-march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s --disable-fp-elim
-
+                ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
+	        COMMAND
+		        ${ROPF_LLC}
+	        ARGS
+		        ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
     endif()
 endforeach()
