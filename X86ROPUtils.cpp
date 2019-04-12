@@ -683,6 +683,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       dbgs() << "    " << format_hex(g.value, 2) << " (" << g.value
              << ")           \t(immediate value)\n";
   }
+  return 0;
 }
 
 void ROPChain::finalize() { finalized = true; }
