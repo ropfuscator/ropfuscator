@@ -157,13 +157,13 @@ void ROPChain::inject() {
       // Push a random symbol that, when resolved by the dynamic linker, will be
       // used as base address; then add the offset to point a specific
       // gadget
-      // call $opaquePredicate
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
-          .addExternalSymbol("opaquePredicate");
+      // // call $opaquePredicate
+      // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
+      //     .addExternalSymbol("opaquePredicate");
 
-      // je $wrong_target
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
-          .addExternalSymbol(chainLabel);
+      // // je $wrong_target
+      // BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
+      //     .addExternalSymbol(chainLabel);
 
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
