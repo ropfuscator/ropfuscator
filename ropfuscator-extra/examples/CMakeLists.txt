@@ -1,3 +1,6 @@
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32 -fpie")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
 set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)
@@ -46,7 +49,7 @@ foreach(filename ${files})
             COMMAND
                 ${ROPF_LLC}
             ARGS
-                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s 
+                -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
     else()
         add_custom_command(
@@ -58,10 +61,10 @@ foreach(filename ${files})
                 clang
             ARGS 
                 ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
-	        COMMAND
-		        ${ROPF_LLC}
-	        ARGS
-		        ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
+	    COMMAND
+	        ${ROPF_LLC}
+	    ARGS
+	        ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
     endif()
 endforeach()
