@@ -5,6 +5,7 @@ bin/
 GPATH
 GRTAGS
 GTAGS
+!examples/*.c
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
