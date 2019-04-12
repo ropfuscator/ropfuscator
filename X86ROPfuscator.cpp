@@ -6,14 +6,14 @@
 // It also provides statics about the processed functions.
 //
 
-#include "RopfuscatorLivenessAnalysis.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86MachineFunctionInfo.h"
-#include "X86ROPUtils.h"
 #include "X86RegisterInfo.h"
 #include "X86Subtarget.h"
 #include "X86TargetMachine.h"
+#include "RopfuscatorLivenessAnalysis.h"
+#include "X86ROPUtils.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
@@ -47,7 +47,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  // dbgs() << "[*] Processing function: " << funcName << "\n";
+  // dbgs() << "\n[*] Processing function: " << funcName << "\n";
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -55,8 +55,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     auto scratchRegTracker = ScratchRegTracker(MBB);
 
     for (MachineInstr &MI : MBB) {
-      if (MI.isDebugInstr())
-        continue;
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
@@ -82,7 +80,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           // processed, another chain will be created. This essentially means
           // that a chain is split every time an un-replaceable instruction is
           // encountered.
-          // dbgs() << "\033[31;2m ✗ \033[0m\t" << MI;
+          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
           if (lastChain->isEmpty()) {
             // The last created chain is pointless at this point, since it's
             // empty.
@@ -91,7 +89,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           } else
             lastChain->finalize();
         } else {
-          // dbgs() << "\033[32m ✓ \033[0m\t" << MI;
+          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
           stats.replaced++;
         }
       }

@@ -463,7 +463,7 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 }
 
 int ROPChain::mapBindings(MachineInstr &MI) {
-  // dbgs() << "[*] " << MI;
+
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -487,22 +487,14 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
     int imm;
-
     switch (opcode) {
     case X86::ADD32ri8:
     case X86::ADD32ri: {
-      if (!MI.getOperand(2).isImm())
-        return 1;
       imm = MI.getOperand(2).getImm();
       break;
     }
     case X86::SUB32ri8:
     case X86::SUB32ri: {
-      StringRef cmp = "sym_id_parse";
-      if (MF->getName().equals(cmp))
-        dbgs() << "[*]" << MI;
-      if (!MI.getOperand(2).isImm())
-        return 1;
       imm = -MI.getOperand(2).getImm();
       break;
     }
@@ -520,7 +512,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (res == X86_REG_INVALID)
       return 1;
 
-    break;
+    return 0;
   }
   case X86::MOV32rm: {
 
@@ -539,9 +531,6 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     orig_0, [orig_1 + disp]
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
-
-    if (!MI.getOperand(4).isImm())
-      return 1;
     int orig_disp = MI.getOperand(4).getImm(); // displacement
 
     // We will replace this instruction with its register-register variant,
@@ -600,7 +589,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_0, orig_0);
-    break;
+
+    return 0;
   }
   case X86::MOV32mr: {
 
@@ -622,9 +612,6 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     [orig_0 + disp], orig_1
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
-
-    if (!MI.getOperand(3).isImm())
-      return 1;
     int orig_disp = MI.getOperand(3).getImm(); // displacement
 
     x86_reg mov_0, mov_1;
@@ -667,21 +654,11 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_1, orig_1);
-    break;
+
+    return 0;
   }
   default:
     return 1;
-  }
-
-  dbgs() << "\n[*] Generated chain for instr. " << MI;
-  for (auto &g : chain) {
-    if (g.type == GADGET)
-      dbgs() << "    " << g.r->asmInstr << "                    \t"
-             << g.s->Label << ", " << format_hex(g.getRelativeAddress(), 2)
-             << " (" << static_cast<int>(g.getRelativeAddress()) << ")\n";
-    else
-      dbgs() << "    " << format_hex(g.value, 2) << " (" << g.value
-             << ")           \t(immediate value)\n";
   }
 }
 

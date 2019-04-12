@@ -1,5 +1,1 @@
-*
-
-!.gitignore
-!*.bc
-!CMakeLists.txt
+*.s
