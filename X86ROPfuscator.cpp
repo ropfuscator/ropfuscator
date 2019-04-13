@@ -61,6 +61,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     auto scratchRegTracker = ScratchRegTracker(MBB);
 
     for (MachineInstr &MI : MBB) {
+      if (MI.isDebugInstr())
+        continue;
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 

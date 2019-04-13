@@ -503,11 +503,15 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     switch (opcode) {
     case X86::ADD32ri8:
     case X86::ADD32ri: {
+      if (!MI.getOperand(2).isImm())
+        return 1;
       imm = MI.getOperand(2).getImm();
       break;
     }
     case X86::SUB32ri8:
     case X86::SUB32ri: {
+      if (!MI.getOperand(2).isImm())
+        return 1;
       imm = -MI.getOperand(2).getImm();
       break;
     }
@@ -544,6 +548,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     orig_0, [orig_1 + disp]
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
+    if (!MI.getOperand(4).isImm())
+      return 1;
     int orig_disp = MI.getOperand(4).getImm(); // displacement
 
     // We will replace this instruction with its register-register variant,
@@ -625,6 +631,8 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     //      mov     [orig_0 + disp], orig_1
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
+    if (!MI.getOperand(3).isImm())
+      return 1;
     int orig_disp = MI.getOperand(3).getImm(); // displacement
 
     x86_reg mov_0, mov_1;
