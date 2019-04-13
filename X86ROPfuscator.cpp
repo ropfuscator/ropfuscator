@@ -25,6 +25,9 @@
 #include <string>
 #include <utility>
 
+#define X86_ROPFUSCATOR_PASS_NAME "x86-ropfuscator"
+#define X86_ROPFUSCATOR_PASS_DESC "Obfuscate machine code through ROP chains"
+
 using namespace llvm;
 
 namespace {
@@ -32,16 +35,18 @@ class X86ROPfuscator : public MachineFunctionPass {
 public:
   static char ID;
 
-  X86ROPfuscator() : MachineFunctionPass(ID) {}
+  X86ROPfuscator() : MachineFunctionPass(ID) {
+    initializeX86ROPfuscatorPass(*PassRegistry::getPassRegistry());
+  }
 
-  StringRef getPassName() const override { return "X86 ROPfuscator"; }
+  StringRef getPassName() const override { return X86_ROPFUSCATOR_PASS_NAME; }
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
 char X86ROPfuscator::ID = 0;
 } // namespace
 
-FunctionPass *llvm::createX86ROPfuscationPass() { return new X86ROPfuscator(); }
+FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
@@ -115,6 +120,5 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
-static RegisterPass<X86ROPfuscator>
-    X("x86-ropfuscator", "Obfuscate machine code through ROP chains", false,
-      false);
+INITIALIZE_PASS(X86ROPfuscator, X86_ROPFUSCATOR_PASS_NAME,
+                X86_ROPFUSCATOR_PASS_DESC, false, false);
