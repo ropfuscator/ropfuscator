@@ -5,8 +5,8 @@
 
 #include "RopfuscatorBinAutopsy.h"
 #include "RopfuscatorCapstoneLLVMAdpt.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "RopfuscatorDebug.h"
+
 #include <assert.h>
 #include <fstream>
 #include <sstream>
@@ -113,8 +113,10 @@ void BinaryAutopsy::dumpSections() {
   uint64_t vma, size;
   const char *sec_name;
 
-  // llvm::dbgs() << "[*] Looking for CODE sections... \n";
-
+  using namespace llvm;
+  DEBUG_WITH_TYPE(SECTIONS,
+                  dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
+  using namespace std;
   // Iterates through all the sections, picking only the ones that contain
   // executable code
   for (s = BfdHandle->sections; s; s = s->next) {
@@ -129,6 +131,8 @@ void BinaryAutopsy::dumpSections() {
         sec_name = "<unnamed>";
 
       Sections.push_back(Section(sec_name, vma, size));
+      DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
+                                             << sec_name << "\n");
     }
   }
 }
@@ -346,7 +350,9 @@ std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  // llvm::dbgs() << "[XchgGraph]\tBuilding the eXCHanGe Graph ... \n";
+  DEBUG_WITH_TYPE("xchg_graph", llvm::dbgs()
+                                    << "[XchgGraph]\t"
+                                    << "Building the eXCHanGe Graph ...\n");
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
@@ -356,13 +362,16 @@ void BinaryAutopsy::buildXchgGraph() {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
       xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
 
-      // llvm::dbgs() << "[XchgGraph]\tAdded new edge: " << g->getOp(0).reg <<
-      // ", "
-      //             << g->getOp(1).reg << "\n";
+      DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
+                                      << "[XchgGraph]\t"
+                                      << "Added new edge: " << g->getOp(0).reg
+                                      << ", " << g->getOp(1).reg << "\n");
     }
 
-  } // else
-  // llvm::dbgs() << "[XchgGraph]\t[!] Unable to build the eXCHanGe Graph\n";
+  } else
+    DEBUG_WITH_TYPE(XCHG_GRAPH,
+                    llvm::dbgs() << "[XchgGraph]\t"
+                                 << "[!] Unable to build the eXCHanGe Graph\n");
 }
 
 void BinaryAutopsy::analyseGadgets() {
@@ -417,23 +426,33 @@ void BinaryAutopsy::analyseGadgets() {
     }
 
     // debug prints
-    /*switch (g.Class) {
+    switch (g.Class) {
     case REG_INIT:
-      llvm::dbgs() << g.asmInstr << " REG_INIT\n";
+      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
+                                           << "[GadgetAnalysis]\t" << g.asmInstr
+                                           << " REG_INIT\n");
       break;
     case REG_LOAD:
-      llvm::dbgs() << g.asmInstr << " REG_LOAD\n";
+      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
+                                           << "[GadgetAnalysis]\t" << g.asmInstr
+                                           << " REG_LOAD\n");
       break;
     case REG_STORE:
-      llvm::dbgs() << g.asmInstr << " REG_STORE\n";
+      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
+                                           << "[GadgetAnalysis]\t" << g.asmInstr
+                                           << " REG_STORE\n");
       break;
     case REG_XCHG:
-      llvm::dbgs() << g.asmInstr << " REG_XCHG\n";
+      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
+                                           << "[GadgetAnalysis]\t" << g.asmInstr
+                                           << " REG_XCHG\n");
       break;
     case REG_RESET:
-      llvm::dbgs() << g.asmInstr << " REG_RESET\n";
+      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
+                                           << "[GadgetAnalysis]\t" << g.asmInstr
+                                           << " REG_RESET\n");
       break;
-    }*/
+    }
   }
 }
 
@@ -461,7 +480,10 @@ void BinaryAutopsy::applyGadgetFilters() {
            (g->getOp(1).mem.base == X86_REG_INVALID ||
             g->getOp(1).mem.index != X86_REG_INVALID ||
             g->getOp(1).mem.segment != X86_REG_INVALID)))) {
-      // llvm::dbgs() << "[GadgetFilter]\texcluded: " << g->asmInstr << "\n";
+
+      DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs()
+                                         << "[GadgetFilter]\texcluded: "
+                                         << g->asmInstr << "\n");
       g = Microgadgets.erase(g);
       excluded++;
     } else {
@@ -469,9 +491,9 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
   }
 
-  /*llvm::dbgs() << "[GadgetFilter]\t" << excluded
-               << " gadgets have been excluded!"
-               << "\n";*/
+  DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << "[GadgetFilter]\t" << excluded
+                                              << " gadgets have been excluded!"
+                                              << "\n");
 }
 
 bool BinaryAutopsy::canInitReg(unsigned int reg) {
