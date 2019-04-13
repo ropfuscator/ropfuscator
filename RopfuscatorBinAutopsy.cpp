@@ -25,7 +25,7 @@ Symbol::Symbol(string label, string version, uint64_t address)
   Version = new char[version.length() + 1];
   strcpy(Label, label.c_str());
   strcpy(Version, version.c_str());
-};
+}
 
 char *Symbol::getSymVerDirective() {
   stringstream ss;
@@ -40,13 +40,13 @@ char *Symbol::getSymVerDirective() {
 // ------------------------------------------------------------------------
 
 Section::Section(string label, uint64_t address, uint64_t length)
-    : Label(label), Address(address), Length(length){};
+    : Label(label), Address(address), Length(length) {}
 
 // ------------------------------------------------------------------------
 // Microgadget
 // ------------------------------------------------------------------------
 Microgadget::Microgadget(cs_insn *instr, string asmInstr)
-    : Instr(instr), asmInstr(asmInstr){};
+    : Instr(instr), asmInstr(asmInstr) {}
 
 uint64_t Microgadget::getAddress() const { return Instr[0].address; }
 

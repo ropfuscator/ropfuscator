@@ -85,7 +85,7 @@ ChainElem::ChainElem(Microgadget *g) {
 
   type = GADGET;
   s = ROPChain::BA->getRandomSymbol();
-};
+}
 
 ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
@@ -217,8 +217,8 @@ int ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 int ROPChain::Xchg(x86_reg a, x86_reg b) {
-  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
-                                  << "[XchgChain]\t" << a << ", " << b << "\n");
+  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
+                                     << " with " << b << "\n");
 
   auto xchgPath = BA->getXchgPath(a, b);
   for (auto &a : xchgPath) {
@@ -229,7 +229,7 @@ int ROPChain::Xchg(x86_reg a, x86_reg b) {
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
                                      << "performed " << xchgPath.size()
-                                     << " exchanges\n");
+                                     << " exchanges\n\n");
   return xchgPath.size();
 }
 
@@ -688,6 +688,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
                                        << " (" << g.value
                                        << ")           \t(immediate value)\n");
   }
+  DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "\n");
   return 0;
 }
 
