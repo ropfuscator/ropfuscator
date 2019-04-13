@@ -75,7 +75,8 @@ FunctionPass *createX86OptimizeLEAs();
 /// Return a pass that transforms setcc + movzx pairs into xor + setcc.
 FunctionPass *createX86FixupSetCC();
 
-/// Return a pass that avoids creating store forward block issues in the hardware.
+/// Return a pass that avoids creating store forward block issues in the
+/// hardware.
 FunctionPass *createX86AvoidStoreForwardingBlocks();
 
 /// Return a pass that lowers EFLAGS copy pseudo instructions.
@@ -129,9 +130,10 @@ void initializeEvexToVexInstPassPass(PassRegistry &);
 
 FunctionPass *createX86SpeculativeLoadHardeningPass();
 
-// ROPfuscation Machine Pass
-FunctionPass *createX86ROPfuscationPass();
+// ROPfuscator Machine Pass
+void initializeX86ROPfuscatorPass(PassRegistry &);
+FunctionPass *createX86ROPfuscatorPass();
 
-} // End llvm namespace
+} // namespace llvm
 
 #endif
