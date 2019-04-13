@@ -5,6 +5,14 @@ set(CMAKE_CXX_COMPILER clang)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")
+set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32 -fpie")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
+set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
+set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
+set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
+set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim)
+
 project (ropfuscator-binutils C ASM)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -20,10 +28,22 @@ if (NOT ROPF_LLC_DIR)
     message(FATAL_ERROR "Could not find ropfuscator's llc.")
 endif()
 
+find_library(BFD bfd)
+find_library(DL dl)
+
+#if(NOT BFD)
+#    message(FATAL_ERROR "libbfd not found.")
+#endif()
+
+#if(NOT DL)
+#    message(FATAL_ERROR "libdl not found.")
+#endif()
+
 set(ROPF_LLC ${ROPF_LLC_DIR}/llc)
 
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
+option(ROPF_DEBUG_CHAINS "Print debug info about the injected ROP chains" OFF)
 
 message("Using ropfuscator llc found at ${ROPF_LLC}")
 

@@ -1,24 +1,5 @@
 add_custom_target(binutils)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")
-set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -m32 -fpie")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
-set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
-set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
-set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
-set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim)
-
-find_library(BFD bfd)
-find_library(DL dl)
-
-#if(NOT BFD)
-#    message(FATAL_ERROR "libbfd not found.")
-#endif()
-
-#if(NOT DL)
-#    message(FATAL_ERROR "libdl not found.")
-#endif()
-
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.bc")
 
 foreach(filename ${files})
