@@ -11,7 +11,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
 set(COMPILER_PROFILING_FLAGS -g -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
-set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim)
+set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=${debug-only})
 
 project (ropfuscator-binutils C ASM)
 
@@ -43,7 +43,6 @@ set(ROPF_LLC ${ROPF_LLC_DIR}/llc)
 
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
-option(ROPF_DEBUG_CHAINS "Print debug info about the injected ROP chains" OFF)
 
 message("Using ropfuscator llc found at ${ROPF_LLC}")
 

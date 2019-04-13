@@ -6,6 +6,7 @@
 // It also provides statics about the processed functions.
 //
 
+#include "RopfuscatorDebug.h"
 #include "RopfuscatorLivenessAnalysis.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
@@ -17,7 +18,6 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cmath>
 #include <map>
@@ -110,11 +110,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  // dbgs() << "\n--------------------------------------------\n";
-  dbgs() << "   " << funcName << ":  \t" << stats.replaced << "/"
-         << stats.processed << " (" << (stats.replaced * 100) / stats.processed
-         << "%) instructions obfuscated\n";
-  // dbgs() << "\n--------------------------------------------\n";
+  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << funcName << ":  \t"
+                                    << stats.replaced << "/" << stats.processed
+                                    << " ("
+                                    << (stats.replaced * 100) / stats.processed
+                                    << "%) instructions obfuscated\n");
 
   // the MachineFunction has been modified
   return true;

@@ -1,7 +1,7 @@
 #include "X86ROPUtils.h"
 #include "RopfuscatorCapstoneLLVMAdpt.h"
+#include "RopfuscatorDebug.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/Support/Debug.h"
 #include <dirent.h>
 
 using namespace llvm;
@@ -81,7 +81,6 @@ bool getLibcPath(std::string &libcPath) {
 // ------------------------------------------------------------------------
 
 ChainElem::ChainElem(Microgadget *g) {
-  // dbgs() << "\t ChainElem: gadget @ " << *r << "\n";
   r = g;
 
   type = GADGET;
@@ -218,13 +217,19 @@ int ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 int ROPChain::Xchg(x86_reg a, x86_reg b) {
-  // dbgs() << "-> XCHG " << a << ", " << b << "\n";
+  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
+                                  << "[XchgChain]\t" << a << ", " << b << "\n");
+
   auto xchgPath = BA->getXchgPath(a, b);
   for (auto &a : xchgPath) {
-    // dbgs() << "\t" << a->asmInstr << "\n";
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
+                                    << "[XchgChain]\t" << a->asmInstr << "\n");
     chain.emplace_back(ChainElem(a));
   }
-  // dbgs() << "performed " << xchgPath.size() << " exchanges\n";
+
+  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
+                                     << "performed " << xchgPath.size()
+                                     << " exchanges\n");
   return xchgPath.size();
 }
 
@@ -236,7 +241,9 @@ void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
   if (((std::min(a, b) == std::min(c, d)) &&
        (std::max(a, b) == std::max(c, d)))) {
 
-    // dbgs() << "# avoiding xchg between " << c << " and " << d << "\n";
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
+                                       << "avoiding double-xchg between " << c
+                                       << " and " << d << "\n");
   } else {
     Xchg(c, d);
   }
@@ -469,8 +476,14 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
       return 1;
   }
-  // for (auto &a : *SRT.getRegs(MI))
-  // dbgs() << "scratch: " << a << " \n";
+
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "[LivenessAnalysis]\t"
+                                            << "avail. scratch registers: ");
+  for (auto &a : *SRT.getRegs(MI)) {
+    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
+  }
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
+
   unsigned opcode = MI.getOpcode();
   switch (opcode) {
   case X86::ADD32ri8:
@@ -661,15 +674,19 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     return 1;
   }
 
-  dbgs() << "\n[*] Generated chain for instr. " << MI;
+  DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
+                                << "\n[*] Generated chain for instr. " << MI);
   for (auto &g : chain) {
     if (g.type == GADGET)
-      dbgs() << "    " << g.r->asmInstr << "                    \t"
-             << g.s->Label << ", " << format_hex(g.getRelativeAddress(), 2)
-             << " (" << static_cast<int>(g.getRelativeAddress()) << ")\n";
+      DEBUG_WITH_TYPE(
+          ROPCHAIN,
+          dbgs() << "    " << g.r->asmInstr << "                    \t"
+                 << g.s->Label << ", " << format_hex(g.getRelativeAddress(), 2)
+                 << " (" << static_cast<int>(g.getRelativeAddress()) << ")\n");
     else
-      dbgs() << "    " << format_hex(g.value, 2) << " (" << g.value
-             << ")           \t(immediate value)\n";
+      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "    " << format_hex(g.value, 2)
+                                       << " (" << g.value
+                                       << ")           \t(immediate value)\n");
   }
   return 0;
 }
