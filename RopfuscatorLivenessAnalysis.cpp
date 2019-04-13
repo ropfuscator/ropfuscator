@@ -1,7 +1,8 @@
 #include "RopfuscatorLivenessAnalysis.h"
+#include "RopfuscatorCapstoneLLVMAdpt.h"
+#include "RopfuscatorDebug.h"
 #include "X86.h"
 #include "X86Subtarget.h"
-#include "RopfuscatorCapstoneLLVMAdpt.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
@@ -82,6 +83,8 @@ void ScratchRegTracker::performLivenessAnalysis() {
     LiveRegs.stepForward(*MI, Clobbers);
   }
 
-  // dbgs() << "[*] Register liveness analysis performed on basic block "
-  //      << MBB.getNumber() << "\n";
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
+                  dbgs() << "[LivenessAnalysis]\tRegister liveness analysis "
+                            "performed on basic block "
+                         << MBB.getNumber() << "\n");
 }

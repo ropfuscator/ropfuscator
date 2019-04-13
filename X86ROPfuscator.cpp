@@ -52,7 +52,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  // dbgs() << "\n[*] Processing function: " << funcName << "\n";
+  DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                  dbgs() << "\nProcessing function: " << funcName << "\n");
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -63,7 +64,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       if (!(MI.getFlag(MachineInstr::FrameSetup) ||
             MI.getFlag(MachineInstr::FrameDestroy))) {
 
-        // dbgs() << "\n* " << MI;
+        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
 
         stats.processed++;
 
@@ -85,7 +86,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           // processed, another chain will be created. This essentially means
           // that a chain is split every time an un-replaceable instruction is
           // encountered.
-          // dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n";
+          DEBUG_WITH_TYPE(
+              PROCESSED_INSTR,
+              dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
           if (lastChain->isEmpty()) {
             // The last created chain is pointless at this point, since it's
             // empty.
@@ -94,7 +97,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           } else
             lastChain->finalize();
         } else {
-          // dbgs() << "\033[32m    ✓  Replaced\033[0m\n";
+          DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                          dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
           stats.replaced++;
         }
       }
@@ -104,10 +108,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     // Basic Block has been run through, otherwise an exception is thrown. For
     // this reason, we use a vector in which we put all the chains to be
     // injected only at this point.
-    for (ROPChain *rc : ropChains) {
-      // dbgs() << " >  Injecting ROP Chain: " << rc->chainLabel << "\n";
+    for (ROPChain *rc : ropChains)
       rc->inject();
-    }
   }
 
   DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << funcName << ":  \t"
@@ -121,4 +123,4 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 }
 
 INITIALIZE_PASS(X86ROPfuscator, X86_ROPFUSCATOR_PASS_NAME,
-                X86_ROPFUSCATOR_PASS_DESC, false, false);
+                X86_ROPFUSCATOR_PASS_DESC, false, false)
