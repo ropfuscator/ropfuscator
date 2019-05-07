@@ -293,59 +293,74 @@ void BinaryAutopsy::dumpGadgets() {
 
 Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   // Legacy: lookup by asm_instr string
-  if (!Microgadgets.empty()) {
-    for (auto &g : Microgadgets) {
-      if (g.asmInstr.compare(asmInstr) == 0)
-        return &g;
-    }
+  if (Microgadgets.empty()) {
+    return nullptr;
   }
+
+  for (auto &g : Microgadgets) {
+    if (g.asmInstr.compare(asmInstr) == 0)
+      return &g;
+  }
+
   return nullptr;
 }
 
 std::vector<Microgadget *>
 BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
-  if (!Microgadgets.empty()) {
-    for (auto &gadget : Microgadgets) {
-      if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
-          (op1 == 0 || op1 == gadget.getOp(1).type))
-        res.push_back(&gadget);
-    }
+
+  if (Microgadgets.empty()) {
+    return res;
   }
+
+  for (auto &gadget : Microgadgets) {
+    if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
+        (op1 == 0 || op1 == gadget.getOp(1).type))
+      res.push_back(&gadget);
+  }
+
   return res;
 }
 
 std::vector<Microgadget *>
 BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
   std::vector<Microgadget *> res;
-  if (!Microgadgets.empty()) {
-    for (auto &gadget : Microgadgets) {
-      // do these checks:
-      // - instruction opcodes must be the same
-      // - op0 must be a register operand, and must be the same register
-      // - if op1 is set, it must be a register operand, and must be the same
-      // register; otherwise skip this check (we must do this to deal with
-      // gadgets with one operand).
 
-      if (gadget.getID() == insn && gadget.getOp(0).type == X86_OP_REG &&
-          gadget.getOp(0).reg == op0 &&
-          (op1 == X86_REG_INVALID ||
-           (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
-
-        res.push_back(&gadget);
-    }
+  if (Microgadgets.empty()) {
+    return res;
   }
+
+  for (auto &gadget : Microgadgets) {
+    // do these checks:
+    // - instruction opcodes must be the same
+    // - op0 must be a register operand, and must be the same register
+    // - if op1 is set, it must be a register operand, and must be the same
+    // register; otherwise skip this check (we must do this to deal with
+    // gadgets with one operand).
+
+    if (gadget.getID() == insn && gadget.getOp(0).type == X86_OP_REG &&
+        gadget.getOp(0).reg == op0 &&
+        (op1 == X86_REG_INVALID ||
+         (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
+
+      res.push_back(&gadget);
+  }
+
   return res;
 }
 
 std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
   std::vector<Microgadget *> res;
-  if (!Microgadgets.empty()) {
-    for (auto &gadget : Microgadgets) {
-      if (gadget.Class == Class)
-        res.push_back(&gadget);
-    }
+
+  if (Microgadgets.empty()) {
+    return res;
   }
+
+  for (auto &gadget : Microgadgets) {
+    if (gadget.Class == Class)
+      res.push_back(&gadget);
+  }
+
   return res;
 }
 
@@ -358,20 +373,21 @@ void BinaryAutopsy::buildXchgGraph() {
   // search for all the "xchg reg, reg" gadgets
   auto XchgGadgets = gadgetLookup(REG_XCHG);
 
-  if (!XchgGadgets.empty()) {
-    for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
-      xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
-
-      DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
-                                      << "[XchgGraph]\t"
-                                      << "Added new edge: " << g->getOp(0).reg
-                                      << ", " << g->getOp(1).reg << "\n");
-    }
-
-  } else
+  if (XchgGadgets.empty()) {
     DEBUG_WITH_TYPE(XCHG_GRAPH,
                     llvm::dbgs() << "[XchgGraph]\t"
                                  << "[!] Unable to build the eXCHanGe Graph\n");
+    return;
+  }
+
+  for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
+    xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
+
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
+                                    << "[XchgGraph]\t"
+                                    << "Added new edge: " << g->getOp(0).reg
+                                    << ", " << g->getOp(1).reg << "\n");
+  }
 }
 
 void BinaryAutopsy::analyseGadgets() {
@@ -511,6 +527,7 @@ bool BinaryAutopsy::canInitReg(unsigned int reg) {
 bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
   int pred[REGS], dist[REGS];
   bool visited[REGS];
+
   // if the third param hasn't been set, check only the first two
   if (c == X86_REG_INVALID)
     return xgraph.checkPath(a, b, pred, dist, visited);
@@ -522,6 +539,7 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
 bool BinaryAutopsy::checkXchgPath(x86_reg a, vector<x86_reg> B) {
   int pred[REGS], dist[REGS];
   bool visited[REGS];
+
   for (auto &b : B) {
     if (xgraph.checkPath(a, b, pred, dist, visited))
       return true;
