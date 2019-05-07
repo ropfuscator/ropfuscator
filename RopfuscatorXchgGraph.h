@@ -30,11 +30,11 @@
 #include <utility>
 #include <vector>
 
-#define REGS 100
+#define N_REGS 100
 
 class XchgGraph {
   // adj[] - adjacency list
-  std::vector<int> adj[REGS];
+  std::vector<int> adj[N_REGS];
 
 public:
   // addEdge - adds a new edge between Op0 and Op1.
