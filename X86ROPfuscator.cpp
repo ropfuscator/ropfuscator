@@ -49,7 +49,6 @@ char X86ROPfuscator::ID = 0;
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
-
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
   DEBUG_WITH_TYPE(PROCESSED_INSTR,
@@ -63,46 +62,45 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     for (MachineInstr &MI : MBB) {
       if (MI.isDebugInstr())
         continue;
-      if (!(MI.getFlag(MachineInstr::FrameSetup) ||
-            MI.getFlag(MachineInstr::FrameDestroy))) {
+      if (MI.getFlag(MachineInstr::FrameSetup) ||
+          MI.getFlag(MachineInstr::FrameDestroy))
+        continue;
 
-        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
+      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
+      stats.processed++;
 
-        stats.processed++;
+      if (ropChains.empty() || ropChains.back()->isFinalized()) {
+        // Since we are forced to do the actual injection only when the whole
+        // Machine Basic Block has been processed, we have to pass the
+        // MachineInstr by value, because it is an iterator and, at some
+        // point, it will be invalidated.
+        auto *ropChain = new ROPChain(MBB, MI, scratchRegTracker);
+        ropChains.push_back(ropChain);
+      }
 
-        if (ropChains.empty() || ropChains.back()->isFinalized()) {
-          // Since we are forced to do the actual injection only when the whole
-          // Machine Basic Block has been processed, we have to pass the
-          // MachineInstr by value, because it is an iterator and, at some
-          // point, it will be invalidated.
-          ROPChain *ropChain = new ROPChain(MBB, MI, scratchRegTracker);
-          ropChains.push_back(ropChain);
-        }
+      ROPChain *lastChain = ropChains.back();
 
-        ROPChain *lastChain = ropChains.back();
-
-        int err = lastChain->addInstruction(MI);
-        if (err) {
-          // An error means that the current instruction isn't supported, hence
-          // the chain is finalized. When a new supported instruction will be
-          // processed, another chain will be created. This essentially means
-          // that a chain is split every time an un-replaceable instruction is
-          // encountered.
-          DEBUG_WITH_TYPE(
-              PROCESSED_INSTR,
-              dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
-          if (lastChain->isEmpty()) {
-            // The last created chain is pointless at this point, since it's
-            // empty.
-            delete lastChain;
-            ropChains.pop_back();
-          } else
-            lastChain->finalize();
-        } else {
-          DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                          dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
-          stats.replaced++;
-        }
+      int err = lastChain->addInstruction(MI);
+      if (err) {
+        // An error means that the current instruction isn't supported, hence
+        // the chain is finalized. When a new supported instruction will be
+        // processed, another chain will be created. This essentially means
+        // that a chain is split every time an un-replaceable instruction is
+        // encountered.
+        DEBUG_WITH_TYPE(
+            PROCESSED_INSTR,
+            dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
+        if (lastChain->isEmpty()) {
+          // The last created chain is pointless at this point, since it's
+          // empty.
+          delete lastChain;
+          ropChains.pop_back();
+        } else
+          lastChain->finalize();
+      } else {
+        DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                        dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
+        stats.replaced++;
       }
     }
 
