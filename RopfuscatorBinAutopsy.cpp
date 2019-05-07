@@ -83,7 +83,7 @@ BinaryAutopsy::BinaryAutopsy(string path) {
          "Given file does not look like a valid ELF file");
 
   // Seeds the PRNG (we'll use it in getRandomSymbol());
-  srand(time(NULL));
+  srand(time(nullptr));
 
   dissect();
 }
@@ -100,7 +100,7 @@ void BinaryAutopsy::dissect() {
 BinaryAutopsy *BinaryAutopsy::instance = 0;
 
 BinaryAutopsy *BinaryAutopsy::getInstance(string path) {
-  if (instance == 0) {
+  if (instance == nullptr) {
     instance = new BinaryAutopsy(path);
   }
 
@@ -142,7 +142,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   size_t addr, size, nsym;
 
   // Dumps sections if it wasn't already done
-  if (Sections.size() == 0)
+  if (Sections.empty())
     dumpSections();
 
   // llvm::dbgs() << "[*] Scanning for symbols... \n";
@@ -168,7 +168,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       addr = bfd_asymbol_value(sym);
 
       // Get version string to avoid symbol aliasing
-      const char *versionString = NULL;
+      const char *versionString = nullptr;
       bfd_boolean hidden = false;
 
       if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
@@ -191,12 +191,12 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   free(asymtab);
   // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
 
-  assert(Symbols.size() > 0 && "No symbols found!");
+  assert(!Symbols.empty() && "No symbols found!");
 }
 
 Symbol *BinaryAutopsy::getRandomSymbol() {
   // Dumps the dynamic symbol table if it wasn't already done
-  if (Symbols.size() == 0)
+  if (Symbols.empty())
     dumpDynamicSymbols();
 
   unsigned long i = rand() % Symbols.size();
@@ -213,7 +213,7 @@ void BinaryAutopsy::dumpGadgets() {
   //  assert(getLibcPath(libcPath));
 
   // Dumps sections if it wasn't already done
-  if (Sections.size() == 0)
+  if (Sections.empty())
     dumpSections();
 
   // Initizialises capstone engine
@@ -232,7 +232,7 @@ void BinaryAutopsy::dumpGadgets() {
 
   // Read the whole file
   input_file.seekg(0, ios::beg);
-  uint8_t *buf = new uint8_t[input_size];
+  auto *buf = new uint8_t[input_size];
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   for (auto &s : Sections) {
@@ -293,7 +293,7 @@ void BinaryAutopsy::dumpGadgets() {
 
 Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   // Legacy: lookup by asm_instr string
-  if (Microgadgets.size() > 0) {
+  if (!Microgadgets.empty()) {
     for (auto &g : Microgadgets) {
       if (g.asmInstr.compare(asmInstr) == 0)
         return &g;
@@ -305,7 +305,7 @@ Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
 std::vector<Microgadget *>
 BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
-  if (Microgadgets.size() > 0) {
+  if (!Microgadgets.empty()) {
     for (auto &gadget : Microgadgets) {
       if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
           (op1 == 0 || op1 == gadget.getOp(1).type))
@@ -318,7 +318,7 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
 std::vector<Microgadget *>
 BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
   std::vector<Microgadget *> res;
-  if (Microgadgets.size() > 0) {
+  if (!Microgadgets.empty()) {
     for (auto &gadget : Microgadgets) {
       // do these checks:
       // - instruction opcodes must be the same
@@ -340,7 +340,7 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
 
 std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
   std::vector<Microgadget *> res;
-  if (Microgadgets.size() > 0) {
+  if (!Microgadgets.empty()) {
     for (auto &gadget : Microgadgets) {
       if (gadget.Class == Class)
         res.push_back(&gadget);
@@ -358,7 +358,7 @@ void BinaryAutopsy::buildXchgGraph() {
   // search for all the "xchg reg, reg" gadgets
   auto XchgGadgets = gadgetLookup(REG_XCHG);
 
-  if (XchgGadgets.size() > 0) {
+  if (!XchgGadgets.empty()) {
     for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
       xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
 
@@ -376,7 +376,7 @@ void BinaryAutopsy::buildXchgGraph() {
 
 void BinaryAutopsy::analyseGadgets() {
   // Dumps gadgets if it wasn't already done
-  if (Microgadgets.size() == 0)
+  if (Microgadgets.empty())
     dumpGadgets();
 
   for (auto &g : Microgadgets) {
@@ -497,7 +497,7 @@ void BinaryAutopsy::applyGadgetFilters() {
 }
 
 bool BinaryAutopsy::canInitReg(unsigned int reg) {
-  if (Microgadgets.size() == 0)
+  if (Microgadgets.empty())
     dumpGadgets();
 
   for (auto &g : Microgadgets) {
@@ -547,7 +547,7 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
     // capstone.
     auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
                             static_cast<x86_reg>(edge.second));
-    if (res.size() == 0)
+    if (res.empty())
       res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
                          static_cast<x86_reg>(edge.first));
 
