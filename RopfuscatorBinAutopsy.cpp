@@ -525,8 +525,8 @@ bool BinaryAutopsy::canInitReg(unsigned int reg) {
 }
 
 bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
-  int pred[REGS], dist[REGS];
-  bool visited[REGS];
+  int pred[N_REGS], dist[N_REGS];
+  bool visited[N_REGS];
 
   // if the third param hasn't been set, check only the first two
   if (c == X86_REG_INVALID)
@@ -537,8 +537,8 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
 }
 
 bool BinaryAutopsy::checkXchgPath(x86_reg a, vector<x86_reg> B) {
-  int pred[REGS], dist[REGS];
-  bool visited[REGS];
+  int pred[N_REGS], dist[N_REGS];
+  bool visited[N_REGS];
 
   for (auto &b : B) {
     if (xgraph.checkPath(a, b, pred, dist, visited))
@@ -585,15 +585,15 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
 
 vector<int> BinaryAutopsy::getReachableRegs(int src) {
   vector<int> reachableRegs;
-  int pred[REGS], dist[REGS];
-  bool visited[REGS];
+  int pred[N_REGS], dist[N_REGS];
+  bool visited[N_REGS];
 
   // we give "0" as destination node, because in capstone 0 is associated with
   // X86_REG_INVALID. So, we basically are giving an unreachable destination in
   // order to trigger the full exploration of the graph.
   xgraph.checkPath(src, 0, pred, dist, visited);
 
-  for (int i = 0; i < REGS; i++) {
+  for (int i = 0; i < N_REGS; i++) {
     if (visited[i])
       reachableRegs.push_back(i);
   }

@@ -15,7 +15,7 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
                           bool visited[]) {
   list<int> queue;
 
-  for (int i = 0; i < REGS; i++) {
+  for (int i = 0; i < N_REGS; i++) {
     visited[i] = false;
     dist[i] = INT_MAX;
     pred[i] = -1;
@@ -27,9 +27,12 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
   visited[src] = true;
   dist[src] = 0;
   queue.push_back(src);
+
   while (!queue.empty()) {
     int u = queue.front();
+
     queue.pop_front();
+
     for (unsigned int i = 0; i < adj[u].size(); i++) {
       if (visited[adj[u][i]] == false) {
         visited[adj[u][i]] = true;
@@ -37,10 +40,8 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
         pred[adj[u][i]] = u;
         queue.push_back(adj[u][i]);
 
-        if (adj[u][i] == dest) {
-
+        if (adj[u][i] == dest)
           return true;
-        }
       }
     }
   }
@@ -51,8 +52,8 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
 vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
   vector<pair<int, int>> exchangePath;
 
-  int pred[REGS], dist[REGS];
-  bool visited[REGS];
+  int pred[N_REGS], dist[N_REGS];
+  bool visited[N_REGS];
 
   assert(checkPath(src, dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
