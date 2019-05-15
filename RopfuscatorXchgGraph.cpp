@@ -34,7 +34,7 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
     queue.pop_front();
 
     for (unsigned int i = 0; i < adj[u].size(); i++) {
-      if (visited[adj[u][i]] == false) {
+      if (!visited[adj[u][i]]) {
         visited[adj[u][i]] = true;
         dist[adj[u][i]] = dist[u] + 1;
         pred[adj[u][i]] = u;
@@ -51,16 +51,16 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
 
 vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
   vector<pair<int, int>> exchangePath;
-
-  int pred[N_REGS], dist[N_REGS];
+  vector<int> path;
+  int pred[N_REGS], dist[N_REGS], crawl;
   bool visited[N_REGS];
 
   assert(checkPath(src, dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
 
-  vector<int> path;
-  int crawl = dest;
+  crawl = dest;
   path.push_back(crawl);
+
   while (pred[crawl] != -1) {
     path.push_back(pred[crawl]);
     crawl = pred[crawl];
