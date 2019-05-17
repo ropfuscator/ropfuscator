@@ -22,7 +22,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 find_path(ROPF_LLC_DIR llc 
     NO_DEFAULT_PATH 
     PATHS ${PROJECT_SOURCE_DIR}/../../../../
-    PATH_SUFFIXES bin build build/bin)
+    PATH_SUFFIXES bin build build/bin cmake-build-debug/bin)
 
 if (NOT ROPF_LLC_DIR)
     message(FATAL_ERROR "Could not find ropfuscator's llc.")
