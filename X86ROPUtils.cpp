@@ -80,17 +80,16 @@ bool getLibcPath(std::string &libcPath) {
 // Chain Element
 // ------------------------------------------------------------------------
 
-ChainElem::ChainElem(Microgadget *g) {
-  r = g;
-
-  type = GADGET;
-  s = ROPChain::BA->getRandomSymbol();
+ChainElem::ChainElem(Microgadget *gadget) {
+  this->microgadget = gadget;
+  this->type = GADGET;
+  this->symbol = ROPChain::BA->getRandomSymbol();
 }
 
 ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
 uint64_t ChainElem::getRelativeAddress() {
-  return r->getAddress() - s->Address;
+  return microgadget->getAddress() - symbol->Address;
 }
 
 // ------------------------------------------------------------------------
@@ -167,16 +166,16 @@ void ROPChain::inject() {
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
       // Version is not "Base" (i.e., it is the only one available).
-      if (strcmp(e->s->Version, "Base") != 0) {
+      if (strcmp(e->symbol->Version, "Base") != 0) {
         BuildMI(*MBB, injectionPoint, nullptr,
                 TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(e->s->getSymVerDirective())
+            .addExternalSymbol(e->symbol->getSymVerDirective())
             .addImm(0);
       }
 
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(e->s->Label);
+          .addExternalSymbol(e->symbol->Label);
 
       // add [esp], $offset
       addDirectMem(
@@ -686,11 +685,12 @@ int ROPChain::mapBindings(MachineInstr &MI) {
                                 << "\n[*] Generated chain for instr. " << MI);
   for (auto &g : chain) {
     if (g.type == GADGET)
-      DEBUG_WITH_TYPE(
-          ROPCHAIN,
-          dbgs() << "    " << g.r->asmInstr << "                    \t"
-                 << g.s->Label << ", " << format_hex(g.getRelativeAddress(), 2)
-                 << " (" << static_cast<int>(g.getRelativeAddress()) << ")\n");
+      DEBUG_WITH_TYPE(ROPCHAIN,
+                      dbgs()
+                          << "    " << g.microgadget->asmInstr
+                          << "                    \t" << g.symbol->Label << ", "
+                          << format_hex(g.getRelativeAddress(), 2) << " ("
+                          << static_cast<int>(g.getRelativeAddress()) << ")\n");
     else
       DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "    " << format_hex(g.value, 2)
                                        << " (" << g.value
