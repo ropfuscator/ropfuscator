@@ -12,6 +12,11 @@ void main(int argc, char *argv[]) {
   char ch, ch1;
   FILE *fp1, *fp2;
 
+  if (argc < 2) {
+    printf("Usage: %s filename\n", argv[0]);
+    return;
+  }
+
   if (fp1 = fopen(argv[1], "r")) {
     printf("The FILE has been opened...\n");
     fp2 = fopen(argv[2], "w");
