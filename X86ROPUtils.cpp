@@ -18,11 +18,11 @@ bool recurseLibcDir(const char *path, std::string &libcPath,
 
   dir = opendir(path);
 
-  if (dir == NULL)
+  if (dir == nullptr)
     return false;
 
   // searching for libc in regular files only
-  while ((entry = readdir(dir)) != NULL) {
+  while ((entry = readdir(dir)) != nullptr) {
     if (!strcmp(entry->d_name, "libc.so.6")) {
       libcPath += path;
       libcPath += "/";
@@ -37,10 +37,10 @@ bool recurseLibcDir(const char *path, std::string &libcPath,
   // could not find libc, recursing into directories
   dir = opendir(path);
 
-  if (dir == NULL)
+  if (dir == nullptr)
     return false;
 
-  while ((entry = readdir(dir)) != NULL) {
+  while ((entry = readdir(dir))) {
     // must be a dir and not "." or ".."
     if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") &&
         strcmp(entry->d_name, "..")) {
