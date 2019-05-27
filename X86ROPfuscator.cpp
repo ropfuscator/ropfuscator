@@ -52,7 +52,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
   DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                  dbgs() << "\nProcessing function: " << funcName << "\n");
+                  dbgs() << "\nProcessing function:\t" << funcName << "\n");
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -66,7 +66,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           MI.getFlag(MachineInstr::FrameDestroy))
         continue;
 
-      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
       stats.processed++;
 
       if (ropChains.empty() || ropChains.back()->isFinalized()) {
@@ -81,15 +80,16 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       ROPChain *lastChain = ropChains.back();
 
       int err = lastChain->addInstruction(MI);
+
       if (err) {
         // An error means that the current instruction isn't supported, hence
         // the chain is finalized. When a new supported instruction will be
         // processed, another chain will be created. This essentially means
         // that a chain is split every time an un-replaceable instruction is
         // encountered.
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
+        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs()
+                                             << COLOR_RED << "[✗ Unsupported]\t"
+                                             << COLOR_RESET << MI);
         if (lastChain->isEmpty()) {
           // The last created chain is pointless at this point, since it's
           // empty.
@@ -98,8 +98,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         } else
           lastChain->finalize();
       } else {
-        DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
+        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << COLOR_GREEN << "[✓ "
+                                                << lastChain->chainLabel
+                                                << "]\t" << COLOR_RESET << MI);
         stats.replaced++;
       }
     }
