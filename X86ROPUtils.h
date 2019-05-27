@@ -9,11 +9,11 @@
 // It is also responsible to inject the newly built ROP chain and remove the
 // instructions that have been replaced.
 
+#include "RopfuscatorBinAutopsy.h"
+#include "RopfuscatorLivenessAnalysis.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86TargetMachine.h"
-#include "RopfuscatorBinAutopsy.h"
-#include "RopfuscatorLivenessAnalysis.h"
 #include <tuple>
 
 #ifndef X86ROPUTILS_H
@@ -22,10 +22,12 @@
 #if __GNUC__
 #if __x86_64__ || __ppc64__
 #define ARCH_64
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32", "/usr/local/lib32"};
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
+                                             "/usr/local/lib32"};
 #else
 #define ARCH_32
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib", "/usr/local/lib"};
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
+                                             "/usr/local/lib"};
 #endif
 #endif
 
@@ -50,7 +52,7 @@ struct ChainElem {
     int64_t value;
 
     // r - pointer to a microgadget
-    const Microgadget *r;
+    const Microgadget *microgadget;
   };
 
   // s - pointer to a symbol.
@@ -58,7 +60,7 @@ struct ChainElem {
   // microgadgets, it would be fairly easy to predict which gadget is referenced
   // with a symbol, since during the chain execution very few gadgets are
   // executed.
-  Symbol *s;
+  Symbol *symbol;
 
   // Constructor (type: GADGET)
   ChainElem(Microgadget *g);
