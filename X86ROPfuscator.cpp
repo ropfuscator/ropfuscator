@@ -91,8 +91,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         // encountered.
 
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << fmt::format("{}[✗ Unsupported]{} {}\n",
-                                              COLOR_RED, COLOR_RESET, MI));
+                        dbgs() << fmt::format("{}[✗ {:^14}]{} {}\n", COLOR_RED,
+                                              "Unsupported", COLOR_RESET, MI));
 
         if (lastChain->isEmpty()) {
           // The last created chain is pointless at this point, since it's
@@ -102,10 +102,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         } else
           lastChain->finalize();
       } else {
-        DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << fmt::format("{}[✓ {}]{} {}\n", COLOR_GREEN,
-                                              lastChain->chainLabel,
-                                              COLOR_RESET, MI));
+        DEBUG_WITH_TYPE(
+            PROCESSED_INSTR,
+            dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
+                                  lastChain->chainLabel, COLOR_RESET, MI));
         stats.replaced++;
       }
     }
