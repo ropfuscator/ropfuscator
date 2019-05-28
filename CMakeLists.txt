@@ -88,12 +88,14 @@ add_subdirectory(Utils)
 
 # Adding capstone
 find_package(capstone QUIET)
+find_package(fmt QUIET)
 find_library(BFD bfd)
 
 if (NOT capstone_FOUND OR NOT fmt_FOUND)
     find_package(PkgConfig REQUIRED)
     if (PKG_CONFIG_FOUND)
         pkg_search_module(capstone capstone)
+        pkg_search_module(fmt fmt)
     endif ()
 endif ()
 
@@ -101,4 +103,8 @@ if (NOT capstone_FOUND)
     message(FATAL_ERROR "Unable to find capstone. Please install pkg-config and capstone development files")
 endif ()
 
-target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE capstone ${BFD})
+if (NOT fmt_FOUND)
+    message(FATAL_ERROR "Unable to find capstone. Please install pkg-config and fmtlib development files")
+endif ()
+
+target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE capstone fmt ${BFD})
