@@ -51,8 +51,10 @@ FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
-  DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                  dbgs() << "\nProcessing function:\t" << funcName << "\n");
+
+  DEBUG_WITH_TYPE(
+      PROCESSED_INSTR,
+      dbgs() << fmt::format("Processing function: {}\n", funcName.str()));
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -87,9 +89,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         // processed, another chain will be created. This essentially means
         // that a chain is split every time an un-replaceable instruction is
         // encountered.
-        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs()
-                                             << COLOR_RED << "[✗ Unsupported]\t"
-                                             << COLOR_RESET << MI);
+
+        DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                        dbgs() << fmt::format("{}[✗ Unsupported]{} {}\n",
+                                              COLOR_RED, COLOR_RESET, MI));
+
         if (lastChain->isEmpty()) {
           // The last created chain is pointless at this point, since it's
           // empty.
@@ -98,9 +102,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         } else
           lastChain->finalize();
       } else {
-        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << COLOR_GREEN << "[✓ "
-                                                << lastChain->chainLabel
-                                                << "]\t" << COLOR_RESET << MI);
+        DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                        dbgs() << fmt::format("{}[✓ {}]{} {}\n", COLOR_GREEN,
+                                              lastChain->chainLabel,
+                                              COLOR_RESET, MI));
         stats.replaced++;
       }
     }
@@ -113,11 +118,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       rc->inject();
   }
 
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << funcName << ":  \t"
-                                    << stats.replaced << "/" << stats.processed
-                                    << " ("
-                                    << (stats.replaced * 100) / stats.processed
-                                    << "%) instructions obfuscated\n");
+  DEBUG_WITH_TYPE(
+      OBF_STATS,
+      dbgs() << fmt::format("{}: {}/{} ({}%) instructions obfuscated.\n",
+                            funcName.str(), stats.replaced, stats.processed,
+                            stats.replaced * 100 / stats.processed));
 
   // the MachineFunction has been modified
   return true;
