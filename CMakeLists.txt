@@ -1,3 +1,4 @@
+set (CMAKE_CXX_STANDARD 14)
 set(LLVM_TARGET_DEFINITIONS X86.td)
 
 tablegen(LLVM X86GenAsmMatcher.inc -gen-asm-matcher)
