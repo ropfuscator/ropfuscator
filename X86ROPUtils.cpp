@@ -3,6 +3,8 @@
 #include "RopfuscatorDebug.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include <dirent.h>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 
 using namespace llvm;
 
@@ -685,18 +687,13 @@ int ROPChain::mapBindings(MachineInstr &MI) {
                                 << "\n[*] Generated chain for instr. " << MI);
   for (auto &g : chain) {
     if (g.type == GADGET)
-      DEBUG_WITH_TYPE(ROPCHAIN,
-                      dbgs()
-                          << "    " << g.microgadget->asmInstr
-                          << "                    \t" << g.symbol->Label << ", "
-                          << format_hex(g.getRelativeAddress(), 2) << " ("
-                          << static_cast<int>(g.getRelativeAddress()) << ")\n");
+      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:#018x}: {}\n",
+                                                      g.getRelativeAddress(),
+                                                      g.microgadget->asmInstr));
     else
-      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "    " << format_hex(g.value, 2)
-                                       << " (" << g.value
-                                       << ")           \t(immediate value)\n");
+      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:^18}: {:#x}\n",
+                                                      "Immediate", g.value));
   }
-  DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "\n");
   return 0;
 }
 
