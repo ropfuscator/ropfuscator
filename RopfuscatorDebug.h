@@ -36,8 +36,14 @@ template <> struct fmt::formatter<llvm::MachineInstr> {
   auto format(const llvm::MachineInstr &MI, FormatContext &ctx) {
     std::string s;
     llvm::raw_string_ostream rso(s);
+
+    // writing into raw_string_ostream
     MI.print(rso);
 
-    return fmt::format_to(ctx.begin(), "{}", rso.str());
+    // stripping newline at end
+    auto mistr = rso.str();
+    mistr.erase(std::remove(mistr.begin(), mistr.end(), '\n'), mistr.end());
+
+    return fmt::format_to(ctx.begin(), "{}", mistr);
   }
 };
