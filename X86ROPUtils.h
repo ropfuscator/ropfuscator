@@ -152,7 +152,8 @@ public:
 
   // addImmToReg - adds an immediate value (stored into a scratch register) to
   // the given register.
-  x86_reg addImmToReg(x86_reg reg, int immediate, vector<x86_reg> scratchRegs);
+  bool addImmToReg(x86_reg reg, int immediate,
+                      vector<x86_reg> const &scratchRegs);
 
   // computeAddress - finds the correct set of gadgets such that:
   // the value in "inputReg" is copied in a scratch register, incremented by the
