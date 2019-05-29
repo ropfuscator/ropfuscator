@@ -107,7 +107,7 @@ BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libcPath);
 
 ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
                    llvm::MachineInstr &injectionPoint, ScratchRegTracker &SRT)
-    : MBB(&MBB), injectionPoint(&injectionPoint), SRT(SRT) {
+    : MBB(&MBB), injectionPoint(injectionPoint), SRT(SRT) {
   MF = MBB.getParent();
   TII = MF->getTarget().getMCInstrInfo();
   chainID = globalChainID++;
@@ -496,7 +496,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     // no scratch registers are available -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
-    if (scratchRegs.size() < 1)
+    if (scratchRegs.empty())
       return 1;
 
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
@@ -673,6 +673,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     DoubleXchg(address, mov_0, orig_1, mov_1);
 
     chain.emplace_back(ChainElem(mov));
+
     // dbgs() << mov->asmInstr << "\n";
 
     Xchg(mov_1, orig_1);
