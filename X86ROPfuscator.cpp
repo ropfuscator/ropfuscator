@@ -81,9 +81,13 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
       ROPChain *lastChain = ropChains.back();
 
-      int err = lastChain->addInstruction(MI);
-
-      if (err) {
+      if (lastChain->addInstruction(MI)) {
+        DEBUG_WITH_TYPE(
+            PROCESSED_INSTR,
+            dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
+                                  lastChain->chainLabel, COLOR_RESET, MI));
+        stats.replaced++;
+      } else {
         // An error means that the current instruction isn't supported, hence
         // the chain is finalized. When a new supported instruction will be
         // processed, another chain will be created. This essentially means
@@ -101,12 +105,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           ropChains.pop_back();
         } else
           lastChain->finalize();
-      } else {
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
-                                  lastChain->chainLabel, COLOR_RESET, MI));
-        stats.replaced++;
       }
     }
 

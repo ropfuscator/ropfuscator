@@ -206,15 +206,17 @@ void ROPChain::inject() {
   }
 }
 
-int ROPChain::addInstruction(MachineInstr &MI) {
+bool ROPChain::addInstruction(MachineInstr &MI) {
+  bool ok;
+
   assert(!finalized && "Attempt to modify a finalized chain!");
-  int err = mapBindings(MI);
 
-  if (!err) {
+  ok = mapBindings(MI);
+
+  if (ok)
     instructionsToDelete.push_back(&MI);
-  }
 
-  return err;
+  return ok;
 }
 
 int ROPChain::Xchg(x86_reg a, x86_reg b) {
@@ -470,12 +472,11 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
   return scratchR1;
 }
 
-int ROPChain::mapBindings(MachineInstr &MI) {
-
+bool ROPChain::mapBindings(MachineInstr &MI) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
-      return 1;
+      return false;
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "[LivenessAnalysis]\t"
@@ -497,7 +498,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // no scratch registers are available -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.empty())
-      return 1;
+      return false;
 
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
     int imm;
@@ -505,14 +506,14 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     case X86::ADD32ri8:
     case X86::ADD32ri: {
       if (!MI.getOperand(2).isImm())
-        return 1;
+        return false;
       imm = MI.getOperand(2).getImm();
       break;
     }
     case X86::SUB32ri8:
     case X86::SUB32ri: {
       if (!MI.getOperand(2).isImm())
-        return 1;
+        return false;
       imm = -MI.getOperand(2).getImm();
       break;
     }
@@ -528,7 +529,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
 
     auto res = addImmToReg(orig_0, imm, scratchRegs);
     if (res == X86_REG_INVALID)
-      return 1;
+      return false;
 
     break;
   }
@@ -538,19 +539,19 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.size() < 2)
-      return 1;
+      return false;
 
     // sometimes mov instructions have operands that use segment registers, and
     // we just cannot handle them
     if (MI.getOperand(0).getReg() == 0 || MI.getOperand(1).getReg() == 0)
-      return 1;
+      return false;
 
     // dump all the useful operands from the MachineInstr we are processing:
     //      mov     orig_0, [orig_1 + disp]
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
     if (!MI.getOperand(4).isImm())
-      return 1;
+      return false;
     int orig_disp = MI.getOperand(4).getImm(); // displacement
 
     // We will replace this instruction with its register-register variant,
@@ -595,7 +596,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     }
 
     if (address == X86_REG_INVALID)
-      return 1;
+      return false;
 
     /*dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
@@ -621,19 +622,19 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     // (we are unable to modify it since we are using microgadgets) -> abort.
     auto scratchRegs = *SRT.getRegs(MI);
     if (scratchRegs.size() < 2)
-      return 1;
+      return false;
 
     // sometimes mov instructions have operands that use segment registers, and
     // we just cannot handle them
     if (MI.getOperand(0).getReg() == 0 || MI.getOperand(5).getReg() == 0)
-      return 1;
+      return false;
 
     // dump all the useful operands from the MachineInstr we are processing:
     //      mov     [orig_0 + disp], orig_1
     x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
     x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
     if (!MI.getOperand(3).isImm())
-      return 1;
+      return false;
     int orig_disp = MI.getOperand(3).getImm(); // displacement
 
     x86_reg mov_0, mov_1;
@@ -662,7 +663,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     }
 
     if (address == X86_REG_INVALID)
-      return 1;
+      return false;
 
     /*dbgs() << "Results returned in: " << address << "\n";
     dbgs() << "[*] Chosen gadgets: \n";
@@ -681,7 +682,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
     break;
   }
   default:
-    return 1;
+    return false;
   }
 
   DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
@@ -695,7 +696,7 @@ int ROPChain::mapBindings(MachineInstr &MI) {
       DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:^18}: {:#x}\n",
                                                       "Immediate", g.value));
   }
-  return 0;
+  return true;
 }
 
 void ROPChain::finalize() { finalized = true; }

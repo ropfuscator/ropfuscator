@@ -19,6 +19,8 @@
 #ifndef X86ROPUTILS_H
 #define X86ROPUTILS_H
 
+#define CHAIN_LABEL_LEN 16
+
 #if __GNUC__
 #if __x86_64__ || __ppc64__
 #define ARCH_64
@@ -40,6 +42,9 @@ struct Stats {
   Stats() : processed(0), replaced(0){};
 };
 
+using namespace std;
+using namespace llvm;
+
 // Generic element to be put in the chain.
 struct ChainElem {
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
@@ -51,7 +56,7 @@ struct ChainElem {
     // value - immediate value
     int64_t value;
 
-    // r - pointer to a microgadget
+    // pointer to a microgadget
     const Microgadget *microgadget;
   };
 
@@ -93,23 +98,23 @@ class ROPChain {
 
   // instructionsToDelete - keeps track of all the instructions that we want to
   // replace with obfuscated ones
-  std::vector<llvm::MachineInstr *> instructionsToDelete;
+  vector<MachineInstr *> instructionsToDelete;
 
-  // chain - holds all the elements of the ROP chain
-  std::vector<ChainElem> chain;
+  // Injection location within the program code
+  MachineBasicBlock *MBB;
+  MachineFunction *MF;
+  MCInstrInfo const *TII;
+  MachineInstr &injectionPoint;
 
 public:
   // Labels for inline asm instructions ("C" = colon)
-  char chainLabel[16];    // chain_X
-  char chainLabel_C[16];  // chain_X:
-  char resumeLabel[16];   // resume_X
-  char resumeLabel_C[16]; // resume_X:
+  char chainLabel[CHAIN_LABEL_LEN];    // chain_X
+  char chainLabel_C[CHAIN_LABEL_LEN];  // chain_X:
+  char resumeLabel[CHAIN_LABEL_LEN];   // resume_X
+  char resumeLabel_C[CHAIN_LABEL_LEN]; // resume_X:
 
-  // Injection location within the program code
-  llvm::MachineBasicBlock *MBB;
-  llvm::MachineFunction *MF;
-  llvm::MachineInstr *injectionPoint;
-  llvm::MCInstrInfo const *TII;
+  // chain - holds all the elements of the ROP chain
+  vector<ChainElem> chain;
 
   // SRT - holds data about the available registers that can be used as scratch
   // registers (see LivenessAnalysis).
@@ -119,7 +124,7 @@ public:
   static BinaryAutopsy *BA;
 
   // Constructor
-  ROPChain(llvm::MachineBasicBlock &MBB, llvm::MachineInstr &injectionPoint,
+  ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
            ScratchRegTracker &SRT);
 
   // Destructor
@@ -131,11 +136,11 @@ public:
   // to remove in order to defer the actual deletion to the moment in which
   // we'll inject the ROP Chain. We do this because currently MI is just an
   // iterator
-  int addInstruction(llvm::MachineInstr &MI);
+  bool addInstruction(MachineInstr &MI);
 
   // mapBindings - determines the gadgets to use to replace a single input
   // instruction.
-  int mapBindings(llvm::MachineInstr &MI);
+  bool mapBindings(MachineInstr &MI);
 
   // inject - injects the new instructions to build the ROP chain and removes
   // the original ones.
@@ -143,8 +148,7 @@ public:
 
   // addImmToReg - adds an immediate value (stored into a scratch register) to
   // the given register.
-  x86_reg addImmToReg(x86_reg reg, int immediate,
-                      std::vector<x86_reg> scratchRegs);
+  x86_reg addImmToReg(x86_reg reg, int immediate, vector<x86_reg> scratchRegs);
 
   // computeAddress - finds the correct set of gadgets such that:
   // the value in "inputReg" is copied in a scratch register, incremented by the
@@ -154,7 +158,7 @@ public:
   // saved. This is useful to whom calls this method, in order to create an
   // exchange chain to move the results onto another register.
   x86_reg computeAddress(x86_reg inputReg, int displacement, x86_reg outputReg,
-                         std::vector<x86_reg> scratchRegs);
+                         vector<x86_reg> scratchRegs);
 
   // Xchg - Concatenates a series of XCHG gadget in order to exchange reg a with
   // reg b.
