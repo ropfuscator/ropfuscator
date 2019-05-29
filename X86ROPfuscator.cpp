@@ -86,6 +86,18 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             PROCESSED_INSTR,
             dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
                                   lastChain->chainLabel, COLOR_RESET, MI));
+
+        for (auto &g : lastChain->instrMap[&MI]) {
+          if (g.type == GADGET)
+            DEBUG_WITH_TYPE(ROPCHAIN,
+                            dbgs() << fmt::format("\t{:#018x}: {}\n",
+                                                  g.getRelativeAddress(),
+                                                  g.microgadget->asmInstr));
+          else
+            DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
+                                          << fmt::format("\t{:^18}: {:#x}\n",
+                                                         "Immediate", g.value));
+        }
         stats.replaced++;
       } else {
         // An error means that the current instruction isn't supported, hence

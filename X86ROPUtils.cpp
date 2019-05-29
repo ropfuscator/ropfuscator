@@ -105,8 +105,8 @@ bool libcFound = getLibcPath(libcPath);
 
 BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libcPath);
 
-ROPChain::ROPChain(llvm::MachineBasicBlock &MBB,
-                   llvm::MachineInstr &injectionPoint, ScratchRegTracker &SRT)
+ROPChain::ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
+                   ScratchRegTracker &SRT)
     : MBB(&MBB), injectionPoint(injectionPoint), SRT(SRT) {
   MF = MBB.getParent();
   TII = MF->getTarget().getMCInstrInfo();
@@ -202,6 +202,7 @@ void ROPChain::inject() {
 
   // Deletes the initial instructions
   for (MachineInstr *MI : instructionsToDelete) {
+    instrMap.erase(MI);
     MI->eraseFromParent();
   }
 }
@@ -219,7 +220,7 @@ bool ROPChain::addInstruction(MachineInstr &MI) {
   return ok;
 }
 
-int ROPChain::Xchg(x86_reg a, x86_reg b) {
+int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
                                      << " with " << b << "\n");
 
@@ -228,6 +229,7 @@ int ROPChain::Xchg(x86_reg a, x86_reg b) {
     DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
                                     << "[XchgChain]\t" << a->asmInstr << "\n");
     chain.emplace_back(ChainElem(a));
+    addToInstrMap(MI, ChainElem(a));
   }
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
@@ -236,8 +238,9 @@ int ROPChain::Xchg(x86_reg a, x86_reg b) {
   return xchgPath.size();
 }
 
-void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
-  Xchg(a, b);
+void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
+                          x86_reg d) {
+  Xchg(MI, a, b);
 
   // just a fancy way to check if the two pairs of operands are the same,
   // regardless of their order.
@@ -248,11 +251,11 @@ void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
                                        << "avoiding double-xchg between " << c
                                        << " and " << d << "\n");
   } else {
-    Xchg(c, d);
+    Xchg(MI, c, d);
   }
 }
 
-bool ROPChain::addImmToReg(x86_reg reg, int immediate,
+bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
                            std::vector<x86_reg> const &scratchRegs) {
   Microgadget *pop, *add;
   x86_reg pop_0, add_0, add_1;
@@ -319,28 +322,33 @@ bool ROPChain::addImmToReg(x86_reg reg, int immediate,
   // Okay, now it's time to build the chain!
 
   // POP
-  Xchg(scratch, pop_0);
+  Xchg(MI, scratch, pop_0);
 
   chain.emplace_back(ChainElem(pop));
   // dbgs() << pop->asmInstr << "\n"
   //<< "imm: " << immediate;
   chain.emplace_back(immediate);
 
-  Xchg(pop_0, scratch);
+  addToInstrMap(MI, ChainElem(pop));
+  addToInstrMap(MI, ChainElem(immediate));
+
+  Xchg(MI, pop_0, scratch);
 
   // ADD
-  DoubleXchg(reg, add_0, scratch, add_1);
+  DoubleXchg(MI, reg, add_0, scratch, add_1);
 
   chain.emplace_back(ChainElem(add));
+  addToInstrMap(MI, ChainElem(add));
+
   // dbgs() << add->asmInstr << "\n";
 
-  DoubleXchg(add_1, scratch, add_0, reg);
+  DoubleXchg(MI, add_1, scratch, add_0, reg);
 
   return true;
 }
 
-x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
-                                 x86_reg outputReg,
+x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
+                                 int displacement, x86_reg outputReg,
                                  std::vector<x86_reg> scratchRegs) {
 
   Microgadget *mov, *pop, *add;
@@ -441,38 +449,45 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
     // Okay, now it's time to build the chain!
 
     // MOV
-    DoubleXchg(scratchR1, mov_0, inputReg, mov_1);
+    DoubleXchg(MI, scratchR1, mov_0, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
+    addToInstrMap(MI, ChainElem(mov));
+
     // dbgs() << mov->asmInstr << "\n";
 
-    DoubleXchg(mov_1, inputReg, mov_0, scratchR1);
+    DoubleXchg(MI, mov_1, inputReg, mov_0, scratchR1);
 
     // POP
-    Xchg(scratchR2, pop_0);
+    Xchg(MI, scratchR2, pop_0);
 
     chain.emplace_back(ChainElem(pop));
+    addToInstrMap(MI, ChainElem(pop));
+
     // dbgs() << pop->asmInstr << "\n"
     //       << "displacement: " << displacement;
-    chain.push_back(displacement);
+    chain.emplace_back(displacement);
+    addToInstrMap(MI, ChainElem(displacement));
 
-    Xchg(pop_0, scratchR2);
+    Xchg(MI, pop_0, scratchR2);
 
     // ADD
-    DoubleXchg(scratchR1, add_0, scratchR2, add_1);
+    DoubleXchg(MI, scratchR1, add_0, scratchR2, add_1);
 
     chain.emplace_back(ChainElem(add));
+    addToInstrMap(MI, ChainElem(add));
+
     // dbgs() << add->asmInstr << "\n";
 
-    DoubleXchg(add_1, scratchR2, add_0, scratchR1);
+    DoubleXchg(MI, add_1, scratchR2, add_0, scratchR1);
   }
 
   return scratchR1;
 }
 
-bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
-  unsigned opcode = MI.getOpcode();
-  auto const scratchRegs = *SRT.getRegs(MI);
+bool ROPChain::handleAddSubIncDec(MachineInstr *MI) {
+  unsigned opcode = MI->getOpcode();
+  auto const scratchRegs = *SRT.getRegs(*MI);
   int imm;
   x86_reg dest_reg;
 
@@ -483,19 +498,19 @@ bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
-    if (!MI.getOperand(2).isImm())
+    if (!MI->getOperand(2).isImm())
       return false;
 
-    imm = MI.getOperand(2).getImm();
+    imm = MI->getOperand(2).getImm();
 
     break;
   }
   case X86::SUB32ri8:
   case X86::SUB32ri: {
-    if (!MI.getOperand(2).isImm())
+    if (!MI->getOperand(2).isImm())
       return false;
 
-    imm = -MI.getOperand(2).getImm();
+    imm = -MI->getOperand(2).getImm();
 
     break;
   }
@@ -511,13 +526,13 @@ bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
     return false;
   }
 
-  dest_reg = convertToCapstoneReg(MI.getOperand(0).getReg());
+  dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
 
-  return addImmToReg(dest_reg, imm, scratchRegs);
+  return addImmToReg(MI, dest_reg, imm, scratchRegs);
 }
 
-bool ROPChain::handleMov32rm(MachineInstr &MI) {
-  auto scratchRegs = *SRT.getRegs(MI);
+bool ROPChain::handleMov32rm(MachineInstr *MI) {
+  auto scratchRegs = *SRT.getRegs(*MI);
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;
@@ -529,18 +544,18 @@ bool ROPChain::handleMov32rm(MachineInstr &MI) {
 
   // sometimes mov instructions have operands that use segment registers, and
   // we just cannot handle them
-  if (MI.getOperand(0).getReg() == 0 || MI.getOperand(1).getReg() == 0)
+  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
     return false;
 
   // dump all the useful operands from the MachineInstr we are processing:
   //      mov     orig_0, [orig_1 + disp]
-  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
-  orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
+  orig_0 = convertToCapstoneReg(MI->getOperand(0).getReg()); // dst
+  orig_1 = convertToCapstoneReg(MI->getOperand(1).getReg()); // src
 
-  if (!MI.getOperand(4).isImm())
+  if (!MI->getOperand(4).isImm())
     return false;
 
-  orig_disp = MI.getOperand(4).getImm(); // displacement
+  orig_disp = MI->getOperand(4).getImm(); // displacement
 
   // We will replace this instruction with its register-register variant,
   // like this (parametrising the operands):
@@ -569,7 +584,8 @@ bool ROPChain::handleMov32rm(MachineInstr &MI) {
     //    placed in a register that is at least reachable via a series of
     //    xchg gadgets
     //    - scratchRegs: a list of scratch registers that can be clobbered
-    auto res = computeAddress(orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
+    auto res =
+        computeAddress(MI, orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
 
     if (res != X86_REG_INVALID) {
       address = res;
@@ -587,18 +603,20 @@ bool ROPChain::handleMov32rm(MachineInstr &MI) {
 */
   // -----------
 
-  DoubleXchg(orig_0, mov_0, address, mov_1);
+  DoubleXchg(MI, orig_0, mov_0, address, mov_1);
 
   chain.emplace_back(ChainElem(mov));
+  addToInstrMap(MI, ChainElem(mov));
+
   // dbgs() << mov->asmInstr << "\n";
 
-  Xchg(mov_0, orig_0);
+  Xchg(MI, mov_0, orig_0);
 
   return true;
 }
 
-bool ROPChain::handleMov32mr(MachineInstr &MI) {
-  auto scratchRegs = *SRT.getRegs(MI);
+bool ROPChain::handleMov32mr(MachineInstr *MI) {
+  auto scratchRegs = *SRT.getRegs(*MI);
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;
@@ -613,18 +631,18 @@ bool ROPChain::handleMov32mr(MachineInstr &MI) {
 
   // sometimes mov instructions have operands that use segment registers, and
   // we just cannot handle them
-  if (MI.getOperand(0).getReg() == 0 || MI.getOperand(5).getReg() == 0)
+  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(5).getReg() == 0)
     return false;
 
   // dump all the useful operands from the MachineInstr we are processing:
   //      mov     [orig_0 + disp], orig_1
-  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
-  orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
+  orig_0 = convertToCapstoneReg(MI->getOperand(0).getReg()); // dst
+  orig_1 = convertToCapstoneReg(MI->getOperand(5).getReg()); // src
 
-  if (!MI.getOperand(3).isImm())
+  if (!MI->getOperand(3).isImm())
     return false;
 
-  orig_disp = MI.getOperand(3).getImm(); // displacement
+  orig_disp = MI->getOperand(3).getImm(); // displacement
 
   for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
     // dbgs() << m->asmInstr << "\n";
@@ -637,7 +655,8 @@ bool ROPChain::handleMov32mr(MachineInstr &MI) {
     if (!BA->checkXchgPath(orig_1, mov_1))
       continue;
 
-    auto res = computeAddress(orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
+    auto res =
+        computeAddress(MI, orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
 
     if (res != X86_REG_INVALID) {
       address = res;
@@ -655,13 +674,14 @@ bool ROPChain::handleMov32mr(MachineInstr &MI) {
   dbgs() << mov->asmInstr << "\n\n";
   */
 
-  DoubleXchg(address, mov_0, orig_1, mov_1);
+  DoubleXchg(MI, address, mov_0, orig_1, mov_1);
 
   chain.emplace_back(ChainElem(mov));
+  addToInstrMap(MI, ChainElem(mov));
 
   // dbgs() << mov->asmInstr << "\n";
 
-  Xchg(mov_1, orig_1);
+  Xchg(MI, mov_1, orig_1);
 
   return true;
 }
@@ -689,18 +709,18 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    if (!handleAddSubIncDec(MI))
+    if (!handleAddSubIncDec(&MI))
       return false;
     break;
   }
   case X86::MOV32rm: {
-    if (!handleMov32rm(MI)) {
+    if (!handleMov32rm(&MI)) {
       return false;
     }
     break;
   }
   case X86::MOV32mr: {
-    if (!handleMov32mr(MI)) {
+    if (!handleMov32mr(&MI)) {
       return false;
     }
     break;
@@ -709,20 +729,12 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
     return false;
   }
 
-  DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format(
-                                "\n[*] Generated chain for instr: {}", MI));
-
-  for (auto &g : chain) {
-    if (g.type == GADGET)
-      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:#018x}: {}\n",
-                                                      g.getRelativeAddress(),
-                                                      g.microgadget->asmInstr));
-    else
-      DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:^18}: {:#x}\n",
-                                                      "Immediate", g.value));
-  }
-
   return true;
+}
+
+void ROPChain::addToInstrMap(MachineInstr *MI, ChainElem CE) {
+  // TODO: this won't be valid once the MI * gets invalidated after an erase().
+  instrMap[MI].emplace_back(CE);
 }
 
 void ROPChain::finalize() { finalized = true; }
