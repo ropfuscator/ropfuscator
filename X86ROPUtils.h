@@ -106,9 +106,10 @@ class ROPChain {
   MCInstrInfo const *TII;
   MachineInstr &injectionPoint;
 
-  bool handleAddSubIncDec(MachineInstr &);
-  bool handleMov32rm(MachineInstr &);
-  bool handleMov32mr(MachineInstr &);
+  bool handleAddSubIncDec(MachineInstr *);
+  bool handleMov32rm(MachineInstr *);
+  bool handleMov32mr(MachineInstr *);
+  void addToInstrMap(MachineInstr *, ChainElem);
 
 public:
   // Labels for inline asm instructions ("C" = colon)
@@ -126,6 +127,9 @@ public:
 
   // BA - shared instance of Binary Autopsy.
   static BinaryAutopsy *BA;
+
+  // instruction mapping between MachineInstrs and their gadget counterpart
+  map<MachineInstr *, vector<ChainElem>> instrMap;
 
   // Constructor
   ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
@@ -152,8 +156,8 @@ public:
 
   // addImmToReg - adds an immediate value (stored into a scratch register) to
   // the given register.
-  bool addImmToReg(x86_reg reg, int immediate,
-                      vector<x86_reg> const &scratchRegs);
+  bool addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
+                   vector<x86_reg> const &scratchRegs);
 
   // computeAddress - finds the correct set of gadgets such that:
   // the value in "inputReg" is copied in a scratch register, incremented by the
@@ -162,17 +166,17 @@ public:
   // The return value is the actual register in which the computed value is
   // saved. This is useful to whom calls this method, in order to create an
   // exchange chain to move the results onto another register.
-  x86_reg computeAddress(x86_reg inputReg, int displacement, x86_reg outputReg,
-                         vector<x86_reg> scratchRegs);
+  x86_reg computeAddress(MachineInstr *MI, x86_reg inputReg, int displacement,
+                         x86_reg outputReg, vector<x86_reg> scratchRegs);
 
   // Xchg - Concatenates a series of XCHG gadget in order to exchange reg a with
   // reg b.
-  int Xchg(x86_reg a, x86_reg b);
+  int Xchg(MachineInstr *, x86_reg a, x86_reg b);
 
   // DoubleXchg - Concatenates a series of XCHG gadget in order to exchange reg
   // a with reg b, and c with d. This method helps to prevent two exchange
   // chains that have the same operands to undo each other.
-  void DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d);
+  void DoubleXchg(MachineInstr *, x86_reg a, x86_reg b, x86_reg c, x86_reg d);
 
   // Helper methods
   bool isFinalized();
