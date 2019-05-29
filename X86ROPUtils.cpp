@@ -678,8 +678,10 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
       return false;
   }
 
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "[LivenessAnalysis]\t"
-                                            << "avail. scratch registers: ");
+  DEBUG_WITH_TYPE(
+      LIVENESS_ANALYSIS,
+      dbgs() << fmt::format("[LivenessAnalysis] avail. scratch registers:\t"));
+
   for (auto &a : *SRT.getRegs(MI)) {
     DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
   }
