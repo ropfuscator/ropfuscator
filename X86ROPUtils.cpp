@@ -252,8 +252,8 @@ void ROPChain::DoubleXchg(x86_reg a, x86_reg b, x86_reg c, x86_reg d) {
   }
 }
 
-x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
-                              std::vector<x86_reg> scratchRegs) {
+bool ROPChain::addImmToReg(x86_reg reg, int immediate,
+                           std::vector<x86_reg> const &scratchRegs) {
   Microgadget *pop, *add;
   x86_reg pop_0, add_0, add_1;
   x86_reg scratch = X86_REG_INVALID;
@@ -309,36 +309,34 @@ x86_reg ROPChain::addImmToReg(x86_reg reg, int immediate,
     }
   }
 
-  if (combinationFound) {
+  if (!combinationFound)
+    return false;
 
-    // dbgs() << "[*] Chosen gadgets: \n";
-    // dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
-    // dbgs() << "[*] Scratch reg: " << scratch << "\n";
+  // dbgs() << "[*] Chosen gadgets: \n";
+  // dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
+  // dbgs() << "[*] Scratch reg: " << scratch << "\n";
 
-    // Okay, now it's time to build the chain!
+  // Okay, now it's time to build the chain!
 
-    // POP
-    Xchg(scratch, pop_0);
+  // POP
+  Xchg(scratch, pop_0);
 
-    chain.emplace_back(ChainElem(pop));
-    // dbgs() << pop->asmInstr << "\n"
-    //<< "imm: " << immediate;
-    chain.push_back(immediate);
+  chain.emplace_back(ChainElem(pop));
+  // dbgs() << pop->asmInstr << "\n"
+  //<< "imm: " << immediate;
+  chain.emplace_back(immediate);
 
-    Xchg(pop_0, scratch);
+  Xchg(pop_0, scratch);
 
-    // ADD
-    DoubleXchg(reg, add_0, scratch, add_1);
+  // ADD
+  DoubleXchg(reg, add_0, scratch, add_1);
 
-    chain.emplace_back(ChainElem(add));
-    // dbgs() << add->asmInstr << "\n";
+  chain.emplace_back(ChainElem(add));
+  // dbgs() << add->asmInstr << "\n";
 
-    DoubleXchg(add_1, scratch, add_0, reg);
+  DoubleXchg(add_1, scratch, add_0, reg);
 
-    return add_0;
-  }
-
-  return X86_REG_INVALID;
+  return true;
 }
 
 x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
@@ -474,15 +472,13 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
 
 bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
   unsigned opcode = MI.getOpcode();
-  auto scratchRegs = *SRT.getRegs(MI);
+  auto const scratchRegs = *SRT.getRegs(MI);
   int imm;
-  x86_reg orig_0;
+  x86_reg dest_reg;
 
   // no scratch registers are available -> abort.
   if (scratchRegs.empty())
     return false;
-
-  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
 
   switch (opcode) {
   case X86::ADD32ri8:
@@ -515,10 +511,9 @@ bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
     return false;
   }
 
-  if (addImmToReg(orig_0, imm, scratchRegs) == X86_REG_INVALID)
-    return false;
+  dest_reg = convertToCapstoneReg(MI.getOperand(0).getReg());
 
-  return true;
+  return addImmToReg(dest_reg, imm, scratchRegs);
 }
 
 bool ROPChain::handleMov32rm(MachineInstr &MI) {
