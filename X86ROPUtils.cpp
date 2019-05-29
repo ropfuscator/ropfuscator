@@ -472,6 +472,205 @@ x86_reg ROPChain::computeAddress(x86_reg inputReg, int displacement,
   return scratchR1;
 }
 
+bool ROPChain::handleAddSubIncDec(MachineInstr &MI) {
+  unsigned opcode = MI.getOpcode();
+  auto scratchRegs = *SRT.getRegs(MI);
+  int imm;
+  x86_reg orig_0;
+
+  // no scratch registers are available -> abort.
+  if (scratchRegs.empty())
+    return false;
+
+  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
+
+  switch (opcode) {
+  case X86::ADD32ri8:
+  case X86::ADD32ri: {
+    if (!MI.getOperand(2).isImm())
+      return false;
+
+    imm = MI.getOperand(2).getImm();
+
+    break;
+  }
+  case X86::SUB32ri8:
+  case X86::SUB32ri: {
+    if (!MI.getOperand(2).isImm())
+      return false;
+
+    imm = -MI.getOperand(2).getImm();
+
+    break;
+  }
+  case X86::INC32r: {
+    imm = 1;
+    break;
+  }
+  case X86::DEC32r: {
+    imm = -1;
+    break;
+  }
+  default:
+    return false;
+  }
+
+  if (addImmToReg(orig_0, imm, scratchRegs) == X86_REG_INVALID)
+    return false;
+
+  return true;
+}
+
+bool ROPChain::handleMov32rm(MachineInstr &MI) {
+  auto scratchRegs = *SRT.getRegs(MI);
+  x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
+  int orig_disp;
+  Microgadget *mov;
+
+  // no scratch registers are available, or the dst operand is ESP (we are
+  // unable to modify it since we are using microgadgets) -> abort.
+  if (scratchRegs.size() < 2)
+    return false;
+
+  // sometimes mov instructions have operands that use segment registers, and
+  // we just cannot handle them
+  if (MI.getOperand(0).getReg() == 0 || MI.getOperand(1).getReg() == 0)
+    return false;
+
+  // dump all the useful operands from the MachineInstr we are processing:
+  //      mov     orig_0, [orig_1 + disp]
+  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
+  orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
+
+  if (!MI.getOperand(4).isImm())
+    return false;
+
+  orig_disp = MI.getOperand(4).getImm(); // displacement
+
+  // We will replace this instruction with its register-register variant,
+  // like this (parametrising the operands):
+  //      mov     mov_0, [mov_1]
+
+  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
+    mov_0 = m->getOp(0).reg;
+    mov_1 = static_cast<x86_reg>(m->getOp(1).mem.base);
+    int mov_disp = m->getOp(1).mem.disp;
+
+    // if the two dst operands aren't connected, skip the gadget
+    if (!BA->checkXchgPath(orig_0, mov_0))
+      continue;
+
+    // Of course, we do need to put in "mov_1" the value of "orig_1 + disp".
+    // To do this, we call the computeAddress function passing the following
+    // parameters:
+    //    - orig_1: input register, that is the register where the base
+    //    memory address is located
+    //    - orig_disp - mov_disp: difference of the displacement of the
+    //    original instruction and the gadget; we do this in order to
+    //    compensate the displacement that may be embedded in the gadget
+    //    (e.g. mov reg1, [reg2 + 0x50])
+    //    - mov_1: output register, namely the register in which we'd prefer
+    //    to retrieve the result; if this is not possible, the result is
+    //    placed in a register that is at least reachable via a series of
+    //    xchg gadgets
+    //    - scratchRegs: a list of scratch registers that can be clobbered
+    auto res = computeAddress(orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
+
+    if (res != X86_REG_INVALID) {
+      address = res;
+      mov = m;
+      break;
+    }
+  }
+
+  if (address == X86_REG_INVALID)
+    return false;
+
+  /*dbgs() << "Results returned in: " << address << "\n";
+  dbgs() << "[*] Chosen gadgets: \n";
+  dbgs() << mov->asmInstr << "\n\n";
+*/
+  // -----------
+
+  DoubleXchg(orig_0, mov_0, address, mov_1);
+
+  chain.emplace_back(ChainElem(mov));
+  // dbgs() << mov->asmInstr << "\n";
+
+  Xchg(mov_0, orig_0);
+
+  return true;
+}
+
+bool ROPChain::handleMov32mr(MachineInstr &MI) {
+  auto scratchRegs = *SRT.getRegs(MI);
+  x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
+  int orig_disp;
+  Microgadget *mov;
+
+  // NOTE: for more comments, please check the case MOV32rm: we adopt the
+  // very same strategies.
+
+  // no scratch registers are available, or the dst operand is ESP
+  // (we are unable to modify it since we are using microgadgets) -> abort.
+  if (scratchRegs.size() < 2)
+    return false;
+
+  // sometimes mov instructions have operands that use segment registers, and
+  // we just cannot handle them
+  if (MI.getOperand(0).getReg() == 0 || MI.getOperand(5).getReg() == 0)
+    return false;
+
+  // dump all the useful operands from the MachineInstr we are processing:
+  //      mov     [orig_0 + disp], orig_1
+  orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
+  orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
+
+  if (!MI.getOperand(3).isImm())
+    return false;
+
+  orig_disp = MI.getOperand(3).getImm(); // displacement
+
+  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
+    // dbgs() << m->asmInstr << "\n";
+    //      mov     [mov_0], mov_1
+    mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
+    mov_1 = m->getOp(1).reg;
+    int mov_disp = m->getOp(0).mem.disp;
+
+    // if the two src operands aren't connected, skip the gadget
+    if (!BA->checkXchgPath(orig_1, mov_1))
+      continue;
+
+    auto res = computeAddress(orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
+
+    if (res != X86_REG_INVALID) {
+      address = res;
+      mov = m;
+      break;
+    }
+  }
+
+  if (address == X86_REG_INVALID)
+    return false;
+
+  /*
+  dbgs() << "Results returned in: " << address << "\n";
+  dbgs() << "[*] Chosen gadgets: \n";
+  dbgs() << mov->asmInstr << "\n\n";
+  */
+
+  DoubleXchg(address, mov_0, orig_1, mov_1);
+
+  chain.emplace_back(ChainElem(mov));
+
+  // dbgs() << mov->asmInstr << "\n";
+
+  Xchg(mov_1, orig_1);
+
+  return true;
+}
+
 bool ROPChain::mapBindings(MachineInstr &MI) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
@@ -486,207 +685,36 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 
-  unsigned opcode = MI.getOpcode();
-  switch (opcode) {
+  switch (MI.getOpcode()) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
   case X86::SUB32ri8:
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-
-    // no scratch registers are available -> abort.
-    auto scratchRegs = *SRT.getRegs(MI);
-    if (scratchRegs.empty())
+    if (!handleAddSubIncDec(MI))
       return false;
-
-    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg());
-    int imm;
-    switch (opcode) {
-    case X86::ADD32ri8:
-    case X86::ADD32ri: {
-      if (!MI.getOperand(2).isImm())
-        return false;
-      imm = MI.getOperand(2).getImm();
-      break;
-    }
-    case X86::SUB32ri8:
-    case X86::SUB32ri: {
-      if (!MI.getOperand(2).isImm())
-        return false;
-      imm = -MI.getOperand(2).getImm();
-      break;
-    }
-    case X86::INC32r: {
-      imm = 1;
-      break;
-    }
-    case X86::DEC32r: {
-      imm = -1;
-      break;
-    }
-    }
-
-    auto res = addImmToReg(orig_0, imm, scratchRegs);
-    if (res == X86_REG_INVALID)
-      return false;
-
     break;
   }
   case X86::MOV32rm: {
-
-    // no scratch registers are available, or the dst operand is ESP (we are
-    // unable to modify it since we are using microgadgets) -> abort.
-    auto scratchRegs = *SRT.getRegs(MI);
-    if (scratchRegs.size() < 2)
+    if (!handleMov32rm(MI)) {
       return false;
-
-    // sometimes mov instructions have operands that use segment registers, and
-    // we just cannot handle them
-    if (MI.getOperand(0).getReg() == 0 || MI.getOperand(1).getReg() == 0)
-      return false;
-
-    // dump all the useful operands from the MachineInstr we are processing:
-    //      mov     orig_0, [orig_1 + disp]
-    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
-    x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(1).getReg()); // src
-    if (!MI.getOperand(4).isImm())
-      return false;
-    int orig_disp = MI.getOperand(4).getImm(); // displacement
-
-    // We will replace this instruction with its register-register variant,
-    // like this (parametrising the operands):
-    //      mov     mov_0, [mov_1]
-
-    x86_reg mov_0, mov_1;
-    x86_reg address = X86_REG_INVALID;
-    Microgadget *mov;
-
-    for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
-      mov_0 = m->getOp(0).reg;
-      mov_1 = static_cast<x86_reg>(m->getOp(1).mem.base);
-      int mov_disp = m->getOp(1).mem.disp;
-
-      // if the two dst operands aren't connected, skip the gadget
-      if (!BA->checkXchgPath(orig_0, mov_0))
-        continue;
-
-      // Of course, we do need to put in "mov_1" the value of "orig_1 + disp".
-      // To do this, we call the computeAddress function passing the following
-      // parameters:
-      //    - orig_1: input register, that is the register where the base
-      //    memory address is located
-      //    - orig_disp - mov_disp: difference of the displacement of the
-      //    original instruction and the gadget; we do this in order to
-      //    compensate the displacement that may be embedded in the gadget
-      //    (e.g. mov reg1, [reg2 + 0x50])
-      //    - mov_1: output register, namely the register in which we'd prefer
-      //    to retrieve the result; if this is not possible, the result is
-      //    placed in a register that is at least reachable via a series of
-      //    xchg gadgets
-      //    - scratchRegs: a list of scratch registers that can be clobbered
-      auto res =
-          computeAddress(orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
-
-      if (res != X86_REG_INVALID) {
-        address = res;
-        mov = m;
-        break;
-      }
     }
-
-    if (address == X86_REG_INVALID)
-      return false;
-
-    /*dbgs() << "Results returned in: " << address << "\n";
-    dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << mov->asmInstr << "\n\n";
-*/
-    // -----------
-
-    DoubleXchg(orig_0, mov_0, address, mov_1);
-
-    chain.emplace_back(ChainElem(mov));
-    // dbgs() << mov->asmInstr << "\n";
-
-    Xchg(mov_0, orig_0);
-
     break;
   }
   case X86::MOV32mr: {
-
-    // NOTE: for more comments, please check the case MOV32rm: we adopt the
-    // very same strategies.
-
-    // no scratch registers are available, or the dst operand is ESP
-    // (we are unable to modify it since we are using microgadgets) -> abort.
-    auto scratchRegs = *SRT.getRegs(MI);
-    if (scratchRegs.size() < 2)
+    if (!handleMov32mr(MI)) {
       return false;
-
-    // sometimes mov instructions have operands that use segment registers, and
-    // we just cannot handle them
-    if (MI.getOperand(0).getReg() == 0 || MI.getOperand(5).getReg() == 0)
-      return false;
-
-    // dump all the useful operands from the MachineInstr we are processing:
-    //      mov     [orig_0 + disp], orig_1
-    x86_reg orig_0 = convertToCapstoneReg(MI.getOperand(0).getReg()); // dst
-    x86_reg orig_1 = convertToCapstoneReg(MI.getOperand(5).getReg()); // src
-    if (!MI.getOperand(3).isImm())
-      return false;
-    int orig_disp = MI.getOperand(3).getImm(); // displacement
-
-    x86_reg mov_0, mov_1;
-    x86_reg address = X86_REG_INVALID;
-    Microgadget *mov;
-
-    for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
-      // dbgs() << m->asmInstr << "\n";
-      //      mov     [mov_0], mov_1
-      mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
-      mov_1 = m->getOp(1).reg;
-      int mov_disp = m->getOp(0).mem.disp;
-
-      // if the two src operands aren't connected, skip the gadget
-      if (!BA->checkXchgPath(orig_1, mov_1))
-        continue;
-
-      auto res =
-          computeAddress(orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
-
-      if (res != X86_REG_INVALID) {
-        address = res;
-        mov = m;
-        break;
-      }
     }
-
-    if (address == X86_REG_INVALID)
-      return false;
-
-    /*dbgs() << "Results returned in: " << address << "\n";
-    dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << mov->asmInstr << "\n\n";
-*/
-    // -----------
-
-    DoubleXchg(address, mov_0, orig_1, mov_1);
-
-    chain.emplace_back(ChainElem(mov));
-
-    // dbgs() << mov->asmInstr << "\n";
-
-    Xchg(mov_1, orig_1);
-
     break;
   }
   default:
     return false;
   }
 
-  DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
-                                << "\n[*] Generated chain for instr. " << MI);
+  DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format(
+                                "\n[*] Generated chain for instr: {}", MI));
+
   for (auto &g : chain) {
     if (g.type == GADGET)
       DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:#018x}: {}\n",
@@ -696,6 +724,7 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
       DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("{:^18}: {:#x}\n",
                                                       "Immediate", g.value));
   }
+
   return true;
 }
 

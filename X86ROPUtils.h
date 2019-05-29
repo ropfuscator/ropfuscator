@@ -106,6 +106,10 @@ class ROPChain {
   MCInstrInfo const *TII;
   MachineInstr &injectionPoint;
 
+  bool handleAddSubIncDec(MachineInstr &);
+  bool handleMov32rm(MachineInstr &);
+  bool handleMov32mr(MachineInstr &);
+
 public:
   // Labels for inline asm instructions ("C" = colon)
   char chainLabel[CHAIN_LABEL_LEN];    // chain_X
