@@ -1,7 +1,8 @@
-cmake_minimum_required (VERSION 3.13)
+cmake_minimum_required(VERSION 3.13)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang)
+# TODO: fixme when going to profile stuff
+#set(CMAKE_C_COMPILER clang)
+#set(CMAKE_CXX_COMPILER clang)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -13,20 +14,11 @@ set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
 set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=${debug-only})
 
-project (ropfuscator-binutils C ASM)
+project(ropfuscator-binutils C ASM)
 
-if(NOT CMAKE_BUILD_TYPE)
+if (NOT CMAKE_BUILD_TYPE)
     set(default_build_type "Debug")
-endif(NOT CMAKE_BUILD_TYPE)
-
-find_path(ROPF_LLC_DIR llc 
-    NO_DEFAULT_PATH 
-    PATHS ${PROJECT_SOURCE_DIR}/../../../../
-    PATH_SUFFIXES bin build build/bin cmake-build-debug/bin)
-
-if (NOT ROPF_LLC_DIR)
-    message(FATAL_ERROR "Could not find ropfuscator's llc.")
-endif()
+endif (NOT CMAKE_BUILD_TYPE)
 
 find_library(BFD bfd)
 find_library(DL dl)
@@ -39,12 +31,8 @@ find_library(DL dl)
 #    message(FATAL_ERROR "libdl not found.")
 #endif()
 
-set(ROPF_LLC ${ROPF_LLC_DIR}/llc)
-
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
-
-message("Using ropfuscator llc found at ${ROPF_LLC}")
 
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
 add_subdirectory("examples")

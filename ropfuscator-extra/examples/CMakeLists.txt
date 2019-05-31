@@ -1,6 +1,6 @@
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
-foreach(filename ${files})
+foreach (filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
     set(ropfuscated_exec_name "${exec_name}-ropfuscated")
 
@@ -9,12 +9,12 @@ foreach(filename ${files})
     #######################
 
     add_executable(${exec_name} ${exec_name}.c)
-    if(ROPF_PROFILE)
+    if (ROPF_PROFILE)
         target_link_options(${exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
-        target_compile_options(${exec_name} PRIVATE 
-            ${COMPILER_PROFILING_FLAGS} 
-            -fprofile-instr-generate=${exec_name}.profdata)    
-    endif()
+        target_compile_options(${exec_name} PRIVATE
+                ${COMPILER_PROFILING_FLAGS}
+                -fprofile-instr-generate=${exec_name}.profdata)
+    endif ()
 
     #######################
     # ROPFfuscated binaries
@@ -23,41 +23,41 @@ foreach(filename ${files})
     add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)
     target_link_libraries(${ropfuscated_exec_name} c opaquepredicate)
 
-    if(ROPF_LIBNAIVE_ENABLE)
+    if (ROPF_LIBNAIVE_ENABLE)
         target_link_libraries(${ropfuscated_exec_name} naive)
-    endif()
+    endif ()
 
-    if(ROPF_PROFILE)
+    if (ROPF_PROFILE)
         target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
         add_custom_command(
-            OUTPUT 
+                OUTPUT
                 ${ropfuscated_exec_name}.s
-            DEPENDS
+                DEPENDS
                 ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
-            COMMAND
+                COMMAND
                 clang
-            ARGS 
+                ARGS
                 ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
-            COMMAND
-                ${ROPF_LLC}
-            ARGS
+                COMMAND
+                $<TARGET_FILE:llc>
+                ARGS
                 -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
-    else()
+    else ()
         add_custom_command(
-            OUTPUT 
+                OUTPUT
                 ${ropfuscated_exec_name}.s
-            DEPENDS
+                DEPENDS
                 ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
-            COMMAND
+                COMMAND
                 clang
-            ARGS 
+                ARGS
                 ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
-	    COMMAND
-	        ${ROPF_LLC}
-	    ARGS
-	        ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
+                COMMAND
+                $<TARGET_FILE:llc>
+                ARGS
+                ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
-    endif()
-endforeach()
+    endif ()
+endforeach ()
 

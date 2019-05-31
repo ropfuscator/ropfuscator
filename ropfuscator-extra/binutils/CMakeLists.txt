@@ -2,7 +2,7 @@ add_custom_target(binutils)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.bc")
 
-foreach(filename ${files})
+foreach (filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
     set(ropfuscated_exec_name "${exec_name}-ropfuscated")
 
@@ -10,42 +10,42 @@ foreach(filename ${files})
     target_link_libraries(${ropfuscated_exec_name} c opaquepredicate)
 
     add_dependencies(binutils ${ropfuscated_exec_name})
-    
-    if(ROPF_LIBNAIVE_ENABLE)
-        target_link_libraries(${ropfuscated_exec_name} naive)
-    endif()
 
-    if(ROPF_PROFILE)
+    if (ROPF_LIBNAIVE_ENABLE)
+        target_link_libraries(${ropfuscated_exec_name} naive)
+    endif ()
+
+    if (ROPF_PROFILE)
         target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
         add_custom_command(
-            OUTPUT 
+                OUTPUT
                 ${ropfuscated_exec_name}.s
-            DEPENDS
+                DEPENDS
                 ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc
-            COMMAND
+                COMMAND
                 clang
-            ARGS 
+                ARGS
                 ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.o
-            COMMAND
-                ${ROPF_LLC}
-            ARGS
+                COMMAND
+                $<TARGET_FILE:llc>
+                ARGS
                 -march=x86 ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
-    else()
+    else ()
         add_custom_command(
-            OUTPUT 
+                OUTPUT
                 ${ropfuscated_exec_name}.s
-            DEPENDS
+                DEPENDS
                 ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc
-            COMMAND
+                COMMAND
                 clang
-            ARGS 
+                ARGS
                 ${ROPF_IR_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc -o ${ropfuscated_exec_name}.o
-            COMMAND
-                ${ROPF_LLC}
-            ARGS
+                COMMAND
+                $<TARGET_FILE:llc>
+                ARGS
                 ${ROPF_ASM_FLAGS} ${ropfuscated_exec_name}.o -o ${ropfuscated_exec_name}.s
         )
-    endif()
-endforeach()
+    endif ()
+endforeach ()
 
