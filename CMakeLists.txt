@@ -1,4 +1,4 @@
-set (CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 14)
 set(LLVM_TARGET_DEFINITIONS X86.td)
 
 tablegen(LLVM X86GenAsmMatcher.inc -gen-asm-matcher)
@@ -86,6 +86,7 @@ add_subdirectory(InstPrinter)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
+add_subdirectory(ropfuscator-extra)
 
 # Adding capstone
 find_package(capstone QUIET)
