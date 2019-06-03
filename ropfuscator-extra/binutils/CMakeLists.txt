@@ -1,4 +1,4 @@
-add_custom_target(binutils)
+add_custom_target(ropfuscator-binutils)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.bc")
 
@@ -7,9 +7,8 @@ foreach (filename ${files})
     set(ropfuscated_exec_name "${exec_name}-ropfuscated")
 
     add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)
+    add_dependencies(ropfuscator-binutils ${ropfuscated_exec_name})
     target_link_libraries(${ropfuscated_exec_name} c opaquepredicate)
-
-    add_dependencies(binutils ${ropfuscated_exec_name})
 
     if (ROPF_LIBNAIVE_ENABLE)
         target_link_libraries(${ropfuscated_exec_name} naive)
