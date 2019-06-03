@@ -1,5 +1,7 @@
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
+add_custom_target(ropfuscator-examples)
+
 foreach (filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
     set(ropfuscated_exec_name "${exec_name}-ropfuscated")
@@ -9,6 +11,8 @@ foreach (filename ${files})
     #######################
 
     add_executable(${exec_name} ${exec_name}.c)
+    add_dependencies(ropfuscator-examples ${exec_name})
+
     if (ROPF_PROFILE)
         target_link_options(${exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
         target_compile_options(${exec_name} PRIVATE
@@ -21,6 +25,8 @@ foreach (filename ${files})
     #######################
 
     add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)
+    add_dependencies(ropfuscator-examples ${ropfuscated_exec_name})
+
     target_link_libraries(${ropfuscated_exec_name} c opaquepredicate)
 
     if (ROPF_LIBNAIVE_ENABLE)
