@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
 
-# TODO: fixme when going to profile stuff
-#set(CMAKE_C_COMPILER clang)
-#set(CMAKE_CXX_COMPILER clang)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -15,10 +12,6 @@ set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame
 set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=${debug-only})
 
 project(ropfuscator-binutils C ASM)
-
-if (NOT CMAKE_BUILD_TYPE)
-    set(default_build_type "Debug")
-endif (NOT CMAKE_BUILD_TYPE)
 
 find_library(BFD bfd)
 find_library(DL dl)
@@ -34,6 +27,14 @@ find_library(DL dl)
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(ROPF_LIBNAIVE_ENABLE "Link ropfuscated binary with libnaive" OFF)
 
+if (ROPF_PROFILE)
+    # check if the compiler is clang since
+    # we are using clang-specific profiling flags
+    if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "You must use clang in order to enable profiling.")
+    endif ()
+endif ()
+
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
-add_subdirectory("examples")
-add_subdirectory("lib")
+add_subdirectory("examples" EXCLUDE_FROM_ALL)
+add_subdirectory("lib" EXCLUDE_FROM_ALL)
