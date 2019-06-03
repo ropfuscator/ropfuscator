@@ -106,7 +106,7 @@ if (NOT capstone_FOUND)
 endif ()
 
 if (NOT fmt_FOUND)
-    message(FATAL_ERROR "Unable to find capstone. Please install pkg-config and fmtlib development files")
+    message(FATAL_ERROR "Unable to find libfmt. Please install pkg-config and fmtlib development files")
 endif ()
 
 target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE capstone fmt ${BFD})
