@@ -19,6 +19,10 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 
+# IntelliJ IDEs stuff
+.idea
+cmake-build-debug
+
 # existing LLVM files
 AsmParser/
 Disassembler/
