@@ -45,14 +45,14 @@ int main(int argc, char *argv[]) {
   t_example_2 e2;
   t_example_3 e3;
 
-  e1.a = 0x11000000;
+  e1.a = 0x1AAAAAAA;
 
-  e2.a = 0x22000000;
-  e2.b = 0x2211111111111111;
+  e2.a = 0x2AAAAAAA;
+  e2.b = 0x2BBBBBBBBBBBBBBB;
 
-  e3.a = 0x33000000;
-  e3.b = 0x3311111111111111;
-  e3.c = 0x33;
+  e3.a = 0x3AAAAAAA;
+  e3.b = 0x3BBBBBBBBBBBBBBB;
+  e3.c = 0x3C;
 
   printf("Struct print:\n");
   p_one(e1);
