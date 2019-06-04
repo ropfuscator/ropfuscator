@@ -16,26 +16,28 @@ typedef struct example3 {
   uint8_t c;
 } t_example_3;
 
-void pp_one(t_example_1 *e) { printf("a @ %p: 0x%x\n", e, e->a); }
+void pp_one(t_example_1 *e) { printf("a @ %p: 0x%x\n", (void *)e, e->a); }
 
 void pp_two(t_example_2 *e) {
-  printf("a @ %p: 0x%x | b @ %p : 0x%llx \n", &e->a, e->a, &e->b, e->b);
+  printf("a @ %p: 0x%x | b @ %p : 0x%llx \n", (void *)&e->a, e->a,
+         (void *)&e->b, e->b);
 }
 
 void pp_three(t_example_3 *e) {
-  printf("a @ %p: 0x%x | b @ %p : 0x%llx | c @ %p: 0x%x\n", &e->a, e->a, &e->b,
-         e->b, &e->c, e->c);
+  printf("a @ %p: 0x%x | b @ %p : 0x%llx | c @ %p: 0x%x\n", (void *)&e->a, e->a,
+         (void *)&e->b, e->b, (void *)&e->c, e->c);
 }
 
-void p_one(t_example_1 e) { printf("a @ %p: 0x%x\n", &e.a, e.a); }
+void p_one(t_example_1 e) { printf("a @ %p: 0x%x\n", (void *)&e.a, e.a); }
 
 void p_two(t_example_2 e) {
-  printf("a @ %p: 0x%x | b @ %p : 0x%llx \n", &e.a, e.a, &e.b, e.b);
+  printf("a @ %p: 0x%x | b @ %p : 0x%llx \n", (void *)&e.a, e.a, (void *)&e.b,
+         e.b);
 }
 
 void p_three(t_example_3 e) {
-  printf("a @ %p: 0x%x | b @ %p : 0x%llx | c @ %p: 0x%x\n", &e.a, e.a, &e.b,
-         e.b, &e.c, e.c);
+  printf("a @ %p: 0x%x | b @ %p : 0x%llx | c @ %p: 0x%x\n", (void *)&e.a, e.a,
+         (void *)&e.b, e.b, (void *)&e.c, e.c);
 }
 
 int main(int argc, char *argv[]) {
