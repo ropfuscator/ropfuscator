@@ -20,7 +20,7 @@ foreach (filename ${files})
                 OUTPUT
                 ${ropfuscated_exec_name}.s
                 DEPENDS
-                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc llc
                 COMMAND
                 clang
                 ARGS
@@ -35,7 +35,7 @@ foreach (filename ${files})
                 OUTPUT
                 ${ropfuscated_exec_name}.s
                 DEPENDS
-                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc llc
                 COMMAND
                 clang
                 ARGS

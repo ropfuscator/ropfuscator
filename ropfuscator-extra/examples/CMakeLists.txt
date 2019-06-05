@@ -1,6 +1,6 @@
-file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
-
 add_custom_target(ropfuscator-examples)
+
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
 foreach (filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
@@ -39,7 +39,7 @@ foreach (filename ${files})
                 OUTPUT
                 ${ropfuscated_exec_name}.s
                 DEPENDS
-                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc
                 COMMAND
                 clang
                 ARGS
@@ -54,7 +54,7 @@ foreach (filename ${files})
                 OUTPUT
                 ${ropfuscated_exec_name}.s
                 DEPENDS
-                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc
                 COMMAND
                 clang
                 ARGS
