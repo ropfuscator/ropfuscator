@@ -10,7 +10,7 @@ foreach (filename ${files})
     # standard binaries
     #######################
 
-    add_executable(${exec_name} ${exec_name}.c)
+    add_executable(${exec_name} ${exec_name}.s)
     add_dependencies(ropfuscator-examples ${exec_name})
 
     #if (ROPF_PROFILE)
