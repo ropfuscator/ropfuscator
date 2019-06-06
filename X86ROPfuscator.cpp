@@ -30,6 +30,14 @@
 
 using namespace llvm;
 
+cl::opt<bool>
+    ROPfPassDisabled("fno-ropfuscator",
+                     cl::desc("Disable code obfuscation via ROP chains"));
+
+cl::opt<bool> OpaquePredicatesDisabled(
+    "fno-opaque-predicates",
+    cl::desc("Disable the injection of opaque predicates"));
+
 namespace {
 class X86ROPfuscator : public MachineFunctionPass {
 public:
@@ -49,6 +57,10 @@ char X86ROPfuscator::ID = 0;
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
+  // disable ROPfuscator is -fno-ropfuscator flag is passed
+  if (ROPfPassDisabled)
+    return false;
+
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
 
