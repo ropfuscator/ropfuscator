@@ -610,7 +610,7 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 
   // dbgs() << mov->asmInstr << "\n";
 
-  Xchg(MI, mov_0, orig_0);
+  DoubleXchg(MI, mov_1, address, mov_0, orig_0);
 
   return true;
 }
@@ -681,7 +681,7 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
 
   // dbgs() << mov->asmInstr << "\n";
 
-  Xchg(MI, mov_1, orig_1);
+  DoubleXchg(MI, mov_1, orig_1, mov_0, address);
 
   return true;
 }
