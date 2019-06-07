@@ -30,13 +30,9 @@
 
 using namespace llvm;
 
-cl::opt<bool>
+static cl::opt<bool>
     ROPfPassDisabled("fno-ropfuscator",
                      cl::desc("Disable code obfuscation via ROP chains"));
-
-cl::opt<bool> OpaquePredicatesDisabled(
-    "fno-opaque-predicates",
-    cl::desc("Disable the injection of opaque predicates"));
 
 namespace {
 class X86ROPfuscator : public MachineFunctionPass {
