@@ -49,13 +49,24 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
   return false;
 }
 
-vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
+vector<pair<int, int>> XchgGraph::getPath(int src, int dest, bool inv) {
+  //
+  int real_src = inv ? src : node_content[src];
+  int real_dest = inv ? dest : node_content[dest];
+
+  if (real_src != src)
+    llvm::dbgs() << "[XchgGraph]\tsrc:" << src << " is in " << real_src
+                 << "!\n";
+  if (real_dest != dest)
+    llvm::dbgs() << "[XchgGraph]\tdest:" << dest << "is in " << real_dest
+                 << "!\n";
+
   vector<pair<int, int>> exchangePath;
   vector<int> path;
   int pred[N_REGS], dist[N_REGS], crawl;
   bool visited[N_REGS];
 
-  assert(checkPath(src, dest, pred, dist, visited) &&
+  assert(checkPath(real_src, real_dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
 
   crawl = dest;
@@ -70,5 +81,19 @@ vector<pair<int, int>> XchgGraph::getPath(int src, int dest) {
     exchangePath.emplace_back(make_pair(path[i], path[j]));
   }
 
+  int tmp = node_content[real_src];
+  // exchange in the internal representation
+  node_content[real_src] = inv ? node_content[dest] : dest;
+  llvm::dbgs() << "[XchgGraph]\t"
+               << "committing xchg: node_content[" << real_src << "] = " << dest
+               << "!\n";
+  node_content[real_dest] = inv ? tmp : src;
+  llvm::dbgs() << "[XchgGraph]\t"
+               << "committing xchg: node_content[" << real_dest << "] = " << src
+               << "!\n";
+
+  for (int i = 19; i < 30; i++) {
+    llvm::dbgs() << "node_content[" << i << "] = " << node_content[i] << "\n";
+  }
   return exchangePath;
 }

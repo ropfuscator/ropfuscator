@@ -37,6 +37,13 @@ class XchgGraph {
   std::vector<int> adj[N_REGS];
 
 public:
+  XchgGraph() {
+    // init node_content
+    for (int i = 0; i < N_REGS; i++) {
+      node_content[i] = i;
+    }
+  }
+  int node_content[N_REGS];
   // addEdge - adds a new edge between Op0 and Op1.
   void addEdge(int Op0, int Op1);
 
@@ -49,7 +56,7 @@ public:
   // getPath - returns the entire path from src to dest, edge by edge. The path
   // is specified as a vector of pairs, which one of them contains source and
   // destination of each edge.
-  std::vector<std::pair<int, int>> getPath(int src, int dest);
+  std::vector<std::pair<int, int>> getPath(int src, int dest, bool inv);
 };
 
 #endif
