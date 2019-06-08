@@ -78,6 +78,7 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
 bool getLibraryPath(std::string &libraryPath) {
   if (!CustomLibraryPath.empty()) {
     libraryPath = CustomLibraryPath.getValue();
+    dbgs() << "[*] Using custom library path: " << libraryPath << "\n";
     return true;
   }
 
@@ -262,9 +263,8 @@ void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
   if (((std::min(a, b) == std::min(c, d)) &&
        (std::max(a, b) == std::max(c, d)))) {
 
-    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
-                                       << "avoiding double-xchg between " << c
-                                       << " and " << d << "\n");
+    dbgs() << "[XchgChain]\t"
+           << "avoiding double-xchg between " << c << " and " << d << "\n";
   } else {
     Xchg(MI, c, d);
   }
@@ -683,20 +683,18 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   if (address == X86_REG_INVALID)
     return false;
 
-  /*
   dbgs() << "Results returned in: " << address << "\n";
-  dbgs() << "[*] Chosen gadgets: \n";
+  dbgs() << "[*] Chosen gadget: \n";
   dbgs() << mov->asmInstr << "\n\n";
-  */
 
-  DoubleXchg(MI, address, mov_0, orig_1, mov_1);
+  DoubleXchg(MI, orig_1, mov_1, address, mov_0);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
-  // dbgs() << mov->asmInstr << "\n";
+  dbgs() << mov->asmInstr << "\n";
 
-  DoubleXchg(MI, mov_1, orig_1, mov_0, address);
+  DoubleXchg(MI, mov_0, address, mov_1, orig_1);
 
   return true;
 }
