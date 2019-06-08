@@ -557,7 +557,7 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
   vector<Microgadget *> exchangePath, tmp;
-  vector<pair<int, int>> path = xgraph.getPath(a, b);
+  vector<pair<int, int>> path = xgraph.getPath(a, b, false);
 
   for (auto &edge : path) {
     // even if the XCHG instruction doesn't care about the order of operands, we
@@ -581,6 +581,57 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
     exchangePath.insert(exchangePath.end(), tmp.rbegin() + 1, tmp.rend());
 
   return exchangePath;
+}
+
+vector<Microgadget *> BinaryAutopsy::undoXchgs() {
+
+  vector<Microgadget *> exchangePath, tmp, res;
+  llvm::dbgs() << "[XchgGraph]\tbeginning to undo xchgs...\n";
+
+  for (int i = 0; i < N_REGS; i++) {
+    int real_content = xgraph.node_content[i];
+    if (real_content != i) {
+      // register / content mismatch
+      // we have to find the register that holds the correct value
+      int j;
+      for (j = 0; j < N_REGS; j++) {
+        if (xgraph.node_content[j] == i)
+          break;
+      }
+
+      llvm::dbgs() << "\n[XchgGraph] i: " << i << "\n";
+      llvm::dbgs() << "[XchgGraph]\t"
+                   << "exchanging back " << i << " <-> " << j << "!\n";
+
+      vector<pair<int, int>> path = xgraph.getPath(
+          static_cast<x86_reg>(i), static_cast<x86_reg>(j), true);
+
+      for (auto &edge : path) {
+        // even if the XCHG instruction doesn't care about the order of
+        // operands, we have to find the right gadget with the same operand
+        // order as decoded by capstone.
+        auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
+                                static_cast<x86_reg>(edge.second));
+        if (res.empty())
+          res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
+                             static_cast<x86_reg>(edge.first));
+
+        tmp.push_back(res.front());
+      }
+
+      // copy in "exchangePath" all the elements in "tmp", excluding the last
+      // one and in reverse order. We do this to place back the content of all
+      // the other registers involved in the exchange chain, that otherwise
+      // would be scrambled across the whole path.
+      exchangePath.insert(exchangePath.begin(), tmp.begin(), tmp.end());
+      if (tmp.size() > 1)
+        exchangePath.insert(exchangePath.end(), tmp.rbegin() + 1, tmp.rend());
+
+      res.insert(res.end(), tmp.begin(), tmp.end());
+    }
+  }
+
+  return res;
 }
 
 vector<int> BinaryAutopsy::getReachableRegs(int src) {

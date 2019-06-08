@@ -237,6 +237,10 @@ bool ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
+  // avoid in case of equal registers
+  if (a == b)
+    return 0;
+
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
                                      << " with " << b << "\n");
 
@@ -254,21 +258,31 @@ int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   return xchgPath.size();
 }
 
-void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
-                          x86_reg d) {
-  Xchg(MI, a, b);
-
-  // just a fancy way to check if the two pairs of operands are the same,
-  // regardless of their order.
-  if (((std::min(a, b) == std::min(c, d)) &&
-       (std::max(a, b) == std::max(c, d)))) {
-
-    dbgs() << "[XchgChain]\t"
-           << "avoiding double-xchg between " << c << " and " << d << "\n";
-  } else {
-    Xchg(MI, c, d);
+void ROPChain::undoXchgs(MachineInstr *MI) {
+  auto xchgPath = BA->undoXchgs();
+  for (auto &a : xchgPath) {
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
+                                    << "[XchgChain]\t" << a->asmInstr << "\n");
+    chain.emplace_back(ChainElem(a));
+    addToInstrMap(MI, ChainElem(a));
   }
 }
+
+// void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
+//                           x86_reg d) {
+//   Xchg(MI, a, b);
+
+//   // just a fancy way to check if the two pairs of operands are the same,
+//   // regardless of their order.
+//   if (((std::min(a, b) == std::min(c, d)) &&
+//        (std::max(a, b) == std::max(c, d)))) {
+
+//     dbgs() << "[XchgChain]\t"
+//            << "avoiding double-xchg between " << c << " and " << d << "\n";
+//   } else {
+//     Xchg(MI, c, d);
+//   }
+// }
 
 bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
                            std::vector<x86_reg> const &scratchRegs) {
@@ -347,18 +361,15 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   addToInstrMap(MI, ChainElem(pop));
   addToInstrMap(MI, ChainElem(immediate));
 
-  Xchg(MI, pop_0, scratch);
-
   // ADD
-  DoubleXchg(MI, reg, add_0, scratch, add_1);
+  Xchg(MI, reg, add_0);
+  Xchg(MI, scratch, add_1);
 
   chain.emplace_back(ChainElem(add));
   addToInstrMap(MI, ChainElem(add));
 
   // dbgs() << add->asmInstr << "\n";
-
-  DoubleXchg(MI, add_1, scratch, add_0, reg);
-
+  undoXchgs(MI);
   return true;
 }
 
@@ -464,14 +475,13 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     // Okay, now it's time to build the chain!
 
     // MOV
-    DoubleXchg(MI, scratchR1, mov_0, inputReg, mov_1);
+    Xchg(MI, scratchR1, mov_0);
+    Xchg(MI, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     addToInstrMap(MI, ChainElem(mov));
 
     // dbgs() << mov->asmInstr << "\n";
-
-    DoubleXchg(MI, mov_1, inputReg, mov_0, scratchR1);
 
     // POP
     Xchg(MI, scratchR2, pop_0);
@@ -484,17 +494,14 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     chain.emplace_back(displacement);
     addToInstrMap(MI, ChainElem(displacement));
 
-    Xchg(MI, pop_0, scratchR2);
-
     // ADD
-    DoubleXchg(MI, scratchR1, add_0, scratchR2, add_1);
+    Xchg(MI, scratchR1, add_0);
+    Xchg(MI, scratchR2, add_1);
 
     chain.emplace_back(ChainElem(add));
     addToInstrMap(MI, ChainElem(add));
 
     // dbgs() << add->asmInstr << "\n";
-
-    DoubleXchg(MI, add_1, scratchR2, add_0, scratchR1);
   }
 
   return scratchR1;
@@ -618,15 +625,14 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 */
   // -----------
 
-  DoubleXchg(MI, orig_0, mov_0, address, mov_1);
+  Xchg(MI, orig_0, mov_0);
+  Xchg(MI, address, mov_1);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
   // dbgs() << mov->asmInstr << "\n";
-
-  DoubleXchg(MI, mov_1, address, mov_0, orig_0);
-
+  undoXchgs(MI);
   return true;
 }
 
@@ -687,15 +693,14 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   dbgs() << "[*] Chosen gadget: \n";
   dbgs() << mov->asmInstr << "\n\n";
 
-  DoubleXchg(MI, orig_1, mov_1, address, mov_0);
+  Xchg(MI, orig_1, mov_1);
+  Xchg(MI, address, mov_0);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
   dbgs() << mov->asmInstr << "\n";
-
-  DoubleXchg(MI, mov_0, address, mov_1, orig_1);
-
+  undoXchgs(MI);
   return true;
 }
 

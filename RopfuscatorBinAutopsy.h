@@ -217,6 +217,8 @@ public:
   // given two registers.
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
 
+  std::vector<Microgadget *> undoXchgs();
+
   // getReachableRegs - returns a list of all the nodes that can be reached
   // starting the exploration from the given register. If no other register can
   // be reached, it returns just the src itself.
