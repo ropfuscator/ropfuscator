@@ -12,8 +12,13 @@ static cl::opt<bool> OpaquePredicatesEnabled(
     "fopaque-predicates",
     cl::desc("Enable the injection of opaque predicates"));
 
+static cl::opt<std::string> CustomLibraryPath(
+    "use-custom-lib",
+    cl::desc("Specify a custom library which gadget must be extracted from"),
+    cl::NotHidden, cl::Optional, cl::ValueRequired);
+
 // TODO: plz improve me
-bool recurseLibcDir(const char *path, std::string &libcPath,
+bool recurseLibcDir(const char *path, std::string &libraryPath,
                     uint current_depth) {
   DIR *dir;
   struct dirent *entry;
@@ -30,11 +35,11 @@ bool recurseLibcDir(const char *path, std::string &libcPath,
   // searching for libc in regular files only
   while ((entry = readdir(dir)) != nullptr) {
     if (!strcmp(entry->d_name, "libc.so.6")) {
-      libcPath += path;
-      libcPath += "/";
-      libcPath += entry->d_name;
+      libraryPath += path;
+      libraryPath += "/";
+      libraryPath += entry->d_name;
 
-      // llvm::dbgs() << "libc found here: " << libcPath << "\n";
+      // llvm::dbgs() << "libc found here: " << libraryPath << "\n";
 
       return true;
     }
@@ -61,7 +66,7 @@ bool recurseLibcDir(const char *path, std::string &libcPath,
       // llvm::dbgs() << "recursing into: " << newpath << "\n";
 
       // recurse into dir
-      if (recurseLibcDir(newpath.c_str(), libcPath, current_depth - 1))
+      if (recurseLibcDir(newpath.c_str(), libraryPath, current_depth - 1))
         return true;
     }
   }
@@ -70,13 +75,17 @@ bool recurseLibcDir(const char *path, std::string &libcPath,
 }
 
 // TODO: plz improve me
-bool getLibcPath(std::string &libcPath) {
-  uint maxrecursedepth = 3;
+bool getLibraryPath(std::string &libraryPath) {
+  if (!CustomLibraryPath.empty()) {
+    libraryPath = CustomLibraryPath.getValue();
+    return true;
+  }
 
-  libcPath.clear();
+  uint maxrecursedepth = 3;
+  libraryPath.clear();
 
   for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (recurseLibcDir(folder.c_str(), libcPath, maxrecursedepth))
+    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth))
       return true;
   }
   return false;
@@ -104,10 +113,10 @@ uint64_t ChainElem::getRelativeAddress() {
 
 int ROPChain::globalChainID = 0;
 
-std::string libcPath;
-bool libcFound = getLibcPath(libcPath);
+std::string libraryPath;
+bool libraryFound = getLibraryPath(libraryPath);
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libcPath);
+BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libraryPath);
 
 ROPChain::ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
                    ScratchRegTracker &SRT)
