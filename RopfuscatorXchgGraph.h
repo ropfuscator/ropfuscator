@@ -32,20 +32,42 @@
 
 #define N_REGS 100
 
+typedef std::vector<std::pair<int, int>> XchgPath;
+
 class XchgGraph {
   // adj[] - adjacency list
   std::vector<int> adj[N_REGS];
 
+  // fixPath - given a straight path between the two registers to exchange, this
+  // function elaborates the full path in order to avoid having other
+  // intermediate registers scrambled through the whole path.
+  // E.g. if in our graph the following registers are exchangeable:
+  //        EAX   <-->   ECX   <-->   EDX
+  // in case we would like to exchange EAX with EDX, the straight exchange path
+  // would be [(EAX, ECX), (ECX, EDX)]. However, this only brings EAX in EDX,
+  // while the contrary is not true:
+  //        ECX   <-->   EDX   <-->   EAX
+  // Here, we must exchange ECX and EDX again, to finally obtain:
+  //        EDX   <-->   ECX   <-->   EAX
+  XchgPath fixPath(XchgPath path);
+
 public:
-  XchgGraph() {
-    // init node_content
-    for (int i = 0; i < N_REGS; i++) {
-      node_content[i] = i;
-    }
-  }
-  int node_content[N_REGS];
+  // constructor
+  XchgGraph();
+
+  // PhysReg - maps the location logical registers to physical registers.
+  // E.g.: if PhysReg[X86_REG_EAX] = X86_REG_EDX, it means that, due to an
+  // exchange, the logical register EAX is held in the physical register EDX.
+  short int PhysReg[N_REGS];
+
+  // searchLogicalReg - performs a recursive search to find the physical
+  // register that holds the given logical register.
+  int searchLogicalReg(int LogReg, int PhysReg);
+
+  int searchLogicalReg(int LReg);
+
   // addEdge - adds a new edge between Op0 and Op1.
-  void addEdge(int Op0, int Op1);
+  void addEdge(int reg1, int reg2);
 
   // checkPath - Breadth First Search algorithm implementation. It simply
   // returns tells whether two nodes are mutually reachable. If the two optional
@@ -56,7 +78,16 @@ public:
   // getPath - returns the entire path from src to dest, edge by edge. The path
   // is specified as a vector of pairs, which one of them contains source and
   // destination of each edge.
-  std::vector<std::pair<int, int>> getPath(int src, int dest, bool inv);
+  XchgPath getPath(int src, int dest);
+
+  // reorderRegisters - exchanges back all the logical registers, so that each
+  // of them is in the correct physical register (e.g., PhysReg[X86_REG_EAX] =
+  // X86_REG_EAX). Returns the proper exchange path.
+  XchgPath reorderRegisters();
+
+  void printAll();
+
+  short int *bindLogicalReg(int LReg);
 };
 
 #endif

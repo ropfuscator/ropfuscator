@@ -238,8 +238,11 @@ bool ROPChain::addInstruction(MachineInstr &MI) {
 
 int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   // avoid in case of equal registers
-  if (a == b)
+  if (a == b) {
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\tavoiding exchanging "
+                                       << a << " with " << b << " (equal)\n");
     return 0;
+  }
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
                                      << " with " << b << "\n");
@@ -377,8 +380,12 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
                                  int displacement, x86_reg outputReg,
                                  std::vector<x86_reg> scratchRegs) {
 
+  llvm::dbgs() << "eax: " << X86_REG_EAX << ", ebp: " << X86_REG_EBP
+               << ", ecx: " << X86_REG_ECX << ", edx: " << X86_REG_EDX
+               << ", edi:" << X86_REG_EDI << ", esi: " << X86_REG_ESI << "\n";
   Microgadget *mov, *pop, *add;
   x86_reg mov_0, mov_1, pop_0, add_0, add_1;
+
   x86_reg scratchR1 = X86_REG_INVALID;
   x86_reg scratchR2 = X86_REG_INVALID;
 
@@ -466,35 +473,47 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
 
   if (combinationFound) {
 
-    /*dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << mov->asmInstr << "\n"
-           << pop->asmInstr << "\n"
-           << add->asmInstr << "\n";
+    dbgs() << "[*] Chosen gadgets: \n\t";
+    dbgs() << mov->asmInstr << "\n\t" << pop->asmInstr << "\n\t"
+           << add->asmInstr << "\n\t";
     dbgs() << "[*] Scratch regs: " << scratchR1 << ", " << scratchR2 << "\n";
-*/
-    // Okay, now it's time to build the chain!
 
+    //
+    //
     // MOV
+    // x86_reg SR1 =
+    // static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1)); x86_reg SR2
+    // = static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2));
+    dbgs() << "MOV\tSR1:" << scratchR1 << ", SR2:" << scratchR2 << "\n";
+    BA->xgraph.printAll();
+
     Xchg(MI, scratchR1, mov_0);
     Xchg(MI, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     addToInstrMap(MI, ChainElem(mov));
 
-    // dbgs() << mov->asmInstr << "\n";
-
+    //
+    //
     // POP
+
+    dbgs() << "POP\tSR1:" << scratchR1 << ", SR2:" << scratchR2 << "\n";
+    BA->xgraph.printAll();
+
     Xchg(MI, scratchR2, pop_0);
 
     chain.emplace_back(ChainElem(pop));
     addToInstrMap(MI, ChainElem(pop));
-
-    // dbgs() << pop->asmInstr << "\n"
-    //       << "displacement: " << displacement;
     chain.emplace_back(displacement);
     addToInstrMap(MI, ChainElem(displacement));
 
+    //
+    //
     // ADD
+
+    dbgs() << "ADD\tSR1:" << scratchR1 << ", SR2:" << scratchR2 << "\n";
+    BA->xgraph.printAll();
+
     Xchg(MI, scratchR1, add_0);
     Xchg(MI, scratchR2, add_1);
 
