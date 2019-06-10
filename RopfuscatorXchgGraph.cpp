@@ -1,14 +1,20 @@
 #include "RopfuscatorXchgGraph.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "RopfuscatorDebug.h"
 #include <limits.h>
 #include <list>
 
 using namespace std;
 
-void XchgGraph::addEdge(int Op0, int Op1) {
-  adj[Op0].push_back(Op1);
-  adj[Op1].push_back(Op0);
+XchgGraph::XchgGraph() {
+  // sets up each logical register in the proper physical register.
+  for (int i = 0; i < N_REGS; i++) {
+    PhysReg[i] = i;
+  }
+}
+
+void XchgGraph::addEdge(int reg1, int reg2) {
+  adj[reg1].push_back(reg2);
+  adj[reg2].push_back(reg1);
 }
 
 bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
@@ -49,51 +55,87 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
   return false;
 }
 
-vector<pair<int, int>> XchgGraph::getPath(int src, int dest, bool inv) {
-  //
-  int real_src = inv ? src : node_content[src];
-  int real_dest = inv ? dest : node_content[dest];
+XchgPath XchgGraph::getPath(int src, int dest) {
 
-  if (real_src != src)
-    llvm::dbgs() << "[XchgGraph]\tsrc:" << src << " is in " << real_src
-                 << "!\n";
-  if (real_dest != dest)
-    llvm::dbgs() << "[XchgGraph]\tdest:" << dest << "is in " << real_dest
-                 << "!\n";
-
-  vector<pair<int, int>> exchangePath;
+  XchgPath result;
   vector<int> path;
   int pred[N_REGS], dist[N_REGS], crawl;
   bool visited[N_REGS];
 
-  assert(checkPath(real_src, real_dest, pred, dist, visited) &&
+  llvm::dbgs() << "[getPath] Trying to exchange " << src << " with " << dest
+               << "\n";
+  src = searchLogicalReg(src);
+  dest = searchLogicalReg(dest);
+  llvm::dbgs() << "[getPath] Exchanging " << src << " with " << dest
+               << " instead!\n";
+
+  assert(checkPath(src, dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
 
   crawl = dest;
   path.push_back(crawl);
-
   while (pred[crawl] != -1) {
     path.push_back(pred[crawl]);
     crawl = pred[crawl];
   }
-
   for (int i = path.size() - 1, j = path.size() - 2; j >= 0; i--, j--) {
-    exchangePath.emplace_back(make_pair(path[i], path[j]));
+    result.emplace_back(make_pair(path[i], path[j]));
   }
 
-  int tmp = node_content[real_src];
-  // exchange in the internal representation
-  node_content[real_src] = inv ? node_content[dest] : dest;
-  llvm::dbgs() << "[XchgGraph]\t"
-               << "committing xchg: node_content[" << real_src << "] = " << dest
-               << "!\n";
-  node_content[real_dest] = inv ? tmp : src;
-  llvm::dbgs() << "[XchgGraph]\t"
-               << "committing xchg: node_content[" << real_dest << "] = " << src
-               << "!\n";
+  // update the internal state
+  short int tmp = PhysReg[src];
+  PhysReg[src] = PhysReg[dest];
+  PhysReg[dest] = tmp;
 
-  for (int i = 19; i < 30; i++) {
-    llvm::dbgs() << "node_content[" << i << "] = " << node_content[i] << "\n";
-  }
-  return exchangePath;
+  return fixPath(result);
 }
+
+int XchgGraph::searchLogicalReg(int LReg, int PReg) {
+  llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
+  if (PhysReg[LReg] == PReg)
+    return LReg;
+  return searchLogicalReg(PhysReg[LReg], PReg);
+}
+
+int XchgGraph::searchLogicalReg(int LReg) { return PhysReg[LReg]; }
+
+XchgPath XchgGraph::fixPath(XchgPath path) {
+  XchgPath result;
+  result.insert(result.begin(), path.begin(), path.end());
+  if (path.size() > 1)
+    result.insert(result.end(), path.rbegin() + 1, path.rend());
+
+  return result;
+}
+
+XchgPath XchgGraph::reorderRegisters() {
+  XchgPath result, tmp;
+
+  DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << "Exchanging back...\n");
+
+  for (int i = 0; i < N_REGS; i++) {
+    if (PhysReg[i] != i) {
+      // // finds the real location of the two registers
+      // src = searchLogicalReg(src, src);
+      // dest = searchLogicalReg(dest, dest);
+
+      short int PReg = searchLogicalReg(i, i);
+      DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
+                                      << "Xchanging logical register " << i
+                                      << " with " << PReg << " !\n");
+      tmp = getPath(PReg, i);
+      result.insert(result.begin(), tmp.begin(), tmp.end());
+    }
+  }
+
+  return result;
+}
+
+void XchgGraph::printAll() {
+  for (int i = 19; i < 30; i++) {
+
+    llvm::dbgs() << "\t[" << i << "]: " << PhysReg[i] << "\n";
+  }
+}
+
+short int *XchgGraph::bindLogicalReg(int LReg) { return &PhysReg[LReg]; }
