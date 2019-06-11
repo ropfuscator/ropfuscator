@@ -556,8 +556,8 @@ vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
 }
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
-  vector<Microgadget *> exchangePath, tmp;
-  vector<pair<int, int>> path = xgraph.getPath(a, b);
+  vector<Microgadget *> result;
+  XchgPath path = xgraph.getPath(a, b);
 
   for (auto &edge : path) {
     // even if the XCHG instruction doesn't care about the order of operands, we
@@ -569,18 +569,30 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
       res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
                          static_cast<x86_reg>(edge.first));
 
-    tmp.push_back(res.front());
+    result.push_back(res.front());
   }
 
-  // copy in "exchangePath" all the elements in "tmp", excluding the last one
-  // and in reverse order. We do this to place back the content of all the other
-  // registers involved in the exchange chain, that otherwise would be scrambled
-  // across the whole path.
-  exchangePath.insert(exchangePath.begin(), tmp.begin(), tmp.end());
-  if (tmp.size() > 1)
-    exchangePath.insert(exchangePath.end(), tmp.rbegin() + 1, tmp.rend());
+  return result;
+}
 
-  return exchangePath;
+vector<Microgadget *> BinaryAutopsy::undoXchgs() {
+  vector<Microgadget *> result;
+  XchgPath path = xgraph.reorderRegisters();
+
+  for (auto &edge : path) {
+    // even if the XCHG instruction doesn't care about the order of operands, we
+    // have to find the right gadget with the same operand order as decoded by
+    // capstone.
+    auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
+                            static_cast<x86_reg>(edge.second));
+    if (res.empty())
+      res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
+                         static_cast<x86_reg>(edge.first));
+
+    result.push_back(res.front());
+  }
+
+  return result;
 }
 
 vector<int> BinaryAutopsy::getReachableRegs(int src) {

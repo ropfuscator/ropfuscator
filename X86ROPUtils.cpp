@@ -78,6 +78,7 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
 bool getLibraryPath(std::string &libraryPath) {
   if (!CustomLibraryPath.empty()) {
     libraryPath = CustomLibraryPath.getValue();
+    dbgs() << "[*] Using custom library path: " << libraryPath << "\n";
     return true;
   }
 
@@ -85,8 +86,10 @@ bool getLibraryPath(std::string &libraryPath) {
   libraryPath.clear();
 
   for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth))
+    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
+      dbgs() << "[*] Using library path: " << libraryPath << "\n";
       return true;
+    }
   }
   return false;
 }
@@ -236,6 +239,13 @@ bool ROPChain::addInstruction(MachineInstr &MI) {
 }
 
 int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
+  // avoid in case of equal registers
+  if (a == b) {
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\tavoiding exchanging "
+                                       << a << " with " << b << " (equal)\n");
+    return 0;
+  }
+
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
                                      << " with " << b << "\n");
 
@@ -253,22 +263,31 @@ int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   return xchgPath.size();
 }
 
-void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
-                          x86_reg d) {
-  Xchg(MI, a, b);
-
-  // just a fancy way to check if the two pairs of operands are the same,
-  // regardless of their order.
-  if (((std::min(a, b) == std::min(c, d)) &&
-       (std::max(a, b) == std::max(c, d)))) {
-
-    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
-                                       << "avoiding double-xchg between " << c
-                                       << " and " << d << "\n");
-  } else {
-    Xchg(MI, c, d);
+void ROPChain::undoXchgs(MachineInstr *MI) {
+  auto xchgPath = BA->undoXchgs();
+  for (auto &a : xchgPath) {
+    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
+                                    << "[XchgChain]\t" << a->asmInstr << "\n");
+    chain.emplace_back(ChainElem(a));
+    addToInstrMap(MI, ChainElem(a));
   }
 }
+
+// void ROPChain::DoubleXchg(MachineInstr *MI, x86_reg a, x86_reg b, x86_reg c,
+//                           x86_reg d) {
+//   Xchg(MI, a, b);
+
+//   // just a fancy way to check if the two pairs of operands are the same,
+//   // regardless of their order.
+//   if (((std::min(a, b) == std::min(c, d)) &&
+//        (std::max(a, b) == std::max(c, d)))) {
+
+//     dbgs() << "[XchgChain]\t"
+//            << "avoiding double-xchg between " << c << " and " << d << "\n";
+//   } else {
+//     Xchg(MI, c, d);
+//   }
+// }
 
 bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
                            std::vector<x86_reg> const &scratchRegs) {
@@ -337,7 +356,7 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   // Okay, now it's time to build the chain!
 
   // POP
-  Xchg(MI, scratch, pop_0);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratch)), pop_0);
 
   chain.emplace_back(ChainElem(pop));
   // dbgs() << pop->asmInstr << "\n"
@@ -347,18 +366,15 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   addToInstrMap(MI, ChainElem(pop));
   addToInstrMap(MI, ChainElem(immediate));
 
-  Xchg(MI, pop_0, scratch);
-
   // ADD
-  DoubleXchg(MI, reg, add_0, scratch, add_1);
+  Xchg(MI, reg, add_0);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratch)), add_1);
 
   chain.emplace_back(ChainElem(add));
   addToInstrMap(MI, ChainElem(add));
 
   // dbgs() << add->asmInstr << "\n";
-
-  DoubleXchg(MI, add_1, scratch, add_0, reg);
-
+  undoXchgs(MI);
   return true;
 }
 
@@ -366,8 +382,12 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
                                  int displacement, x86_reg outputReg,
                                  std::vector<x86_reg> scratchRegs) {
 
+  llvm::dbgs() << "eax: " << X86_REG_EAX << ", ebp: " << X86_REG_EBP
+               << ", ecx: " << X86_REG_ECX << ", edx: " << X86_REG_EDX
+               << ", edi:" << X86_REG_EDI << ", esi: " << X86_REG_ESI << "\n";
   Microgadget *mov, *pop, *add;
   x86_reg mov_0, mov_1, pop_0, add_0, add_1;
+
   x86_reg scratchR1 = X86_REG_INVALID;
   x86_reg scratchR2 = X86_REG_INVALID;
 
@@ -455,49 +475,72 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
 
   if (combinationFound) {
 
-    /*dbgs() << "[*] Chosen gadgets: \n";
-    dbgs() << mov->asmInstr << "\n"
-           << pop->asmInstr << "\n"
-           << add->asmInstr << "\n";
+    dbgs() << "[*] Chosen gadgets: \n\t";
+    dbgs() << mov->asmInstr << "\n\t" << pop->asmInstr << "\n\t"
+           << add->asmInstr << "\n\t";
     dbgs() << "[*] Scratch regs: " << scratchR1 << ", " << scratchR2 << "\n";
-*/
-    // Okay, now it's time to build the chain!
 
+    //
+    //
     // MOV
-    DoubleXchg(MI, scratchR1, mov_0, inputReg, mov_1);
+    x86_reg SR1 = static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1));
+    x86_reg SR2 = static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2));
+    dbgs() << "MOV\tSR1:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1))
+           << ", SR2:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2))
+           << "\n";
+    BA->xgraph.printAll();
+
+    Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1)),
+         mov_0);
+    Xchg(MI, inputReg, mov_1);
 
     chain.emplace_back(ChainElem(mov));
     addToInstrMap(MI, ChainElem(mov));
 
-    // dbgs() << mov->asmInstr << "\n";
-
-    DoubleXchg(MI, mov_1, inputReg, mov_0, scratchR1);
-
+    //
+    //
     // POP
-    Xchg(MI, scratchR2, pop_0);
+
+    dbgs() << "POP\tSR1:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1))
+           << ", SR2:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2))
+           << "\n";
+    BA->xgraph.printAll();
+
+    Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2)),
+         pop_0);
 
     chain.emplace_back(ChainElem(pop));
     addToInstrMap(MI, ChainElem(pop));
-
-    // dbgs() << pop->asmInstr << "\n"
-    //       << "displacement: " << displacement;
     chain.emplace_back(displacement);
     addToInstrMap(MI, ChainElem(displacement));
 
-    Xchg(MI, pop_0, scratchR2);
-
+    //
+    //
     // ADD
-    DoubleXchg(MI, scratchR1, add_0, scratchR2, add_1);
+
+    dbgs() << "ADD\tSR1:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1))
+           << ", SR2:"
+           << static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2))
+           << "\n";
+    BA->xgraph.printAll();
+
+    Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1)),
+         add_0);
+    Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR2)),
+         add_1);
 
     chain.emplace_back(ChainElem(add));
     addToInstrMap(MI, ChainElem(add));
 
     // dbgs() << add->asmInstr << "\n";
-
-    DoubleXchg(MI, add_1, scratchR2, add_0, scratchR1);
   }
 
-  return scratchR1;
+  return static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1));
 }
 
 bool ROPChain::handleAddSubIncDec(MachineInstr *MI) {
@@ -618,15 +661,14 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 */
   // -----------
 
-  DoubleXchg(MI, orig_0, mov_0, address, mov_1);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(orig_0)), mov_0);
+  Xchg(MI, address, mov_1);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
   // dbgs() << mov->asmInstr << "\n";
-
-  DoubleXchg(MI, mov_1, address, mov_0, orig_0);
-
+  undoXchgs(MI);
   return true;
 }
 
@@ -683,21 +725,18 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   if (address == X86_REG_INVALID)
     return false;
 
-  /*
   dbgs() << "Results returned in: " << address << "\n";
-  dbgs() << "[*] Chosen gadgets: \n";
+  dbgs() << "[*] Chosen gadget: \n";
   dbgs() << mov->asmInstr << "\n\n";
-  */
 
-  DoubleXchg(MI, address, mov_0, orig_1, mov_1);
+  Xchg(MI, orig_1, mov_1);
+  Xchg(MI, address, mov_0);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
-  // dbgs() << mov->asmInstr << "\n";
-
-  DoubleXchg(MI, mov_1, orig_1, mov_0, address);
-
+  dbgs() << mov->asmInstr << "\n";
+  undoXchgs(MI);
   return true;
 }
 
