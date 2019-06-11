@@ -86,8 +86,10 @@ bool getLibraryPath(std::string &libraryPath) {
   libraryPath.clear();
 
   for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth))
+    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
+      dbgs() << "[*] Using library path: " << libraryPath << "\n";
       return true;
+    }
   }
   return false;
 }
@@ -659,7 +661,7 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 */
   // -----------
 
-  Xchg(MI, orig_0, mov_0);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(orig_0)), mov_0);
   Xchg(MI, address, mov_1);
 
   chain.emplace_back(ChainElem(mov));
