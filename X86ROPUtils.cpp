@@ -367,7 +367,7 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   addToInstrMap(MI, ChainElem(immediate));
 
   // ADD
-  Xchg(MI, reg, add_0);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(reg)), add_0);
   Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratch)), add_1);
 
   chain.emplace_back(ChainElem(add));
@@ -494,7 +494,8 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
 
     Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1)),
          mov_0);
-    Xchg(MI, inputReg, mov_1);
+    Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(inputReg)),
+         mov_1);
 
     chain.emplace_back(ChainElem(mov));
     addToInstrMap(MI, ChainElem(mov));
@@ -540,7 +541,10 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     // dbgs() << add->asmInstr << "\n";
   }
 
-  return static_cast<x86_reg>(BA->xgraph.searchLogicalReg(scratchR1));
+  // return the register where the computed address is saved. It is the LOGICAL
+  // register, so whoever will use it, has to find the EFFECTIVE register that
+  // holds it.
+  return scratchR1;
 }
 
 bool ROPChain::handleAddSubIncDec(MachineInstr *MI) {
@@ -661,8 +665,11 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 */
   // -----------
 
+  dbgs() << "MOV32MR. Results in " << address << " ("
+         << BA->xgraph.searchLogicalReg(address) << ")\n";
+
   Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(orig_0)), mov_0);
-  Xchg(MI, address, mov_1);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(address)), mov_1);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
@@ -729,8 +736,11 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   dbgs() << "[*] Chosen gadget: \n";
   dbgs() << mov->asmInstr << "\n\n";
 
-  Xchg(MI, orig_1, mov_1);
-  Xchg(MI, address, mov_0);
+  dbgs() << "MOV32RM. Results in " << address << " ("
+         << BA->xgraph.searchLogicalReg(address) << ")\n";
+
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(orig_1)), mov_1);
+  Xchg(MI, static_cast<x86_reg>(BA->xgraph.searchLogicalReg(address)), mov_0);
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));

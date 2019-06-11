@@ -128,6 +128,7 @@ XchgPath XchgGraph::reorderRegisters() {
                                       << " with " << PReg << " !\n");
       tmp = getPath(PReg, i);
       result.insert(result.end(), tmp.begin(), tmp.end());
+      printAll();
     }
   }
 
