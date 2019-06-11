@@ -62,12 +62,12 @@ XchgPath XchgGraph::getPath(int src, int dest) {
   int pred[N_REGS], dist[N_REGS], crawl;
   bool visited[N_REGS];
 
-  llvm::dbgs() << "[getPath] Trying to exchange " << src << " with " << dest
-               << "\n";
-  src = searchLogicalReg(src);
-  dest = searchLogicalReg(dest);
-  llvm::dbgs() << "[getPath] Exchanging " << src << " with " << dest
-               << " instead!\n";
+  // llvm::dbgs() << "[getPath] Trying to exchange " << src << " with " << dest
+  //              << "\n";
+  // src = searchLogicalReg(src);
+  // dest = searchLogicalReg(dest);
+  // llvm::dbgs() << "[getPath] Exchanging " << src << " with " << dest
+  //              << " instead!\n";
 
   assert(checkPath(src, dest, pred, dist, visited) &&
          "Src and dest operand are not connected. Use checkPath() first.");
@@ -97,7 +97,10 @@ int XchgGraph::searchLogicalReg(int LReg, int PReg) {
   return searchLogicalReg(PhysReg[LReg], PReg);
 }
 
-int XchgGraph::searchLogicalReg(int LReg) { return PhysReg[LReg]; }
+int XchgGraph::searchLogicalReg(int LReg) {
+  return searchLogicalReg(LReg, LReg);
+  // return PhysReg[LReg];
+}
 
 XchgPath XchgGraph::fixPath(XchgPath path) {
   XchgPath result;
