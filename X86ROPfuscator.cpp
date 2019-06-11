@@ -95,10 +95,12 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
                                   lastChain->chainLabel, COLOR_RESET, MI));
 
+        DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("[ROPChain {}]",
+                                                        lastChain->chainLabel));
         for (auto &g : lastChain->instrMap[&MI]) {
           if (g.type == GADGET)
             DEBUG_WITH_TYPE(ROPCHAIN,
-                            dbgs() << fmt::format("\t{:#018x}: {}\n",
+                            dbgs() << fmt::format("\t\t{:#018x}: {}\n",
                                                   g.getRelativeAddress(),
                                                   g.microgadget->asmInstr));
           else
