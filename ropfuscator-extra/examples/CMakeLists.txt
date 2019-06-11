@@ -68,7 +68,8 @@ foreach (filename ${files})
     #######################
 
     add_dependencies(ropfuscator-examples ${ropfuscated_exec_name})
-
+    target_link_libraries(${ropfuscated_exec_name} c)
+    
     add_custom_command(
             OUTPUT
             ${ropfuscated_exec_name}.s
