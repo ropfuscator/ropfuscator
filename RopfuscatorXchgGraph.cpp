@@ -127,7 +127,7 @@ XchgPath XchgGraph::reorderRegisters() {
                                       << "Xchanging logical register " << i
                                       << " with " << PReg << " !\n");
       tmp = getPath(PReg, i);
-      result.insert(result.begin(), tmp.begin(), tmp.end());
+      result.insert(result.end(), tmp.begin(), tmp.end());
     }
   }
 
