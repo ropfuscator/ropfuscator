@@ -264,12 +264,25 @@ int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
 }
 
 void ROPChain::undoXchgs(MachineInstr *MI) {
+  // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
-  for (auto &a : xchgPath) {
-    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
-                                    << "[XchgChain]\t" << a->asmInstr << "\n");
-    chain.emplace_back(ChainElem(a));
-    addToInstrMap(MI, ChainElem(a));
+
+  // auto it = xchgPath.begin() + 1;
+  // while (it != xchgPath.end()) {
+  //   if (*(it - 1) == *it) {
+  //     it = xchgPath.erase(it - 1, it);
+  //   } else
+  //     it++;
+  // }
+
+  for (auto it = xchgPath.begin(); it != xchgPath.end(); it++) {
+    // Skip equal and consecutive xchg gadgets
+    if (it != xchgPath.end() && *(it + 1) == *it) {
+      ++it;
+      continue;
+    }
+    chain.emplace_back(ChainElem(*it));
+    addToInstrMap(MI, ChainElem(*it));
   }
 }
 
