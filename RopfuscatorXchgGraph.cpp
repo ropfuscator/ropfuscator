@@ -91,7 +91,7 @@ XchgPath XchgGraph::getPath(int src, int dest) {
 }
 
 int XchgGraph::searchLogicalReg(int LReg, int PReg) {
-  llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
+  // llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
   if (PhysReg[LReg] == PReg)
     return LReg;
   return searchLogicalReg(PhysReg[LReg], PReg);
