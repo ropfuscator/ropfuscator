@@ -10,12 +10,14 @@ set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=${debug-only})
 
 project(ropfuscator-extra ASM)
 
-find_library(BFD bfd)
-find_library(DL dl)
-
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(ROPF_LIBNAIVE "Link ropfuscated binary with libnaive" OFF)
 option(ROPF_OPAQUEP "Enable opaque predicates to protect the ROP chains." OFF)
+
+# temporary workaround to check whether clang is in LLVM's source tree
+if (NOT $<TARGET_FILE:clang>)
+    message(FATAL_ERROR "Cannot find clang in LLVM's source tree. Please download clang sources and extract them in ${LLVM_SOURCE_DIR}/tools")
+endif ()
 
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
 add_subdirectory("examples" EXCLUDE_FROM_ALL)
