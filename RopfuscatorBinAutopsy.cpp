@@ -4,6 +4,7 @@
 // ==============================================================================
 
 #include "RopfuscatorBinAutopsy.h"
+#include "ChainElem.h"
 #include "RopfuscatorCapstoneLLVMAdpt.h"
 #include "RopfuscatorDebug.h"
 
@@ -610,4 +611,85 @@ vector<int> BinaryAutopsy::getReachableRegs(int src) {
       reachableRegs.push_back(i);
   }
   return reachableRegs;
+}
+
+std::vector<ChainElem> BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
+  std::vector<ChainElem> result;
+
+  // search for "pop DST" gadgets
+  std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_POP, dst);
+  if (gadgets.empty()) {
+    // TODO
+  }
+
+  result.emplace_back(ChainElem(res.front()));
+  result.emplace_back(val);
+
+  return result;
+}
+
+std::vector<ChainElem> BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
+  std::vector<ChainElem> result;
+
+  // search for "add DST, SRC" gadgets
+  std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_ADD, dst, src);
+  if (gadgets.empty()) {
+    // TODO
+  }
+
+  result.emplace_back(ChainElem(res.front()));
+
+  return result;
+}
+
+std::vector<ChainElem> BinaryAutopsy::calcAddr(x86_reg dst, x86_reg src,
+                                               unsigned displ) {
+  std::vector<ChainElem> result, tmp;
+  // TODO: execute in reverse order
+
+  tmp = initReg(dst, displ);
+  result.insert(result.end(), tmp.begin(), tmp.end());
+
+  tmp = addRegs(dst, src);
+  result.insert(result.end(), tmp.begin(), tmp.end());
+
+  return result;
+}
+
+std::vector<ChainElem> BinaryAutopsy::load(x86_reg dst, x86_reg src) {
+  std::vector<ChainElem> result;
+
+  // search for "mov DST, [SRC]" gadgets
+  std::vector<Microgadget *> gadgets =
+      gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+  if (!gadgets.empty()) {
+    for (auto &g : gadgets) {
+      auto op1 = g.getOp(1);
+
+      if (op1.mem.segment == 0 && op1.mem.index == 0 && op1.mem.scale == 1)
+        // TODO: xchg
+        result.emplace_back(ChainElem(g));
+    }
+  }
+
+  return result;
+}
+
+std::vector<ChainElem> BinaryAutopsy::store(x86_reg dst, x86_reg src) {
+  std::vector<ChainElem> result;
+
+  // search for "mov DST, [SRC]" gadgets
+  std::vector<Microgadget *> gadgets =
+      gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+  if (!gadgets.empty()) {
+    for (auto &g : gadgets) {
+      auto op0 = g.getOp(0);
+
+      if (op0.mem.segment == 0 && op0.mem.index == 0 && op0.mem.scale == 1)
+        // TODO: xchg
+        result.emplace_back(ChainElem(g));
+    }
+  }
+
+  return result;
 }
