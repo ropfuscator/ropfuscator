@@ -223,6 +223,15 @@ public:
   // starting the exploration from the given register. If no other register can
   // be reached, it returns just the src itself.
   std::vector<int> getReachableRegs(int src);
+
+  // -------------------------------------------------------------
+  // GADGET PRIMITIVES
+
+  std::vector<Microgadget *> initReg(x86_reg dst, unsigned val);
+  std::vector<Microgadget *> addRegs(x86_reg dst, x86_reg src);
+  std::vector<Microgadget *> load(x86_reg dst, x86_reg src);
+  std::vector<Microgadget *> store(x86_reg dst, x86_reg src);
+  std::vector<Microgadget *> calcAddr(x86_reg dst, x86_reg src, unsigned displ);
 };
 
 #endif
