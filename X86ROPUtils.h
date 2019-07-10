@@ -34,12 +34,7 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 #endif
 #endif
 
-struct Stats {
-  int processed;
-  int replaced;
-
-  Stats() : processed(0), replaced(0){};
-};
+typedef std::vector<ChainElem> ROPChain;
 
 using namespace std;
 using namespace llvm;
@@ -48,49 +43,15 @@ using namespace llvm;
 // ones. Handles the injection of auxiliary machine code to guarantee the
 // correct chain execution and to resume the non-obfuscated code execution
 // afterwards.
-class ROPChain {
-  // globalChainID - just an incremental ID number for all the chains that will
-  // be created.
-  static int globalChainID;
+class ROPEngine {
+  ROPChain chain;
 
-  // chainID - chain number.
-  int chainID;
-
-  // finalized - this flag tells if the chain has to be closed. This happens
-  // when an unsupported instruction is encountered: the chain is closed, the
-  // unsupported instruction remains untouched, and possibly a new chain is
-  // created as soon as a supported instruction is processed.
-  bool finalized = false;
-
-  // instructionsToDelete - keeps track of all the instructions that we want to
-  // replace with obfuscated ones
-  vector<MachineInstr *> instructionsToDelete;
-
-  // Injection location within the program code
-  MachineBasicBlock *MBB;
-  MachineFunction *MF;
-  MCInstrInfo const *TII;
-  MachineInstr &injectionPoint;
-
-  bool handleAddSubIncDec(MachineInstr *);
-  bool handleMov32rm(MachineInstr *);
-  bool handleMov32mr(MachineInstr *);
+  bool handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  bool handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  bool handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   void addToInstrMap(MachineInstr *, ChainElem);
 
 public:
-  // Labels for inline asm instructions ("C" = colon)
-  char chainLabel[CHAIN_LABEL_LEN];    // chain_X
-  char chainLabel_C[CHAIN_LABEL_LEN];  // chain_X:
-  char resumeLabel[CHAIN_LABEL_LEN];   // resume_X
-  char resumeLabel_C[CHAIN_LABEL_LEN]; // resume_X:
-
-  // chain - holds all the elements of the ROP chain
-  vector<ChainElem> chain;
-
-  // SRT - holds data about the available registers that can be used as scratch
-  // registers (see LivenessAnalysis).
-  ScratchRegTracker &SRT;
-
   // BA - shared instance of Binary Autopsy.
   static BinaryAutopsy *BA;
 
@@ -98,27 +59,9 @@ public:
   map<MachineInstr *, vector<ChainElem>> instrMap;
 
   // Constructor
-  ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
-           ScratchRegTracker &SRT);
+  ROPEngine();
 
-  // Destructor
-  ~ROPChain();
-
-  // addInstruction - wrapper method: if a correct binding can be found
-  // between the original instruction and some gadgets, the original
-  // instruction is put in a vector. We keep track of all the instructions
-  // to remove in order to defer the actual deletion to the moment in which
-  // we'll inject the ROP Chain. We do this because currently MI is just an
-  // iterator
-  bool addInstruction(MachineInstr &MI);
-
-  // mapBindings - determines the gadgets to use to replace a single input
-  // instruction.
-  bool mapBindings(MachineInstr &MI);
-
-  // inject - injects the new instructions to build the ROP chain and removes
-  // the original ones.
-  void inject();
+  ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs);
 
   // addImmToReg - adds an immediate value (stored into a scratch register) to
   // the given register.
@@ -146,11 +89,6 @@ public:
 
   void undoXchgs(MachineInstr *MI);
   x86_reg getEffectiveReg(x86_reg reg);
-
-  // Helper methods
-  bool isFinalized();
-  void finalize();
-  bool isEmpty();
 };
 
 #endif
