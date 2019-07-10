@@ -1,6 +1,7 @@
 #include "X86ROPUtils.h"
 #include "Ropfuscator/CapstoneLLVMAdpt.h"
 #include "Ropfuscator/Debug.h"
+#include "Ropfuscator/Symbol.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include <dirent.h>
 #include <fmt/format.h>
@@ -126,7 +127,7 @@ ROPChain::ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
 ROPChain::~ROPChain() { globalChainID--; }
 
 void ROPChain::inject() {
-  // dbgs() << "injecting " << chain.size() << " gadgets!\n";
+  dbgs() << "injecting " << chain.size() << " gadgets!\n";
   // PROLOGUE: saves the EIP value before executing the ROP chain
 
   // pushf (EFLAGS register backup): important because the opaque predicate
@@ -171,25 +172,30 @@ void ROPChain::inject() {
             .addExternalSymbol(chainLabel);
       }
 
+      Symbol *sym = BA->getRandomSymbol();
+      dbgs() << "Got random sym: " << sym->Label << "\n";
+      uint64_t relativeAddr = e->microgadget->getAddress() - sym->Address;
+      dbgs() << "\tRel addr: " << relativeAddr << "\n";
+
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
       // Version is not "Base" (i.e., it is the only one available).
-      if (strcmp(e->symbol->Version, "Base") != 0) {
+      if (strcmp(sym->Version, "Base") != 0) {
         BuildMI(*MBB, injectionPoint, nullptr,
                 TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(e->symbol->getSymVerDirective())
+            .addExternalSymbol(sym->getSymVerDirective())
             .addImm(0);
       }
 
       // push $symbol
       BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(e->symbol->Label);
+          .addExternalSymbol(sym->Label);
 
       // add [esp], $offset
       addDirectMem(
           BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
           X86::ESP)
-          .addImm(e->getRelativeAddress());
+          .addImm(relativeAddr);
       break;
     }
     }

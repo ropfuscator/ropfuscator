@@ -100,8 +100,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         for (auto &g : lastChain->instrMap[&MI]) {
           if (g.type == GADGET)
             DEBUG_WITH_TYPE(ROPCHAIN,
-                            dbgs() << fmt::format("\t\t{:#018x}: {}\n",
-                                                  g.getRelativeAddress(),
+                            dbgs() << fmt::format("\t\t{:#018x}: {}\n", 0,
                                                   g.microgadget->asmInstr));
           else
             DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
