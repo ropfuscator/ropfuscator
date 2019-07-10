@@ -23,27 +23,16 @@ struct ChainElem {
     const Microgadget *microgadget;
   };
 
-  // s - pointer to a symbol.
-  // We bind symbols to chain elements because, if we'd do that to actual
-  // microgadgets, it would be fairly easy to predict which gadget is referenced
-  // with a symbol, since during the chain execution very few gadgets are
-  // executed.
-  Symbol *symbol;
-
   // Constructor (type: GADGET)
   ChainElem(Microgadget *gadget) {
-    this->microgadget = gadget;
     this->type = GADGET;
-    // this->symbol = ROPChain::BA->getRandomSymbol();
+    this->microgadget = gadget;
   }
 
   // Constructor (type: IMMEDIATE)
-  ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
-
-  // getRelativeAddress - returns the gadget address relative to the symbol it
-  // is anchored to.
-  uint64_t getRelativeAddress() {
-    return microgadget->getAddress() - symbol->Address;
+  ChainElem(int64_t value) {
+    this->type = IMMEDIATE;
+    this->value = value;
   }
 };
 

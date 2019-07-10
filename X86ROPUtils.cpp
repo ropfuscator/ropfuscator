@@ -172,10 +172,9 @@ void ROPChain::inject() {
             .addExternalSymbol(chainLabel);
       }
 
+      // Get a random symbol to reference this gadget in memory
       Symbol *sym = BA->getRandomSymbol();
-      dbgs() << "Got random sym: " << sym->Label << "\n";
       uint64_t relativeAddr = e->microgadget->getAddress() - sym->Address;
-      dbgs() << "\tRel addr: " << relativeAddr << "\n";
 
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the symbol
