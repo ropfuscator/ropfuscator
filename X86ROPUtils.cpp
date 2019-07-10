@@ -1,6 +1,6 @@
 #include "X86ROPUtils.h"
-#include "RopfuscatorCapstoneLLVMAdpt.h"
-#include "RopfuscatorDebug.h"
+#include "Ropfuscator/CapstoneLLVMAdpt.h"
+#include "Ropfuscator/Debug.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include <dirent.h>
 #include <fmt/format.h>
@@ -97,18 +97,6 @@ bool getLibraryPath(std::string &libraryPath) {
 // ------------------------------------------------------------------------
 // Chain Element
 // ------------------------------------------------------------------------
-
-ChainElem::ChainElem(Microgadget *gadget) {
-  this->microgadget = gadget;
-  this->type = GADGET;
-  this->symbol = ROPChain::BA->getRandomSymbol();
-}
-
-ChainElem::ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
-
-uint64_t ChainElem::getRelativeAddress() {
-  return microgadget->getAddress() - symbol->Address;
-}
 
 // ------------------------------------------------------------------------
 // ROP Chain

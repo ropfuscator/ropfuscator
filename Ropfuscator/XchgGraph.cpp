@@ -1,5 +1,5 @@
-#include "RopfuscatorXchgGraph.h"
-#include "RopfuscatorDebug.h"
+#include "XchgGraph.h"
+#include "Debug.h"
 #include <limits.h>
 #include <list>
 
