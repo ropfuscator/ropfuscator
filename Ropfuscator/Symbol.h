@@ -42,6 +42,8 @@ struct Symbol {
     strcpy(SymVerDirective, ss.str().c_str());
     return SymVerDirective;
   }
+
+  // TODO: free heap for Label, Version, SymVerDirective
 };
 
 #endif
