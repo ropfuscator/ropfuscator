@@ -7,10 +7,6 @@
 
 using namespace llvm;
 
-static cl::opt<bool> OpaquePredicatesEnabled(
-    "fopaque-predicates",
-    cl::desc("Enable the injection of opaque predicates"));
-
 static cl::opt<std::string> CustomLibraryPath(
     "use-custom-lib",
     cl::desc("Specify a custom library which gadget must be extracted from"),
@@ -94,146 +90,21 @@ bool getLibraryPath(std::string &libraryPath) {
 }
 
 // ------------------------------------------------------------------------
-// Chain Element
-// ------------------------------------------------------------------------
-
-// ------------------------------------------------------------------------
 // ROP Chain
 // ------------------------------------------------------------------------
-
-int ROPChain::globalChainID = 0;
 
 std::string libraryPath;
 bool libraryFound = getLibraryPath(libraryPath);
 
-BinaryAutopsy *ROPChain::BA = BinaryAutopsy::getInstance(libraryPath);
+BinaryAutopsy *ROPEngine::BA = BinaryAutopsy::getInstance(libraryPath);
 
-ROPChain::ROPChain(MachineBasicBlock &MBB, MachineInstr &injectionPoint,
-                   ScratchRegTracker &SRT)
-    : MBB(&MBB), injectionPoint(injectionPoint), SRT(SRT) {
-  MF = MBB.getParent();
-  TII = MF->getTarget().getMCInstrInfo();
-  chainID = globalChainID++;
+ROPEngine::ROPEngine() {}
 
-  // Creates all the labels
-  sprintf(chainLabel, ".chain_%d", chainID);
-  sprintf(chainLabel_C, ".chain_%d:", chainID);
-  sprintf(resumeLabel, ".resume_%d", chainID);
-  sprintf(resumeLabel_C, ".resume_%d:", chainID);
-}
-
-ROPChain::~ROPChain() { globalChainID--; }
-
-void ROPChain::inject() {
-  dbgs() << "injecting " << chain.size() << " gadgets!\n";
-  // PROLOGUE: saves the EIP value before executing the ROP chain
-
-  // pushf (EFLAGS register backup): important because the opaque predicate
-  // validation, and in general all the operations performed during the rop
-  // chain execution, may alter the flags. If that happens, subsequent
-  // conditional jumps may act in an unpredictable way!
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHF32));
-  // call chain_X
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
-      .addExternalSymbol(chainLabel);
-  // jmp resume_X
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JMP_1))
-      .addExternalSymbol(resumeLabel);
-  // chain_X:
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
-      .addExternalSymbol(chainLabel_C)
-      .addImm(0);
-
-  // Pushes each gadget onto the stack in reverse order
-  for (auto e = chain.rbegin(); e != chain.rend(); ++e) {
-    switch (e->type) {
-
-    case IMMEDIATE: {
-      // Push the immediate value onto the stack //
-      // push $imm
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addImm(e->value);
-      break;
-    }
-
-    case GADGET: {
-      // Push a random symbol that, when resolved by the dynamic linker, will be
-      // used as base address; then add the offset to point a specific
-      // gadget
-      if (OpaquePredicatesEnabled) {
-        // call $opaquePredicate
-        BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::CALLpcrel32))
-            .addExternalSymbol("opaquePredicate");
-
-        // je $wrong_target
-        BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::JNE_1))
-            .addExternalSymbol(chainLabel);
-      }
-
-      // Get a random symbol to reference this gadget in memory
-      Symbol *sym = BA->getRandomSymbol();
-      uint64_t relativeAddr = e->microgadget->getAddress() - sym->Address;
-
-      // .symver directive: necessary to prevent aliasing when more
-      // symbols have the same name. We do this exclusively when the symbol
-      // Version is not "Base" (i.e., it is the only one available).
-      if (strcmp(sym->Version, "Base") != 0) {
-        BuildMI(*MBB, injectionPoint, nullptr,
-                TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(sym->getSymVerDirective())
-            .addImm(0);
-      }
-
-      // push $symbol
-      BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(sym->Label);
-
-      // add [esp], $offset
-      addDirectMem(
-          BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::ADD32mi)),
-          X86::ESP)
-          .addImm(relativeAddr);
-      break;
-    }
-    }
-  }
-  // EPILOGUE Emits the `ret` instruction which will trigger the chain
-  // execution, and a label to resume the normal execution flow when the chain
-  // has finished.
-  // ret
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::RETL));
-  // resume_X:
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(TargetOpcode::INLINEASM))
-      .addExternalSymbol(resumeLabel_C)
-      .addImm(0);
-  // popf (EFLAGS register restore)
-  BuildMI(*MBB, injectionPoint, nullptr, TII->get(X86::POPF32));
-
-  // Deletes the initial instructions
-  for (MachineInstr *MI : instructionsToDelete) {
-    instrMap.erase(MI);
-    MI->eraseFromParent();
-  }
-}
-
-x86_reg ROPChain::getEffectiveReg(x86_reg reg) {
+x86_reg ROPEngine::getEffectiveReg(x86_reg reg) {
   return static_cast<x86_reg>(BA->xgraph.searchLogicalReg(reg));
 }
 
-bool ROPChain::addInstruction(MachineInstr &MI) {
-  bool ok;
-
-  assert(!finalized && "Attempt to modify a finalized chain!");
-
-  ok = mapBindings(MI);
-
-  if (ok)
-    instructionsToDelete.push_back(&MI);
-
-  return ok;
-}
-
-int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
+int ROPEngine::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   // avoid in case of equal registers
   if (a == b) {
     DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\tavoiding exchanging "
@@ -258,7 +129,7 @@ int ROPChain::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   return xchgPath.size();
 }
 
-void ROPChain::undoXchgs(MachineInstr *MI) {
+void ROPEngine::undoXchgs(MachineInstr *MI) {
   // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
 
@@ -273,8 +144,8 @@ void ROPChain::undoXchgs(MachineInstr *MI) {
   }
 }
 
-bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
-                           std::vector<x86_reg> const &scratchRegs) {
+bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
+                            std::vector<x86_reg> const &scratchRegs) {
   Microgadget *pop, *add;
   x86_reg pop_0, add_0, add_1;
   x86_reg scratch = X86_REG_INVALID;
@@ -362,9 +233,9 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   return true;
 }
 
-x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
-                                 int displacement, x86_reg outputReg,
-                                 std::vector<x86_reg> scratchRegs) {
+x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
+                                  int displacement, x86_reg outputReg,
+                                  std::vector<x86_reg> scratchRegs) {
 
   llvm::dbgs() << "eax: " << X86_REG_EAX << ", ebp: " << X86_REG_EBP
                << ", ecx: " << X86_REG_ECX << ", edx: " << X86_REG_EDX
@@ -515,9 +386,10 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
   return scratchR1;
 }
 
-bool ROPChain::handleAddSubIncDec(MachineInstr *MI) {
+bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
+                                   std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
-  auto const scratchRegs = *SRT.getRegs(*MI);
+
   int imm;
   x86_reg dest_reg;
 
@@ -561,8 +433,9 @@ bool ROPChain::handleAddSubIncDec(MachineInstr *MI) {
   return addImmToReg(MI, dest_reg, imm, scratchRegs);
 }
 
-bool ROPChain::handleMov32rm(MachineInstr *MI) {
-  auto scratchRegs = *SRT.getRegs(*MI);
+bool ROPEngine::handleMov32rm(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;
@@ -650,8 +523,9 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
   return true;
 }
 
-bool ROPChain::handleMov32mr(MachineInstr *MI) {
-  auto scratchRegs = *SRT.getRegs(*MI);
+bool ROPEngine::handleMov32mr(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;
@@ -721,17 +595,18 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   return true;
 }
 
-bool ROPChain::mapBindings(MachineInstr &MI) {
+ROPChain ROPEngine::ropify(MachineInstr &MI,
+                           std::vector<x86_reg> &scratchRegs) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
-      return false;
+      return chain;
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
                   dbgs() << "[LivenessAnalysis] avail. scratch registers:\t");
 
-  for (auto &a : *SRT.getRegs(MI)) {
+  for (auto &a : scratchRegs) {
     DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
@@ -743,36 +618,30 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    if (!handleAddSubIncDec(&MI))
-      return false;
+    if (!handleAddSubIncDec(&MI, scratchRegs))
+      return chain;
     break;
   }
   case X86::MOV32rm: {
-    if (!handleMov32rm(&MI)) {
-      return false;
+    if (!handleMov32rm(&MI, scratchRegs)) {
+      return chain;
     }
     break;
   }
   case X86::MOV32mr: {
-    if (!handleMov32mr(&MI)) {
-      return false;
+    if (!handleMov32mr(&MI, scratchRegs)) {
+      return chain;
     }
     break;
   }
   default:
-    return false;
+    return chain;
   }
 
-  return true;
+  return chain;
 }
 
-void ROPChain::addToInstrMap(MachineInstr *MI, ChainElem CE) {
+void ROPEngine::addToInstrMap(MachineInstr *MI, ChainElem CE) {
   // TODO: this won't be valid once the MI * gets invalidated after an erase().
   instrMap[MI].emplace_back(CE);
 }
-
-void ROPChain::finalize() { finalized = true; }
-
-bool ROPChain::isFinalized() { return finalized; }
-
-bool ROPChain::isEmpty() { return chain.empty(); }
