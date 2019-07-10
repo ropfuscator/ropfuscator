@@ -60,9 +60,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   Stats stats = Stats();
   StringRef const funcName = MF.getName();
 
-  DEBUG_WITH_TYPE(
-      PROCESSED_INSTR,
-      dbgs() << fmt::format("Processing function: {}\n", funcName.str()));
+  DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                  dbgs() << "Processing function: " << funcName.str() << "\n");
 
   for (MachineBasicBlock &MBB : MF) {
     std::vector<ROPChain *> ropChains;
@@ -90,23 +89,22 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       ROPChain *lastChain = ropChains.back();
 
       if (lastChain->addInstruction(MI)) {
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << fmt::format("{}[✓ {:^14}]{} {}\n", COLOR_GREEN,
-                                  lastChain->chainLabel, COLOR_RESET, MI));
+        // DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "✓ " <<  MI));
 
-        DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << fmt::format("[ROPChain {}]",
-                                                        lastChain->chainLabel));
-        for (auto &g : lastChain->instrMap[&MI]) {
-          if (g.type == GADGET)
-            DEBUG_WITH_TYPE(ROPCHAIN,
-                            dbgs() << fmt::format("\t\t{:#018x}: {}\n", 0,
-                                                  g.microgadget->asmInstr));
-          else
-            DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
-                                          << fmt::format("\t{:^18}: {:#x}\n",
-                                                         "Immediate", g.value));
-        }
+        // DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "[ROPChain "<<
+        // lastChain->chainLabel << "]",
+        //                                                 ));
+        // for (auto &g : lastChain->instrMap[&MI]) {
+        //   if (g.type == GADGET)
+        //     DEBUG_WITH_TYPE(ROPCHAIN,
+        //                     dbgs() << fmt::format("\t\t{:#018x}: {}\n", 0,
+        //                                           g.microgadget->asmInstr));
+        //   else
+        //     DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
+        //                                   << fmt::format("\t{:^18}: {:#x}\n",
+        //                                                  "Immediate",
+        //                                                  g.value));
+        // }
         stats.replaced++;
       } else {
         // An error means that the current instruction isn't supported, hence
@@ -115,9 +113,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         // that a chain is split every time an un-replaceable instruction is
         // encountered.
 
-        DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << fmt::format("{}[✗ {:^14}]{} {}\n", COLOR_RED,
-                                              "Unsupported", COLOR_RESET, MI));
+        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "✗ " << MI);
 
         if (lastChain->isEmpty()) {
           // The last created chain is pointless at this point, since it's
@@ -137,11 +133,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       rc->inject();
   }
 
-  DEBUG_WITH_TYPE(
-      OBF_STATS,
-      dbgs() << fmt::format("{}: {}/{} ({}%) instructions obfuscated.\n",
-                            funcName.str(), stats.replaced, stats.processed,
-                            stats.replaced * 100 / stats.processed));
+  // DEBUG_WITH_TYPE(
+  //     OBF_STATS,
+  //     dbgs() << "{}: {}/{} ({}%) instructions obfuscated.\n",
+  //                           funcName.str(), stats.replaced, stats.processed,
+  //                           stats.replaced * 100 / stats.processed));
 
   // the MachineFunction has been modified
   return true;

@@ -4,8 +4,6 @@
 #include "Ropfuscator/Symbol.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include <dirent.h>
-#include <fmt/format.h>
-#include <fmt/ostream.h>
 
 using namespace llvm;
 
@@ -730,9 +728,8 @@ bool ROPChain::mapBindings(MachineInstr &MI) {
       return false;
   }
 
-  DEBUG_WITH_TYPE(
-      LIVENESS_ANALYSIS,
-      dbgs() << fmt::format("[LivenessAnalysis] avail. scratch registers:\t"));
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
+                  dbgs() << "[LivenessAnalysis] avail. scratch registers:\t");
 
   for (auto &a : *SRT.getRegs(MI)) {
     DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
