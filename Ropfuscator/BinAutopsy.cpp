@@ -3,10 +3,10 @@
 //   part of the ROPfuscator project
 // ==============================================================================
 
-#include "RopfuscatorBinAutopsy.h"
+#include "BinAutopsy.h"
+#include "CapstoneLLVMAdpt.h"
 #include "ChainElem.h"
-#include "RopfuscatorCapstoneLLVMAdpt.h"
-#include "RopfuscatorDebug.h"
+#include "Debug.h"
 
 #include <assert.h>
 #include <fstream>
@@ -16,59 +16,6 @@
 #include <time.h>
 
 using namespace std;
-
-// ------------------------------------------------------------------------
-// Symbol
-// ------------------------------------------------------------------------
-Symbol::Symbol(string label, string version, uint64_t address)
-    : Address(address) {
-  Label = new char[label.length() + 1];
-  Version = new char[version.length() + 1];
-  strcpy(Label, label.c_str());
-  strcpy(Version, version.c_str());
-}
-
-char *Symbol::getSymVerDirective() {
-  stringstream ss;
-  ss << ".symver " << Label << "," << Label << "@" << Version;
-  SymVerDirective = new char[ss.str().length() + 1];
-  strcpy(SymVerDirective, ss.str().c_str());
-  return SymVerDirective;
-}
-
-// ------------------------------------------------------------------------
-// Section
-// ------------------------------------------------------------------------
-
-Section::Section(string label, uint64_t address, uint64_t length)
-    : Label(label), Address(address), Length(length) {}
-
-// ------------------------------------------------------------------------
-// Microgadget
-// ------------------------------------------------------------------------
-Microgadget::Microgadget(cs_insn *instr, string asmInstr)
-    : Instr(instr), asmInstr(asmInstr) {}
-
-uint64_t Microgadget::getAddress() const { return Instr[0].address; }
-
-x86_insn Microgadget::getID() const {
-  // Returns the ID (opcode)
-  return static_cast<x86_insn>(Instr[0].id);
-}
-
-cs_x86_op Microgadget::getOp(int i) const {
-  // Returns the i-th operand
-  return Instr[0].detail->x86.operands[i];
-}
-
-uint8_t Microgadget::getNumOp() const {
-  // Returns the number of operands
-  return Instr[0].detail->x86.op_count;
-}
-
-// ------------------------------------------------------------------------
-// BinaryAutopsy
-// ------------------------------------------------------------------------
 
 BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
@@ -622,7 +569,7 @@ std::vector<ChainElem> BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
     // TODO
   }
 
-  result.emplace_back(ChainElem(res.front()));
+  result.emplace_back(ChainElem(gadgets.front()));
   result.emplace_back(val);
 
   return result;
@@ -637,7 +584,7 @@ std::vector<ChainElem> BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
     // TODO
   }
 
-  result.emplace_back(ChainElem(res.front()));
+  result.emplace_back(ChainElem(gadgets.front()));
 
   return result;
 }
@@ -664,7 +611,7 @@ std::vector<ChainElem> BinaryAutopsy::load(x86_reg dst, x86_reg src) {
       gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
   if (!gadgets.empty()) {
     for (auto &g : gadgets) {
-      auto op1 = g.getOp(1);
+      auto op1 = g->getOp(1);
 
       if (op1.mem.segment == 0 && op1.mem.index == 0 && op1.mem.scale == 1)
         // TODO: xchg
@@ -683,7 +630,7 @@ std::vector<ChainElem> BinaryAutopsy::store(x86_reg dst, x86_reg src) {
       gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
   if (!gadgets.empty()) {
     for (auto &g : gadgets) {
-      auto op0 = g.getOp(0);
+      auto op0 = g->getOp(0);
 
       if (op0.mem.segment == 0 && op0.mem.index == 0 && op0.mem.scale == 1)
         // TODO: xchg

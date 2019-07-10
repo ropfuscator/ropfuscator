@@ -1,24 +1,12 @@
-#include "RopfuscatorBinAutopsy.h"
-#include "RopfuscatorLivenessAnalysis.h"
-#include "X86.h"
-#include "X86InstrBuilder.h"
-#include "X86TargetMachine.h"
-#include <tuple>
+//#include "../X86ROPUtils.h"
+#include "BinAutopsy.h"
+#include "Microgadget.h"
+#include "Symbol.h"
 
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
 
 enum type_t { GADGET, IMMEDIATE };
-
-struct Stats {
-  int processed;
-  int replaced;
-
-  Stats() : processed(0), replaced(0){};
-};
-
-using namespace std;
-using namespace llvm;
 
 // Generic element to be put in the chain.
 struct ChainElem {
@@ -43,14 +31,20 @@ struct ChainElem {
   Symbol *symbol;
 
   // Constructor (type: GADGET)
-  ChainElem(Microgadget *g);
+  ChainElem(Microgadget *gadget) {
+    this->microgadget = gadget;
+    this->type = GADGET;
+    // this->symbol = ROPChain::BA->getRandomSymbol();
+  }
 
   // Constructor (type: IMMEDIATE)
-  ChainElem(int64_t value);
+  ChainElem(int64_t value) : value(value) { type = IMMEDIATE; }
 
   // getRelativeAddress - returns the gadget address relative to the symbol it
   // is anchored to.
-  uint64_t getRelativeAddress();
+  uint64_t getRelativeAddress() {
+    return microgadget->getAddress() - symbol->Address;
+  }
 };
 
 #endif

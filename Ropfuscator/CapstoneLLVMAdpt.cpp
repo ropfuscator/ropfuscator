@@ -1,5 +1,5 @@
-#include "RopfuscatorCapstoneLLVMAdpt.h"
-#include "X86TargetMachine.h"
+#include "CapstoneLLVMAdpt.h"
+#include "../X86TargetMachine.h"
 #include <assert.h>
 
 cs_x86_op opCreate(x86_op_type type, unsigned int value) {

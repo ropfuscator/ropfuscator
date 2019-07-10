@@ -6,8 +6,8 @@
 // It also provides statics about the processed functions.
 //
 
-#include "RopfuscatorDebug.h"
-#include "RopfuscatorLivenessAnalysis.h"
+#include "Ropfuscator/Debug.h"
+#include "Ropfuscator/LivenessAnalysis.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86MachineFunctionInfo.h"

@@ -25,7 +25,11 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "RopfuscatorXchgGraph.h"
+#include "ChainElem.h"
+#include "Microgadget.h"
+#include "Section.h"
+#include "Symbol.h"
+#include "XchgGraph.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
@@ -35,84 +39,6 @@
 // Max bytes before the RET to be examined (RET included!)
 // see BinaryAutopsy::extractGadgets()
 #define MAXDEPTH 4
-
-// Symbol - entry of the dynamic symbol table. We use them as references
-// to locate the needed gadgets.
-struct Symbol {
-  // Label - symbol name.
-  char *Label;
-
-  // Version - this is mostly useful when dealing with libc, because within it
-  // there are lots of symbols with the same label. GNU LIBC uses versioning to
-  // ensure compatibility with binaries using old ABI versions.
-  char *Version;
-
-  // SymVerDirective - it is just an inline asm directive we need to place to
-  // force the static linker to pick the right symbol version during the
-  // compilation.
-  char *SymVerDirective;
-
-  // Address - offset relative to the analysed binary file. When we'll reference
-  // a gadget in memory we'll use this as base address.
-  uint64_t Address;
-
-  // Constructor
-  Symbol(std::string label, std::string version, uint64_t address);
-
-  // getSymVerDirective - returns a pointer to the SymVerDirective string.
-  char *getSymVerDirective();
-};
-
-// Section - section data dumped from the ELF header
-struct Section {
-  // Label - section name
-  std::string Label;
-
-  // Address - offset relative to the analysed binary file.
-  // Length - Size of the section.
-  uint64_t Address, Length;
-
-  // Constructor
-  Section(std::string label, uint64_t address, uint64_t length);
-};
-
-enum GadgetClass_t {
-  REG_INIT,
-  REG_RESET,
-  REG_LOAD,
-  REG_STORE,
-  REG_XCHG,
-  UNDEFINED
-};
-
-// Microgadget - represents a single x86 instruction that precedes a RET.
-struct Microgadget {
-  // Instr - pointer to a capstone-engine data structure that contains details
-  // on the overall semantics of the instruction, along with address, opcode,
-  // etc.
-  const cs_insn *Instr;
-
-  // Class - gives basic semantic information about the instruction
-  GadgetClass_t Class;
-
-  // debug
-  std::string asmInstr;
-
-  // Constructor
-  Microgadget(cs_insn *instr, std::string asmInstr);
-
-  // getAddress - returns the offset relative to the analysed binary file.
-  uint64_t getAddress() const;
-
-  // getID - returns the instruction opcode.
-  x86_insn getID() const;
-
-  // getOp - returns the i-th instruction operand.
-  cs_x86_op getOp(int i) const;
-
-  // getNumOp - returns the total number of operands of the instruction
-  uint8_t getNumOp() const;
-};
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.
 // It provides also methods to look for specific gadgets and performs
@@ -227,11 +153,11 @@ public:
   // -------------------------------------------------------------
   // GADGET PRIMITIVES
 
-  std::vector<Microgadget *> initReg(x86_reg dst, unsigned val);
-  std::vector<Microgadget *> addRegs(x86_reg dst, x86_reg src);
-  std::vector<Microgadget *> load(x86_reg dst, x86_reg src);
-  std::vector<Microgadget *> store(x86_reg dst, x86_reg src);
-  std::vector<Microgadget *> calcAddr(x86_reg dst, x86_reg src, unsigned displ);
+  std::vector<ChainElem> initReg(x86_reg dst, unsigned val);
+  std::vector<ChainElem> addRegs(x86_reg dst, x86_reg src);
+  std::vector<ChainElem> load(x86_reg dst, x86_reg src);
+  std::vector<ChainElem> store(x86_reg dst, x86_reg src);
+  std::vector<ChainElem> calcAddr(x86_reg dst, x86_reg src, unsigned displ);
 };
 
 #endif
