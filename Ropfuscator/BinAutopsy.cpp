@@ -409,8 +409,8 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
   return result;
 }
 
-std::vector<ChainElem> BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
-  std::vector<ChainElem> result;
+ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
+  ROPChain result;
 
   // search for "pop DST" gadgets
   std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_POP, dst);
@@ -424,8 +424,8 @@ std::vector<ChainElem> BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
   return result;
 }
 
-std::vector<ChainElem> BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
-  std::vector<ChainElem> result;
+ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
+  ROPChain result;
 
   // search for "add DST, SRC" gadgets
   std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_ADD, dst, src);
@@ -438,9 +438,8 @@ std::vector<ChainElem> BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
   return result;
 }
 
-std::vector<ChainElem> BinaryAutopsy::calcAddr(x86_reg dst, x86_reg src,
-                                               unsigned displ) {
-  std::vector<ChainElem> result, tmp;
+ROPChain BinaryAutopsy::calcAddr(x86_reg dst, x86_reg src, unsigned displ) {
+  ROPChain result, tmp;
   // TODO: execute in reverse order
 
   tmp = initReg(dst, displ);
@@ -452,8 +451,8 @@ std::vector<ChainElem> BinaryAutopsy::calcAddr(x86_reg dst, x86_reg src,
   return result;
 }
 
-std::vector<ChainElem> BinaryAutopsy::load(x86_reg dst, x86_reg src) {
-  std::vector<ChainElem> result;
+ROPChain BinaryAutopsy::load(x86_reg dst, x86_reg src) {
+  ROPChain result;
 
   // search for "mov DST, [SRC]" gadgets
   std::vector<Microgadget *> gadgets =
@@ -471,8 +470,8 @@ std::vector<ChainElem> BinaryAutopsy::load(x86_reg dst, x86_reg src) {
   return result;
 }
 
-std::vector<ChainElem> BinaryAutopsy::store(x86_reg dst, x86_reg src) {
-  std::vector<ChainElem> result;
+ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
+  ROPChain result;
 
   // search for "mov DST, [SRC]" gadgets
   std::vector<Microgadget *> gadgets =

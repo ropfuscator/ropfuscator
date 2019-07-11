@@ -26,6 +26,7 @@
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
 #include "ChainElem.h"
+#include "../X86ROPUtils.h"
 #include "Microgadget.h"
 #include "Section.h"
 #include "Symbol.h"
@@ -137,11 +138,11 @@ public:
   // -------------------------------------------------------------
   // GADGET PRIMITIVES
 
-  std::vector<ChainElem> initReg(x86_reg dst, unsigned val);
-  std::vector<ChainElem> addRegs(x86_reg dst, x86_reg src);
-  std::vector<ChainElem> load(x86_reg dst, x86_reg src);
-  std::vector<ChainElem> store(x86_reg dst, x86_reg src);
-  std::vector<ChainElem> calcAddr(x86_reg dst, x86_reg src, unsigned displ);
+  ROPChain initReg(x86_reg dst, unsigned val);
+  ROPChain addRegs(x86_reg dst, x86_reg src);
+  ROPChain load(x86_reg dst, x86_reg src);
+  ROPChain store(x86_reg dst, x86_reg src);
+  ROPChain calcAddr(x86_reg dst, x86_reg src, unsigned displ);
 };
 
 #endif
