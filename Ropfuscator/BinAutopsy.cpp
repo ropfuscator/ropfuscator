@@ -40,7 +40,6 @@ void BinaryAutopsy::dissect() {
   dumpSections();
   dumpDynamicSymbols();
   dumpGadgets();
-  analyseGadgets();
   applyGadgetFilters();
   buildXchgGraph();
 }
@@ -143,10 +142,6 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 }
 
 Symbol *BinaryAutopsy::getRandomSymbol() {
-  // Dumps the dynamic symbol table if it wasn't already done
-  if (Symbols.empty())
-    dumpDynamicSymbols();
-
   unsigned long i = rand() % Symbols.size();
   return &(Symbols.at(i));
 }
@@ -158,8 +153,6 @@ void BinaryAutopsy::dumpGadgets() {
   csh handle;
   cs_insn *instructions;
 
-  //  assert(getLibcPath(libcPath));
-
   // Dumps sections if it wasn't already done
   if (Sections.empty())
     dumpSections();
@@ -167,7 +160,6 @@ void BinaryAutopsy::dumpGadgets() {
   // Initizialises capstone engine
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
-  // llvm::dbgs() << "[*] Looking for gadgets in " << BinaryPath << "\n";
 
   ifstream input_file(BinaryPath, ios::binary);
   assert(input_file.good() && "Unable to open given binary file!");
@@ -175,8 +167,6 @@ void BinaryAutopsy::dumpGadgets() {
   // Get input size
   input_file.seekg(0, ios::end);
   streamoff input_size = input_file.tellg();
-  // llvm::dbgs() << "[*] Scanning the whole binary (" << input_size
-  //             << " bytes) ...\n";
 
   // Read the whole file
   input_file.seekg(0, ios::beg);
@@ -184,7 +174,6 @@ void BinaryAutopsy::dumpGadgets() {
   input_file.read(reinterpret_cast<char *>(buf), input_size);
 
   for (auto &s : Sections) {
-    // llvm::dbgs() << "[*] Searching gadgets in section " + s.Label + " ... ";
     int cnt = 0;
 
     // Scan for RET instructions
@@ -229,14 +218,6 @@ void BinaryAutopsy::dumpGadgets() {
   }
   delete[] buf;
   input_file.close();
-
-  // llvm::dbgs() << "[*] Found " << Microgadgets.size()
-  //             << " unique microgadgets!\n";
-
-  /*for (auto const &gadget : Microgadgets) {
-    llvm::dbgs() << "0x" << gadget.getAddress() << ":   \t" << gadget.asmInstr
-  << "\n";
-  }*/
 }
 
 Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
@@ -319,104 +300,23 @@ void BinaryAutopsy::buildXchgGraph() {
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
-  auto XchgGadgets = gadgetLookup(REG_XCHG);
+  auto XchgGadgets = gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
 
   if (XchgGadgets.empty()) {
-    DEBUG_WITH_TYPE(XCHG_GRAPH,
-                    llvm::dbgs() << "[XchgGraph]\t"
-                                 << "[!] Unable to build the eXCHanGe Graph\n");
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
+                                    << "[XchgGraph]\t"
+                                    << "[!] Unable to build the eXCHanGe "
+                                       "Graph: no XCHG gadgets found\n");
     return;
   }
 
-  for (auto &g : gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG)) {
+  for (auto &g : XchgGadgets) {
     xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
 
     DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
                                     << "[XchgGraph]\t"
                                     << "Added new edge: " << g->getOp(0).reg
                                     << ", " << g->getOp(1).reg << "\n");
-  }
-}
-
-void BinaryAutopsy::analyseGadgets() {
-  // Dumps gadgets if it wasn't already done
-  if (Microgadgets.empty())
-    dumpGadgets();
-
-  for (auto &g : Microgadgets) {
-    switch (g.getID()) {
-    case X86_INS_POP: {
-      // pop reg1
-      if (g.getOp(0).type == X86_OP_REG)
-        g.Class = REG_INIT;
-      break;
-    }
-    case X86_INS_XOR: {
-      // xor reg1, reg2
-      // operands must be both of type register and the same
-      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_REG &&
-          g.getOp(0).reg == g.getOp(1).reg)
-        g.Class = REG_RESET;
-      break;
-    }
-    case X86_INS_MOV: {
-      // mov reg1, [reg2]
-      // dst must be a register, src must be a plain pointer in reg2
-      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_MEM &&
-          g.getOp(1).mem.segment == X86_REG_INVALID &&
-          g.getOp(1).mem.index == X86_REG_INVALID &&
-          g.getOp(1).mem.scale == 1 && g.getOp(1).mem.disp == 0)
-        g.Class = REG_LOAD;
-      else
-          // mov [reg1], reg2
-          if (g.getOp(1).type == X86_OP_REG && g.getOp(0).type == X86_OP_MEM &&
-              g.getOp(0).mem.segment == X86_REG_INVALID &&
-              g.getOp(0).mem.index == X86_REG_INVALID &&
-              g.getOp(0).mem.scale == 1 && g.getOp(0).mem.disp == 0)
-        g.Class = REG_STORE;
-      else
-        g.Class = UNDEFINED;
-      break;
-    }
-    case X86_INS_XCHG: {
-      // xchg reg1, reg2
-      if (g.getOp(0).type == X86_OP_REG && g.getOp(1).type == X86_OP_REG &&
-          g.getOp(0).reg != g.getOp(1).reg)
-        g.Class = REG_XCHG;
-      break;
-    }
-    default:
-      g.Class = UNDEFINED;
-    }
-
-    // debug prints
-    switch (g.Class) {
-    case REG_INIT:
-      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
-                                           << "[GadgetAnalysis]\t" << g.asmInstr
-                                           << " REG_INIT\n");
-      break;
-    case REG_LOAD:
-      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
-                                           << "[GadgetAnalysis]\t" << g.asmInstr
-                                           << " REG_LOAD\n");
-      break;
-    case REG_STORE:
-      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
-                                           << "[GadgetAnalysis]\t" << g.asmInstr
-                                           << " REG_STORE\n");
-      break;
-    case REG_XCHG:
-      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
-                                           << "[GadgetAnalysis]\t" << g.asmInstr
-                                           << " REG_XCHG\n");
-      break;
-    case REG_RESET:
-      DEBUG_WITH_TYPE(GADGET_ANALYSIS, llvm::dbgs()
-                                           << "[GadgetAnalysis]\t" << g.asmInstr
-                                           << " REG_RESET\n");
-      break;
-    }
   }
 }
 

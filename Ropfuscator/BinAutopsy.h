@@ -101,10 +101,6 @@ public:
   // XCHG gadgets that have been found.
   void buildXchgGraph();
 
-  // analyseGadgets - performs a very simple gadget classification based on the
-  // semantic of specific instructions.
-  void analyseGadgets();
-
   // applyGadgetFilters - removes problematic gadgets from the set of discovered
   // ones, basing on the defined filters.
   void applyGadgetFilters();
