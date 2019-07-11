@@ -645,3 +645,28 @@ void ROPEngine::addToInstrMap(MachineInstr *MI, ChainElem CE) {
   // TODO: this won't be valid once the MI * gets invalidated after an erase().
   instrMap[MI].emplace_back(CE);
 }
+
+void generateChainLabels(char **chainLabel, char **chainLabelC,
+                         char **resumeLabel, char **resumeLabelC,
+                         StringRef funcName, int chainID) {
+  using namespace std;
+  string funcName_s = funcName.str();
+  string chainLabel_s = funcName_s + "_chain_" + to_string(chainID);
+  string chainLabelC_s = funcName_s + "_chain_" + to_string(chainID) + ":";
+  string resumeLabel_s =
+      "resume_" + funcName_s + "_chain_" + to_string(chainID);
+  string resumeLabelC_s =
+      "resume_" + funcName_s + "_chain_" + to_string(chainID) + ":";
+
+  // we need to allocate these strings on the heap, since they will be
+  // used by AsmPrinter *after* runOnMachineFunction() has returned!
+  *chainLabel = new char[chainLabel_s.size() + 1];
+  *chainLabelC = new char[chainLabelC_s.size() + 1];
+  *resumeLabel = new char[resumeLabel_s.size() + 1];
+  *resumeLabelC = new char[resumeLabelC_s.size() + 1];
+
+  strcpy(*chainLabel, chainLabel_s.c_str());
+  strcpy(*chainLabelC, chainLabelC_s.c_str());
+  strcpy(*resumeLabel, resumeLabel_s.c_str());
+  strcpy(*resumeLabelC, resumeLabelC_s.c_str());
+}

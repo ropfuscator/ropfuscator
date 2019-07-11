@@ -61,11 +61,7 @@ char X86ROPfuscator::ID = 0;
 
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
-// Generates inline assembly labels that are used in the prologue and epilogue
-// of each ROP chain
-void generateChainLabels(char **chainLabel, char **chainLabelC,
-                         char **resumeLabel, char **resumeLabelC,
-                         StringRef funcName, int chainID);
+// ----------------------------------------------------------------
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   // disable ROPfuscator is -fno-ropfuscator flag is passed
@@ -230,118 +226,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   // the MachineFunction has been modified
   return true;
 }
-
-void generateChainLabels(char **chainLabel, char **chainLabelC,
-                         char **resumeLabel, char **resumeLabelC,
-                         StringRef funcName, int chainID) {
-  using namespace std;
-  string funcName_s = funcName.str();
-  string chainLabel_s = funcName_s + "_chain_" + to_string(chainID);
-  string chainLabelC_s = funcName_s + "_chain_" + to_string(chainID) + ":";
-  string resumeLabel_s =
-      "resume_" + funcName_s + "_chain_" + to_string(chainID);
-  string resumeLabelC_s =
-      "resume_" + funcName_s + "_chain_" + to_string(chainID) + ":";
-
-  // we need to allocate these strings on the heap, since they will be
-  // used by AsmPrinter *after* runOnMachineFunction() has returned!
-  *chainLabel = new char[chainLabel_s.size() + 1];
-  *chainLabelC = new char[chainLabelC_s.size() + 1];
-  *resumeLabel = new char[resumeLabel_s.size() + 1];
-  *resumeLabelC = new char[resumeLabelC_s.size() + 1];
-
-  strcpy(*chainLabel, chainLabel_s.c_str());
-  strcpy(*chainLabelC, chainLabelC_s.c_str());
-  strcpy(*resumeLabel, resumeLabel_s.c_str());
-  strcpy(*resumeLabelC, resumeLabelC_s.c_str());
-}
-
-//   DEBUG_WITH_TYPE(PROCESSED_INSTR,
-//                   dbgs() << "Processing function: " << funcName.str() <<
-//                   "\n");
-
-//   for (MachineBasicBlock &MBB : MF) {
-//     std::vector<ROPChain *> ropChains;
-
-//     auto scratchRegTracker = ScratchRegTracker(MBB);
-
-//     for (MachineInstr &MI : MBB) {
-//       if (MI.isDebugInstr())
-//         continue;
-//       if (MI.getFlag(MachineInstr::FrameSetup) ||
-//           MI.getFlag(MachineInstr::FrameDestroy))
-//         continue;
-
-//       stats.processed++;
-
-//       if (ropChains.empty() || ropChains.back()->isFinalized()) {
-//         // Since we are forced to do the actual injection only when the whole
-//         // Machine Basic Block has been processed, we have to pass the
-//         // MachineInstr by value, because it is an iterator and, at some
-//         // point, it will be invalidated.
-//         auto *ropChain = new ROPChain(MBB, MI, scratchRegTracker);
-//         ropChains.push_back(ropChain);
-//       }
-
-//       ROPChain *lastChain = ropChains.back();
-
-//       if (lastChain->addInstruction(MI)) {
-//         // DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "✓ " <<  MI));
-
-//         // DEBUG_WITH_TYPE(ROPCHAIN, dbgs() << "[ROPChain "<<
-//         // lastChain->chainLabel << "]",
-//         //                                                 ));
-//         // for (auto &g : lastChain->instrMap[&MI]) {
-//         //   if (g.type == GADGET)
-//         //     DEBUG_WITH_TYPE(ROPCHAIN,
-//         //                     dbgs() << fmt::format("\t\t{:#018x}: {}\n", 0,
-//         // g.microgadget->asmInstr));
-//         //   else
-//         //     DEBUG_WITH_TYPE(ROPCHAIN, dbgs()
-//         //                                   << fmt::format("\t{:^18}:
-//         {:#x}\n",
-//         //                                                  "Immediate",
-//         //                                                  g.value));
-//         // }
-//         stats.replaced++;
-//       } else {
-//         // An error means that the current instruction isn't supported, hence
-//         // the chain is finalized. When a new supported instruction will be
-//         // processed, another chain will be created. This essentially means
-//         // that a chain is split every time an un-replaceable instruction is
-//         // encountered.
-
-//         DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "✗ " << MI);
-
-//         if (lastChain->isEmpty()) {
-//           // The last created chain is pointless at this point, since it's
-//           // empty.
-//           delete lastChain;
-//           ropChains.pop_back();
-//         } else
-//           lastChain->finalize();
-//       }
-//     }
-
-//     // IMPORTANT: the injection must occur only after that the entire Machine
-//     // Basic Block has been run through, otherwise an exception is thrown.
-//     For
-//     // this reason, we use a vector in which we put all the chains to be
-//     // injected only at this point.
-//     for (ROPChain *rc : ropChains)
-//       rc->inject();
-//   }
-
-//   // DEBUG_WITH_TYPE(
-//   //     OBF_STATS,
-//   //     dbgs() << "{}: {}/{} ({}%) instructions obfuscated.\n",
-//   //                           funcName.str(), stats.replaced,
-//   stats.processed,
-//   //                           stats.replaced * 100 / stats.processed));
-
-//   // the MachineFunction has been modified
-//   return true;
-// }
 
 INITIALIZE_PASS(X86ROPfuscator, X86_ROPFUSCATOR_PASS_NAME,
                 X86_ROPFUSCATOR_PASS_DESC, false, false)
