@@ -123,13 +123,6 @@ public:
                                           x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget *> gadgetLookup(GadgetClass_t Class);
 
-  // canInitReg - tells if a given register can be initialised using a gadget.
-  bool canInitReg(unsigned int reg);
-
-  // getInitialisableRegs - returns a vector of registers that can be
-  // initialised using appropriate gadgets.
-  std::vector<x86_reg> getInitialisableRegs();
-
   // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
   // be mutually exchanged.
   bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
@@ -140,11 +133,6 @@ public:
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
 
   std::vector<Microgadget *> undoXchgs();
-
-  // getReachableRegs - returns a list of all the nodes that can be reached
-  // starting the exploration from the given register. If no other register can
-  // be reached, it returns just the src itself.
-  std::vector<int> getReachableRegs(int src);
 
   // -------------------------------------------------------------
   // GADGET PRIMITIVES

@@ -278,21 +278,6 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
   return res;
 }
 
-std::vector<Microgadget *> BinaryAutopsy::gadgetLookup(GadgetClass_t Class) {
-  std::vector<Microgadget *> res;
-
-  if (Microgadgets.empty()) {
-    return res;
-  }
-
-  for (auto &gadget : Microgadgets) {
-    if (gadget.Class == Class)
-      res.push_back(&gadget);
-  }
-
-  return res;
-}
-
 void BinaryAutopsy::buildXchgGraph() {
   DEBUG_WITH_TYPE("xchg_graph", llvm::dbgs()
                                     << "[XchgGraph]\t"
@@ -360,18 +345,6 @@ void BinaryAutopsy::applyGadgetFilters() {
                                               << "\n");
 }
 
-bool BinaryAutopsy::canInitReg(unsigned int reg) {
-  if (Microgadgets.empty())
-    dumpGadgets();
-
-  for (auto &g : Microgadgets) {
-    if (g.Class == REG_INIT && g.getOp(0).reg == reg)
-      return true;
-  }
-
-  return false;
-}
-
 bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
@@ -394,13 +367,6 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, vector<x86_reg> B) {
   }
 
   return false;
-}
-
-vector<x86_reg> BinaryAutopsy::getInitialisableRegs() {
-  vector<x86_reg> ret;
-  for (auto &g : gadgetLookup(REG_INIT))
-    ret.push_back(g->getOp(0).reg);
-  return ret;
 }
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
@@ -441,23 +407,6 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
   }
 
   return result;
-}
-
-vector<int> BinaryAutopsy::getReachableRegs(int src) {
-  vector<int> reachableRegs;
-  int pred[N_REGS], dist[N_REGS];
-  bool visited[N_REGS];
-
-  // we give "0" as destination node, because in capstone 0 is associated with
-  // X86_REG_INVALID. So, we basically are giving an unreachable destination in
-  // order to trigger the full exploration of the graph.
-  xgraph.checkPath(src, 0, pred, dist, visited);
-
-  for (int i = 0; i < N_REGS; i++) {
-    if (visited[i])
-      reachableRegs.push_back(i);
-  }
-  return reachableRegs;
 }
 
 std::vector<ChainElem> BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
