@@ -91,4 +91,10 @@ public:
   x86_reg getEffectiveReg(x86_reg reg);
 };
 
+// Generates inline assembly labels that are used in the prologue and epilogue
+// of each ROP chain
+void generateChainLabels(char **chainLabel, char **chainLabelC,
+                         char **resumeLabel, char **resumeLabelC,
+                         StringRef funcName, int chainID);
+
 #endif
