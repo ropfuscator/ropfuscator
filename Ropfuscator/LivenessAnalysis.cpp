@@ -1,8 +1,8 @@
 #include "LivenessAnalysis.h"
-#include "CapstoneLLVMAdpt.h"
-#include "Debug.h"
 #include "../X86.h"
 #include "../X86Subtarget.h"
+#include "CapstoneLLVMAdpt.h"
+#include "Debug.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
@@ -12,18 +12,10 @@
 #include <map>
 
 using namespace llvm;
+using namespace std;
 
-ScratchRegTracker::ScratchRegTracker(MachineBasicBlock &MBB) : MBB(MBB) {
-  performLivenessAnalysis();
-}
-
-void ScratchRegTracker::addInstr(MachineInstr &MI) {
-  std::vector<x86_reg> emptyVect;
-  regs.insert(std::make_pair(&MI, emptyVect));
-  return;
-}
-
-void ScratchRegTracker::addReg(MachineInstr &MI, int reg) {
+void addReg(MachineInstr &MI, int reg,
+            map<MachineInstr *, vector<x86_reg>> &regs) {
   auto it = regs.find(&MI);
   // IMPORTANT: Here the register representation is converted from LLVM to
   // capstone and stored in the map.
@@ -34,37 +26,11 @@ void ScratchRegTracker::addReg(MachineInstr &MI, int reg) {
   return;
 }
 
-std::vector<x86_reg> *ScratchRegTracker::findRegs(MachineInstr &MI) {
-  auto it = regs.find(&MI);
-  if (it != regs.end()) {
-    // std::vector<x86_reg> *tmp = &it->second;
-    return &it->second;
-  }
-  assert(false && "No vector");
-}
+map<MachineInstr *, vector<x86_reg>>
+performLivenessAnalysis(MachineBasicBlock &MBB) {
+  map<MachineInstr *, vector<x86_reg>> regs;
+  vector<x86_reg> emptyVect;
 
-x86_reg ScratchRegTracker::getReg(MachineInstr &MI) {
-  std::vector<x86_reg> *tmp = findRegs(MI);
-  if (tmp)
-    return tmp->back();
-  return X86_REG_INVALID;
-}
-
-std::vector<x86_reg> *ScratchRegTracker::getRegs(MachineInstr &MI) {
-  std::vector<x86_reg> *tmp = findRegs(MI);
-  if (tmp)
-    return tmp;
-  return nullptr;
-}
-
-int ScratchRegTracker::count(MachineInstr &MI) {
-  std::vector<x86_reg> *tmp = findRegs(MI);
-  if (tmp)
-    return tmp->size();
-  return 0;
-}
-
-void ScratchRegTracker::performLivenessAnalysis() {
   const MachineFunction *MF = MBB.getParent();
   const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MRI = MF->getRegInfo();
@@ -73,13 +39,14 @@ void ScratchRegTracker::performLivenessAnalysis() {
 
   for (auto I = MBB.begin(); I != MBB.end(); ++I) {
     MachineInstr *MI = &*I;
-    addInstr(*MI);
+    regs.insert(std::make_pair(MI, emptyVect));
+
     for (unsigned reg : X86::GR32RegClass) {
       if (LiveRegs.available(MRI, reg)) {
-        addReg(*MI, reg);
+        addReg(*MI, reg, regs);
       }
     }
-    SmallVector<std::pair<unsigned, const MachineOperand *>, 2> Clobbers;
+    SmallVector<pair<unsigned, const MachineOperand *>, 2> Clobbers;
     LiveRegs.stepForward(*MI, Clobbers);
   }
 
@@ -87,4 +54,6 @@ void ScratchRegTracker::performLivenessAnalysis() {
                   dbgs() << "[LivenessAnalysis]\tRegister liveness analysis "
                             "performed on basic block "
                          << MBB.getNumber() << "\n");
+
+  return regs;
 }
