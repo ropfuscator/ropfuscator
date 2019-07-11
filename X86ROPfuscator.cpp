@@ -90,8 +90,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
     // safely clobbered to compute temporary data
-    // TODO: ScratchRegTracker as simple function which returns the hash map
-    auto SRT = ScratchRegTracker(MBB);
+    ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
     ROPChain chain;
     for (MachineInstr &MI : MBB) {
@@ -101,8 +100,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
       processed++;
 
+      // get the list of scratch registers available for this instruction
+      std::vector<x86_reg> MIScratchRegs = MBBScratchRegs.find(&MI)->second;
+
       auto ropeng = ROPEngine();
-      ROPChain result = ropeng.ropify(MI, *SRT.getRegs(MI));
+      ROPChain result = ropeng.ropify(MI, MIScratchRegs);
       if (result.empty()) {
         // unable to obfuscate
         DEBUG_WITH_TYPE(
