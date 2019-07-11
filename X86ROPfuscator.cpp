@@ -61,8 +61,8 @@ char X86ROPfuscator::ID = 0;
 
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
-// generateChainLabels - generates inline assembly labels that are used in the
-// prologue and epilogue of each ROP chain
+// Generates inline assembly labels that are used in the prologue and epilogue
+// of each ROP chain
 void generateChainLabels(char **chainLabel, char **chainLabelC,
                          char **resumeLabel, char **resumeLabelC,
                          StringRef funcName, int chainID);
@@ -72,19 +72,28 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   if (ROPfPassDisabled)
     return false;
 
+  // stats
   int processed = 0, obfuscated = 0;
   StringRef const funcName = MF.getName();
 
+  // ASM labels for each ROP chain
   int chainID = 0;
   char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
+
+  // original instructions that have been successfully ROPified and that will be
+  // removed at the end
   std::vector<MachineInstr *> instrToDelete;
+
+  // description of the target ISA (used to generate new instructions, below)
   MCInstrInfo const *TII = MF.getTarget().getMCInstrInfo();
 
   for (MachineBasicBlock &MBB : MF) {
-    // register liveness analysis is executed in a per-basic block basis
+    // perform register liveness analysis to get a list of registers that can be
+    // safely clobbered to compute temporary data
+    // TODO: ScratchRegTracker as simple function which returns the hash map
     auto SRT = ScratchRegTracker(MBB);
-    ROPChain chain;
 
+    ROPChain chain;
     for (MachineInstr &MI : MBB) {
       if (MI.isDebugInstr())
         continue;
@@ -134,10 +143,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             }
 
             case GADGET: {
-              // Push a random symbol that, when resolved by the dynamic linker,
-              // will be
-              // used as base address; then add the offset to point a specific
-              // gadget
               if (OpaquePredicatesEnabled) {
                 // call $opaquePredicate
                 BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
@@ -214,6 +219,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     instrToDelete.clear();
   }
 
+  // print obfuscation stats for this function
   DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << funcName << ":  \t"
                                     << obfuscated << "/" << processed << " ("
                                     << (obfuscated * 100) / processed
