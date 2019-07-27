@@ -130,8 +130,10 @@ void ROPEngine::undoXchgs(MachineInstr *MI) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
-
+  llvm::dbgs() << "undo xchgs: " << xchgPath.size() << "\n";
+  int iter = 0;
   for (auto it = xchgPath.begin(); it != xchgPath.end(); it++) {
+    llvm::dbgs() << "\t " << iter << "\n";
     // Skip equal and consecutive xchg gadgets
     if (it != xchgPath.end() && *(it + 1) == *it) {
       ++it;
@@ -139,6 +141,7 @@ void ROPEngine::undoXchgs(MachineInstr *MI) {
     }
     chain.emplace_back(ChainElem(*it));
     addToInstrMap(MI, ChainElem(*it));
+    iter++;
   }
 }
 
