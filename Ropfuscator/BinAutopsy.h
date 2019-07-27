@@ -25,8 +25,8 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "ChainElem.h"
 #include "../X86ROPUtils.h"
+#include "ChainElem.h"
 #include "Microgadget.h"
 #include "Section.h"
 #include "Symbol.h"
@@ -75,6 +75,7 @@ public:
 
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
+  static BinaryAutopsy *getInstance();
 
   // -----------------------------------------------------------------------------
   //  ANALYSES

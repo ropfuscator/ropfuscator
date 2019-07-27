@@ -19,10 +19,11 @@ using namespace std;
 
 BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
-  strncpy(BinaryPath, path.c_str(), path.length());
+  strncpy(BinaryPath, path.c_str(), path.length() + 1);
 
   ifstream f(path);
   assert(f.good() && "Given file doesn't exist or is invalid!");
+  llvm::dbgs() << "USING: " << BinaryPath << "\n";
 
   // Initialises LibBFD and opens the binary
   bfd_init();
@@ -51,6 +52,11 @@ BinaryAutopsy *BinaryAutopsy::getInstance(string path) {
     instance = new BinaryAutopsy(path);
   }
 
+  return instance;
+}
+
+BinaryAutopsy *BinaryAutopsy::getInstance() {
+  assert(instance != nullptr && "No pre-existing instance of Binary Autopsy.");
   return instance;
 }
 
