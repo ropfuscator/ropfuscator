@@ -93,18 +93,15 @@ bool getLibraryPath(std::string &libraryPath) {
 // ROP Chain
 // ------------------------------------------------------------------------
 
-std::string libraryPath;
-bool libraryFound = getLibraryPath(libraryPath);
-
-BinaryAutopsy *ROPEngine::BA = BinaryAutopsy::getInstance(libraryPath);
-
 ROPEngine::ROPEngine() {}
 
 x86_reg ROPEngine::getEffectiveReg(x86_reg reg) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   return static_cast<x86_reg>(BA->xgraph.searchLogicalReg(reg));
 }
 
 int ROPEngine::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   // avoid in case of equal registers
   if (a == b) {
     DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\tavoiding exchanging "
@@ -130,6 +127,7 @@ int ROPEngine::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
 }
 
 void ROPEngine::undoXchgs(MachineInstr *MI) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
 
@@ -146,6 +144,7 @@ void ROPEngine::undoXchgs(MachineInstr *MI) {
 
 bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
                             std::vector<x86_reg> const &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   Microgadget *pop, *add;
   x86_reg pop_0, add_0, add_1;
   x86_reg scratch = X86_REG_INVALID;
@@ -236,7 +235,7 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
 x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
                                   int displacement, x86_reg outputReg,
                                   std::vector<x86_reg> scratchRegs) {
-
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   llvm::dbgs() << "eax: " << X86_REG_EAX << ", ebp: " << X86_REG_EBP
                << ", ecx: " << X86_REG_ECX << ", edx: " << X86_REG_EDX
                << ", edi:" << X86_REG_EDI << ", esi: " << X86_REG_ESI << "\n";
@@ -435,7 +434,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
 
 bool ROPEngine::handleMov32rm(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;
@@ -525,7 +524,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
 
 bool ROPEngine::handleMov32mr(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
   int orig_disp;
   Microgadget *mov;

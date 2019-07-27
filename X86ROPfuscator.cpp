@@ -6,6 +6,7 @@
 // It also provides statics about the processed functions.
 //
 
+#include "Ropfuscator/BinAutopsy.h"
 #include "Ropfuscator/Debug.h"
 #include "Ropfuscator/LivenessAnalysis.h"
 #include "X86.h"
@@ -67,6 +68,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   // disable ROPfuscator is -fno-ropfuscator flag is passed
   if (ROPfPassDisabled)
     return false;
+
+  // create a new singleton instance of Binary Autopsy
+  std::string libraryPath;
+  getLibraryPath(libraryPath);
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance(libraryPath);
 
   // stats
   int processed = 0, obfuscated = 0;
@@ -152,7 +158,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
               }
 
               // Get a random symbol to reference this gadget in memory
-              Symbol *sym = ropeng.BA->getRandomSymbol();
+              Symbol *sym = BA->getRandomSymbol();
               uint64_t relativeAddr =
                   elem->microgadget->getAddress() - sym->Address;
 

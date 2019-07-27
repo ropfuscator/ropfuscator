@@ -39,6 +39,8 @@ typedef std::vector<ChainElem> ROPChain;
 using namespace std;
 using namespace llvm;
 
+bool getLibraryPath(std::string &libraryPath);
+
 // Keeps track of all the instructions to be replaced with the obfuscated
 // ones. Handles the injection of auxiliary machine code to guarantee the
 // correct chain execution and to resume the non-obfuscated code execution
@@ -52,9 +54,6 @@ class ROPEngine {
   void addToInstrMap(MachineInstr *, ChainElem);
 
 public:
-  // BA - shared instance of Binary Autopsy.
-  static BinaryAutopsy *BA;
-
   // instruction mapping between MachineInstrs and their gadget counterpart
   map<MachineInstr *, vector<ChainElem>> instrMap;
 
