@@ -52,9 +52,9 @@ foreach (filename ${files})
             OUTPUT
             ${exec_name}.s
             DEPENDS
-            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc
+            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc clang
             COMMAND
-            clang
+	    $<TARGET_FILE:clang>
             ARGS
             ${ROPF_IR_FLAGS_STDBIN} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${exec_name}.ll
             COMMAND
@@ -74,9 +74,9 @@ foreach (filename ${files})
             OUTPUT
             ${ropfuscated_exec_name}.s
             DEPENDS
-            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc
+            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc clang
             COMMAND
-            clang
+	    $<TARGET_FILE:clang>
             ARGS
             ${ROPF_IR_FLAGS_ROPFBIN} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.ll
             COMMAND
