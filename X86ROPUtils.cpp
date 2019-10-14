@@ -564,7 +564,7 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
-  if (MI->getOperand(3).isReg())
+  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
     return false;
 
   // dump all the useful operands from the MachineInstr we are processing:
@@ -664,7 +664,7 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
-  if (MI->getOperand(2).isReg())
+  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
     return false;
 
   // dump all the useful operands from the MachineInstr we are processing:
