@@ -630,7 +630,15 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 
   // dbgs() << mov->asmInstr << "\n";
 
-  DoubleXchg(MI, mov_1, address, mov_0, orig_0);
+  if (mov_0 == mov_1) {
+    // In this case, the result will be stored in `mov_0`=`mov_1`,
+    // and if `mov_1` is exchanged with `address` (i.e. scratch register),
+    // the loaded value will go into `address` and thus not stored in `orig_0`.
+    // We should just exchange `mov_0` and `orig_0` instead.
+    Xchg(MI, mov_0, orig_0);
+  } else {
+    DoubleXchg(MI, mov_1, address, mov_0, orig_0);
+  }
 
   return true;
 }
