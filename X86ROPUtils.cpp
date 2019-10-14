@@ -684,6 +684,12 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
     mov_1 = m->getOp(1).reg;
     int mov_disp = m->getOp(0).mem.disp;
 
+    // the gadget is useless if src and dst registers are the same,
+    // since the address and the written value are different in general
+    //      mov     [mov_0], mov_0
+    if (mov_0 == mov_1)
+      continue;
+
     // if the two src operands aren't connected, skip the gadget
     if (!BA->checkXchgPath(orig_1, mov_1))
       continue;
