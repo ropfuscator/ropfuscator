@@ -562,6 +562,11 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
   if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
     return false;
 
+  // skip scaled-index addressing mode since we cannot handle them
+  //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
+  if (MI->getOperand(3).isReg())
+    return false;
+
   // dump all the useful operands from the MachineInstr we are processing:
   //      mov     orig_0, [orig_1 + disp]
   orig_0 = convertToCapstoneReg(MI->getOperand(0).getReg()); // dst
@@ -647,6 +652,11 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   // sometimes mov instructions have operands that use segment registers, and
   // we just cannot handle them
   if (MI->getOperand(0).getReg() == 0 || MI->getOperand(5).getReg() == 0)
+    return false;
+
+  // skip scaled-index addressing mode since we cannot handle them
+  //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
+  if (MI->getOperand(2).isReg())
     return false;
 
   // dump all the useful operands from the MachineInstr we are processing:
