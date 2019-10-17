@@ -607,6 +607,11 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
     auto res =
         computeAddress(MI, orig_1, orig_disp - mov_disp, mov_1, scratchRegs);
 
+    // if "orig_0" is the same as "address", there is no room to back up
+    // temporary registers, so we skip this gadget
+    if (orig_0 == res && !(orig_0 == mov_0 && orig_0 == mov_1))
+      continue;
+
     if (res != X86_REG_INVALID) {
       address = res;
       mov = m;
@@ -623,18 +628,38 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 */
   // -----------
 
-  DoubleXchg(MI, orig_0, mov_0, address, mov_1);
+  // correctly exchanging the registers when some of them are the same
+  // is complicated and should be treated very carefully!
+  // FIXME: please simplify this
+  if (mov_0 == address) {
+    if (mov_0 == mov_1) {
+      // do nothing
+    } else if (orig_0 == mov_1) {
+      Xchg(MI, orig_0, mov_0);
+    } else {
+      // caution: order is important!
+      DoubleXchg(MI, address, mov_1, orig_0, mov_0);
+    }
+  } else {
+    DoubleXchg(MI, orig_0, mov_0, address, mov_1);
+  }
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
   // dbgs() << mov->asmInstr << "\n";
 
-  if (mov_0 == mov_1) {
-    // In this case, the result will be stored in `mov_0`=`mov_1`,
-    // and if `mov_1` is exchanged with `address` (i.e. scratch register),
-    // the loaded value will go into `address` and thus not stored in `orig_0`.
-    // We should just exchange `mov_0` and `orig_0` instead.
+  // correctly exchanging the registers when some of them are the same
+  // is complicated and should be treated very carefully!
+  // FIXME: please simplify this
+  if (mov_0 == address) {
+    if (mov_0 == mov_1 || orig_0 == mov_1) {
+      Xchg(MI, mov_0, orig_0);
+    } else {
+      // caution: order is important!
+      DoubleXchg(MI, mov_0, orig_0, mov_1, address);
+    }
+  } else if (mov_0 == mov_1) {
     Xchg(MI, mov_0, orig_0);
   } else {
     DoubleXchg(MI, mov_1, address, mov_0, orig_0);
