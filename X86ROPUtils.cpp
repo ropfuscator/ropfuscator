@@ -722,6 +722,10 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
     auto res =
         computeAddress(MI, orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
 
+    // skip if the src and dst registers are the same
+    if (res == orig_1)
+      continue;
+
     if (res != X86_REG_INVALID) {
       address = res;
       mov = m;
@@ -738,14 +742,34 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
   dbgs() << mov->asmInstr << "\n\n";
   */
 
-  DoubleXchg(MI, address, mov_0, orig_1, mov_1);
+  // correctly exchanging the registers when some of them are the same
+  // is complicated and should be treated very carefully!
+  if (mov_0 == orig_1) {
+    if (address == mov_1) {
+      Xchg(MI, address, mov_0);
+    } else {
+      DoubleXchg(MI, orig_1, mov_1, address, mov_0);
+    }
+  } else {
+    DoubleXchg(MI, address, mov_0, orig_1, mov_1);
+  }
 
   chain.emplace_back(ChainElem(mov));
   addToInstrMap(MI, ChainElem(mov));
 
   // dbgs() << mov->asmInstr << "\n";
 
-  DoubleXchg(MI, mov_1, orig_1, mov_0, address);
+  // correctly exchanging the registers when some of them are the same
+  // is complicated and should be treated very carefully!
+  if (mov_0 == orig_1) {
+    if (address == mov_1) {
+      Xchg(MI, mov_0, address);
+    } else {
+      DoubleXchg(MI, mov_0, address, mov_1, orig_1);
+    }
+  } else {
+    DoubleXchg(MI, mov_1, orig_1, mov_0, address);
+  }
 
   return true;
 }
