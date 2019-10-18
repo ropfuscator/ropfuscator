@@ -373,7 +373,7 @@ void BinaryAutopsy::applyGadgetFilters() {
                                               << "\n");
 }
 
-bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
+bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b, x86_reg c) {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
@@ -385,7 +385,7 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, x86_reg b, x86_reg c) {
           xgraph.checkPath(b, c, pred, dist, visited));
 }
 
-bool BinaryAutopsy::checkXchgPath(x86_reg a, vector<x86_reg> B) {
+bool BinaryAutopsy::areExchangeable(x86_reg a, vector<x86_reg> B) {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
@@ -476,8 +476,8 @@ ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
     // search for a generic "add REG0, REG1" gadget
     for (auto &gadget : findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
       if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
-          checkXchgPath(dst, gadget->getOp(0).reg) &&
-          checkXchgPath(src, gadget->getOp(1).reg)) {
+          areExchangeable(dst, gadget->getOp(0).reg) &&
+          areExchangeable(src, gadget->getOp(1).reg)) {
         auto xchgChain0 = exchangeRegs(dst, gadget->getOp(0).reg);
         auto xchgChain1 = exchangeRegs(src, gadget->getOp(1).reg);
 

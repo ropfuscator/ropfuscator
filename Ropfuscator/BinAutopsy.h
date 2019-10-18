@@ -127,10 +127,10 @@ public:
                                             x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
 
-  // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
-  // be mutually exchanged.
-  bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
-  bool checkXchgPath(x86_reg a, std::vector<x86_reg> B);
+  // areExchangeable - uses XChgGraph to check whether two (or more registers)
+  // can be mutually exchanged.
+  bool areExchangeable(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
+  bool areExchangeable(x86_reg a, std::vector<x86_reg> B);
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
