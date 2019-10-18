@@ -69,8 +69,8 @@ XchgPath XchgGraph::getPath(int src, int dest) {
   // llvm::dbgs() << "[getPath] Exchanging " << src << " with " << dest
   //              << " instead!\n";
 
-  assert(checkPath(src, dest, pred, dist, visited) &&
-         "Src and dest operand are not connected. Use checkPath() first.");
+  if (!checkPath(src, dest, pred, dist, visited))
+    return result;
 
   crawl = dest;
   path.push_back(crawl);

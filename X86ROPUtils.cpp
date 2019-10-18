@@ -153,14 +153,15 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
     ROPChain tmp1 = BA->initReg(scratchReg, immediate);
     if (tmp1.empty())
       continue;
-
-    ROPChain tmp2 = BA->addRegs(reg, scratchReg);
+    ROPChain tmp2 = BA->addRegs(reg, getEffectiveReg(scratchReg));
     if (tmp2.empty())
       continue;
 
     // at this point, the right combination has been found
     chain.insert(chain.end(), tmp1.begin(), tmp1.end());
     chain.insert(chain.end(), tmp2.begin(), tmp2.end());
+
+    undoXchgs(MI);
     return true;
   }
 
