@@ -451,11 +451,9 @@ ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
     // if a suitable gadget hasn't been found, try at least to search
     // for a generic "pop REG" gadget, with "REG" exchangeable with "dst"
     for (auto &gadget : findAllGadgets(X86_INS_POP, X86_OP_REG)) {
-      auto xchgChain = exchangeRegs(dst, gadget->getOp(0).reg);
+      if (areExchangeable(dst, gadget->getOp(0).reg)) {
+        auto xchgChain = exchangeRegs(dst, gadget->getOp(0).reg);
 
-      // if the two registers are exchangeable, the xchg chain is added to the
-      // rop chain
-      if (!xchgChain.empty()) {
         result.insert(result.end(), xchgChain.begin(), xchgChain.end());
         result.emplace_back(ChainElem(gadget));
         break;
@@ -478,6 +476,7 @@ ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
       if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
           areExchangeable(dst, gadget->getOp(0).reg) &&
           areExchangeable(src, gadget->getOp(1).reg)) {
+
         auto xchgChain0 = exchangeRegs(dst, gadget->getOp(0).reg);
         auto xchgChain1 = exchangeRegs(src, gadget->getOp(1).reg);
 
