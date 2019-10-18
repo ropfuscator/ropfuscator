@@ -194,12 +194,12 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
           continue;
 
         // REQ #2: add_0 must be at least exchangeable with reg
-        if (!BA->checkXchgPath(reg, add_0))
+        if (!BA->areExchangeable(reg, add_0))
           continue;
 
         // REQ #3: pop_0 (where we put the immediate) must be at least
         // exchangeable with add_1 (the src operand)
-        if (!BA->checkXchgPath(pop_0, add_1))
+        if (!BA->areExchangeable(pop_0, add_1))
           continue;
 
         // REQ #4: pop_0 must be at least exchangeable with a scratch register
@@ -207,7 +207,7 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
         for (auto &sr : scratchRegs) {
           if (sr == reg)
             continue;
-          if (BA->checkXchgPath(sr, pop_0)) {
+          if (BA->areExchangeable(sr, pop_0)) {
             scratch = sr;
 
             // if all these requirements are met, the whole gadget combination
@@ -303,15 +303,15 @@ x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
 
         // REQ #2: mov_0, add_0 and outputReg must belong to the same exchange
         // path (i.e. they are exchangeable)
-        if (!BA->checkXchgPath(mov_0, add_0, outputReg))
+        if (!BA->areExchangeable(mov_0, add_0, outputReg))
           continue;
 
         // REQ #3: pop_0, add_1 must belong to the same exchange path
-        if (!BA->checkXchgPath(pop_0, add_1))
+        if (!BA->areExchangeable(pop_0, add_1))
           continue;
 
         // REQ #4: mov_1, inputReg must belong to the same exchange path
-        if (!BA->checkXchgPath(mov_1, inputReg))
+        if (!BA->areExchangeable(mov_1, inputReg))
           continue;
 
         // REQ #5: mov_0 and pop_0 must be different, because we need the two
@@ -328,8 +328,8 @@ x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
           for (auto &sr2 : scratchRegs) {
             if (sr1 == sr2)
               continue;
-            if (BA->checkXchgPath(sr1, mov_0) &&
-                BA->checkXchgPath(sr2, pop_0)) {
+            if (BA->areExchangeable(sr1, mov_0) &&
+                BA->areExchangeable(sr2, pop_0)) {
               scratchR1 = sr1;
               scratchR2 = sr2;
 
@@ -490,7 +490,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     int mov_disp = m->getOp(1).mem.disp;
 
     // if the two dst operands aren't connected, skip the gadget
-    if (!BA->checkXchgPath(orig_0, mov_0))
+    if (!BA->areExchangeable(orig_0, mov_0))
       continue;
 
     // Of course, we do need to put in "mov_1" the value of "orig_1 + disp".
@@ -581,7 +581,7 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
     int mov_disp = m->getOp(0).mem.disp;
 
     // if the two src operands aren't connected, skip the gadget
-    if (!BA->checkXchgPath(orig_1, mov_1))
+    if (!BA->areExchangeable(orig_1, mov_1))
       continue;
 
     auto res =
