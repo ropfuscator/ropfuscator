@@ -211,7 +211,7 @@ void BinaryAutopsy::dumpGadgets() {
               asm_instr += ";";
             }
 
-            if (!gadgetLookup(asm_instr)) {
+            if (!findGadget(asm_instr)) {
               Microgadgets.push_back(Microgadget(instructions, asm_instr));
 
               cnt++;
@@ -226,7 +226,7 @@ void BinaryAutopsy::dumpGadgets() {
   input_file.close();
 }
 
-Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
+Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
   // Legacy: lookup by asm_instr string
   if (Microgadgets.empty()) {
     return nullptr;
@@ -240,8 +240,30 @@ Microgadget *BinaryAutopsy::gadgetLookup(string asmInstr) {
   return nullptr;
 }
 
+Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
+                                       x86_reg op1) {
+
+  for (auto &gadget : Microgadgets) {
+    // do these checks:
+    // - instruction opcodes must be the same
+    // - op0 must be a register operand, and must be the same register
+    // - if op1 is set, it must be a register operand, and must be the same
+    // register; otherwise skip this check (we must do this to deal with
+    // gadgets with one operand).
+
+    if (gadget.getID() == insn && gadget.getOp(0).type == X86_OP_REG &&
+        gadget.getOp(0).reg == op0 &&
+        (op1 == X86_REG_INVALID ||
+         (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
+
+      return &gadget;
+  }
+
+  return nullptr;
+}
+
 std::vector<Microgadget *>
-BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
+BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
 
   if (Microgadgets.empty()) {
@@ -258,7 +280,7 @@ BinaryAutopsy::gadgetLookup(x86_insn insn, x86_op_type op0, x86_op_type op1) {
 }
 
 std::vector<Microgadget *>
-BinaryAutopsy::gadgetLookup(x86_insn insn, x86_reg op0, x86_reg op1) {
+BinaryAutopsy::findAllGadgets(x86_insn insn, x86_reg op0, x86_reg op1) {
   std::vector<Microgadget *> res;
 
   if (Microgadgets.empty()) {
@@ -291,7 +313,7 @@ void BinaryAutopsy::buildXchgGraph() {
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
-  auto XchgGadgets = gadgetLookup(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
+  auto XchgGadgets = findAllGadgets(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
 
   if (XchgGadgets.empty()) {
     DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
@@ -383,11 +405,11 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
     // capstone.
-    auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
-                            static_cast<x86_reg>(edge.second));
+    auto res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
+                              static_cast<x86_reg>(edge.second));
     if (res.empty())
-      res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
-                         static_cast<x86_reg>(edge.first));
+      res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
+                           static_cast<x86_reg>(edge.first));
 
     result.push_back(res.front());
   }
@@ -403,11 +425,11 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
     // capstone.
-    auto res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
-                            static_cast<x86_reg>(edge.second));
+    auto res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
+                              static_cast<x86_reg>(edge.second));
     if (res.empty())
-      res = gadgetLookup(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
-                         static_cast<x86_reg>(edge.first));
+      res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
+                           static_cast<x86_reg>(edge.first));
 
     result.push_back(res.front());
   }
@@ -417,29 +439,44 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
 
 ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
   ROPChain result;
+  Microgadget *found = findGadget(X86_INS_POP, dst);
 
-  // search for "pop DST" gadgets
-  std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_POP, dst);
-  if (gadgets.empty()) {
-    // TODO
+  if (found) {
+    result.emplace_back(ChainElem(found));
+    result.emplace_back(val);
+  } else {
+    // if a suitable gadget hasn't been found, try at least to search
+    // for a generic "pop REG" gadget, with "REG" exchangeable with "dst"
+    auto gadgets = findAllGadgets(X86_INS_POP, X86_OP_REG);
+    for (auto &gadget : gadgets) {
+      if (checkXchgPath(dst, gadget->getOp(0).reg)) {
+        // TODO: emplace the whole xchg chain
+        break;
+      }
+    }
   }
-
-  result.emplace_back(ChainElem(gadgets.front()));
-  result.emplace_back(val);
 
   return result;
 }
 
 ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
   ROPChain result;
+  Microgadget *found = findGadget(X86_INS_ADD, dst, src);
 
-  // search for "add DST, SRC" gadgets
-  std::vector<Microgadget *> gadgets = gadgetLookup(X86_INS_ADD, dst, src);
-  if (gadgets.empty()) {
-    // TODO
+  if (found)
+    result.emplace_back(ChainElem(found));
+  else {
+    // search for a generic "add REG0, REG1" gadget
+    auto gadgets = findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
+    for (auto &gadget : gadgets) {
+      if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
+          checkXchgPath(dst, gadget->getOp(0).reg) &&
+          checkXchgPath(src, gadget->getOp(1).reg)) {
+        // TODO: emplace the whole xchg chain
+        break;
+      }
+    }
   }
-
-  result.emplace_back(ChainElem(gadgets.front()));
 
   return result;
 }
@@ -462,7 +499,7 @@ ROPChain BinaryAutopsy::load(x86_reg dst, x86_reg src) {
 
   // search for "mov DST, [SRC]" gadgets
   std::vector<Microgadget *> gadgets =
-      gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+      findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
   if (!gadgets.empty()) {
     for (auto &g : gadgets) {
       auto op1 = g->getOp(1);
@@ -481,7 +518,7 @@ ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
 
   // search for "mov DST, [SRC]" gadgets
   std::vector<Microgadget *> gadgets =
-      gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
+      findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
   if (!gadgets.empty()) {
     for (auto &g : gadgets) {
       auto op0 = g->getOp(0);
