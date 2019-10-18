@@ -148,91 +148,108 @@ void ROPEngine::undoXchgs(MachineInstr *MI) {
 bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
                             std::vector<x86_reg> const &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  Microgadget *pop, *add;
-  x86_reg pop_0, add_0, add_1;
-  x86_reg scratch = X86_REG_INVALID;
 
-  // pop    pop_0
-  // add    add_0, add_1
+  for (auto &scratchReg : scratchRegs) {
+    ROPChain tmp1 = BA->initReg(scratchReg, immediate);
+    if (tmp1.empty())
+      continue;
 
-  bool combinationFound = false;
+    ROPChain tmp2 = BA->addRegs(reg, scratchReg);
+    if (tmp2.empty())
+      continue;
 
-  for (auto &p : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
-    if (combinationFound)
-      break;
-    pop_0 = p->getOp(0).reg;
-    // dbgs() << p->asmInstr << "\n";
+    // at this point, the right combination has been found
+    chain.insert(chain.end(), tmp1.begin(), tmp1.end());
+    chain.insert(chain.end(), tmp2.begin(), tmp2.end());
+    return true;
+  }
 
-    for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
+  return false;
+  /*
+    Microgadget *pop, *add;
+    x86_reg pop_0, add_0, add_1;
+    x86_reg scratch = X86_REG_INVALID;
+
+    // pop    pop_0
+    // add    add_0, add_1
+
+    bool combinationFound = false;
+
+    for (auto &p : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
       if (combinationFound)
         break;
-      add_0 = a->getOp(0).reg;
-      add_1 = a->getOp(1).reg;
-      // dbgs() << a->asmInstr << "\n";
+      pop_0 = p->getOp(0).reg;
+      // dbgs() << p->asmInstr << "\n";
 
-      // REQ #1: src and dst operands cannot be the same
-      if (add_0 == add_1)
-        continue;
-
-      // REQ #2: add_0 must be at least exchangeable with reg
-      if (!BA->checkXchgPath(reg, add_0))
-        continue;
-
-      // REQ #3: pop_0 (where we put the immediate) must be at least
-      // exchangeable with add_1 (the src operand)
-      if (!BA->checkXchgPath(pop_0, add_1))
-        continue;
-
-      // REQ #4: pop_0 must be at least exchangeable with a scratch register
-      // that must be different from reg.
-      for (auto &sr : scratchRegs) {
-        if (sr == reg)
-          continue;
-        if (BA->checkXchgPath(sr, pop_0)) {
-          scratch = sr;
-
-          // if all these requirements are met, the whole gadget combination
-          // is saved.
-          add = a;
-          pop = p;
-
-          combinationFound = true;
+      for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
+        if (combinationFound)
           break;
+        add_0 = a->getOp(0).reg;
+        add_1 = a->getOp(1).reg;
+        // dbgs() << a->asmInstr << "\n";
+
+        // REQ #1: src and dst operands cannot be the same
+        if (add_0 == add_1)
+          continue;
+
+        // REQ #2: add_0 must be at least exchangeable with reg
+        if (!BA->checkXchgPath(reg, add_0))
+          continue;
+
+        // REQ #3: pop_0 (where we put the immediate) must be at least
+        // exchangeable with add_1 (the src operand)
+        if (!BA->checkXchgPath(pop_0, add_1))
+          continue;
+
+        // REQ #4: pop_0 must be at least exchangeable with a scratch register
+        // that must be different from reg.
+        for (auto &sr : scratchRegs) {
+          if (sr == reg)
+            continue;
+          if (BA->checkXchgPath(sr, pop_0)) {
+            scratch = sr;
+
+            // if all these requirements are met, the whole gadget combination
+            // is saved.
+            add = a;
+            pop = p;
+
+            combinationFound = true;
+            break;
+          }
         }
       }
     }
-  }
 
-  if (!combinationFound)
-    return false;
+    if (!combinationFound)
+      return false;
 
-  // dbgs() << "[*] Chosen gadgets: \n";
-  // dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
-  // dbgs() << "[*] Scratch reg: " << scratch << "\n";
+    // dbgs() << "[*] Chosen gadgets: \n";
+    // dbgs() << pop->asmInstr << "\n" << add->asmInstr << "\n";
+    // dbgs() << "[*] Scratch reg: " << scratch << "\n";
 
-  // Okay, now it's time to build the chain!
+    // Okay, now it's time to build the chain!
 
-  // POP
-  Xchg(MI, getEffectiveReg(scratch), pop_0);
+    // POP
+    Xchg(MI, getEffectiveReg(scratch), pop_0);
 
-  chain.emplace_back(ChainElem(pop));
-  // dbgs() << pop->asmInstr << "\n"
-  //<< "imm: " << immediate;
-  chain.emplace_back(immediate);
+    chain.emplace_back(ChainElem(pop));
+    // dbgs() << pop->asmInstr << "\n"
+    //<< "imm: " << immediate;
+    chain.emplace_back(immediate);
 
-  addToInstrMap(MI, ChainElem(pop));
-  addToInstrMap(MI, ChainElem(immediate));
+    addToInstrMap(MI, ChainElem(pop));
+    addToInstrMap(MI, ChainElem(immediate));
 
-  // ADD
-  Xchg(MI, getEffectiveReg(reg), add_0);
-  Xchg(MI, getEffectiveReg(scratch), add_1);
+    // ADD
+    Xchg(MI, getEffectiveReg(reg), add_0);
+    Xchg(MI, getEffectiveReg(scratch), add_1);
 
-  chain.emplace_back(ChainElem(add));
-  addToInstrMap(MI, ChainElem(add));
+    chain.emplace_back(ChainElem(add));
+    addToInstrMap(MI, ChainElem(add));
 
-  // dbgs() << add->asmInstr << "\n";
-  undoXchgs(MI);
-  return true;
+    // dbgs() << add->asmInstr << "\n";
+    undoXchgs(MI);*/
 }
 
 x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
@@ -262,18 +279,18 @@ x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
   // pop and add instructions, and with only register operands.
   bool combinationFound = false;
 
-  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_REG)) {
+  for (auto &m : BA->findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_REG)) {
     if (combinationFound)
       break;
     mov_0 = m->getOp(0).reg;
     mov_1 = m->getOp(1).reg;
 
-    for (auto &p : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
+    for (auto &p : BA->findAllGadgets(X86_INS_POP, X86_OP_REG)) {
       if (combinationFound)
         break;
       pop_0 = p->getOp(0).reg;
 
-      for (auto &a : BA->gadgetLookup(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
+      for (auto &a : BA->findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
         if (combinationFound)
           break;
         add_0 = a->getOp(0).reg;
@@ -466,7 +483,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
   // like this (parametrising the operands):
   //      mov     mov_0, [mov_1]
 
-  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
+  for (auto &m : BA->findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
     mov_0 = m->getOp(0).reg;
     mov_1 = static_cast<x86_reg>(m->getOp(1).mem.base);
     int mov_disp = m->getOp(1).mem.disp;
@@ -555,7 +572,7 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
 
   orig_disp = MI->getOperand(3).getImm(); // displacement
 
-  for (auto &m : BA->gadgetLookup(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
+  for (auto &m : BA->findAllGadgets(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
     // dbgs() << m->asmInstr << "\n";
     //      mov     [mov_0], mov_1
     mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
@@ -624,18 +641,18 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
       return chain;
     break;
   }
-  case X86::MOV32rm: {
-    if (!handleMov32rm(&MI, scratchRegs)) {
-      return chain;
-    }
-    break;
-  }
-  case X86::MOV32mr: {
-    if (!handleMov32mr(&MI, scratchRegs)) {
-      return chain;
-    }
-    break;
-  }
+  // case X86::MOV32rm: {
+  //   if (!handleMov32rm(&MI, scratchRegs)) {
+  //     return chain;
+  //   }
+  //   break;
+  // }
+  // case X86::MOV32mr: {
+  //   if (!handleMov32mr(&MI, scratchRegs)) {
+  //     return chain;
+  //   }
+  //   break;
+  // }
   default:
     return chain;
   }

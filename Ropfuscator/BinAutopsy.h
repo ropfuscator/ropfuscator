@@ -118,12 +118,14 @@ public:
 
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
-  Microgadget *gadgetLookup(std::string asmInstr);
-  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_op_type op0,
+  Microgadget *findGadget(std::string asmInstr);
+  Microgadget *findGadget(x86_insn insn, x86_reg op0,
+                          x86_reg op1 = X86_REG_INVALID);
+  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
                                           x86_op_type op1 = x86_op_type());
-  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_reg op0,
+  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
                                           x86_reg op1 = X86_REG_INVALID);
-  std::vector<Microgadget *> gadgetLookup(GadgetClass_t Class);
+  std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
 
   // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
   // be mutually exchanged.
