@@ -122,9 +122,9 @@ public:
   Microgadget *findGadget(x86_insn insn, x86_reg op0,
                           x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
-                                          x86_op_type op1 = x86_op_type());
+                                            x86_op_type op1 = x86_op_type());
   std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
-                                          x86_reg op1 = X86_REG_INVALID);
+                                            x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
 
   // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
@@ -135,9 +135,9 @@ public:
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
   std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
-
+  ROPChain exchangeRegs(x86_reg reg0, x86_reg reg1);
   std::vector<Microgadget *> undoXchgs();
-
+  x86_reg getEffectiveReg(x86_reg reg);
   // -------------------------------------------------------------
   // GADGET PRIMITIVES
 

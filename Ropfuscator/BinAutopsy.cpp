@@ -398,6 +398,7 @@ bool BinaryAutopsy::checkXchgPath(x86_reg a, vector<x86_reg> B) {
 }
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
+  // TODO: directly return the ROP chain, like the gadget primitives
   vector<Microgadget *> result;
   XchgPath path = xgraph.getPath(a, b);
 
@@ -405,6 +406,8 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
     // capstone.
+
+    // TODO: use the findGadget method instead
     auto res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
                               static_cast<x86_reg>(edge.second));
     if (res.empty())
@@ -447,10 +450,14 @@ ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
   } else {
     // if a suitable gadget hasn't been found, try at least to search
     // for a generic "pop REG" gadget, with "REG" exchangeable with "dst"
-    auto gadgets = findAllGadgets(X86_INS_POP, X86_OP_REG);
-    for (auto &gadget : gadgets) {
-      if (checkXchgPath(dst, gadget->getOp(0).reg)) {
-        // TODO: emplace the whole xchg chain
+    for (auto &gadget : findAllGadgets(X86_INS_POP, X86_OP_REG)) {
+      auto xchgChain = exchangeRegs(dst, gadget->getOp(0).reg);
+
+      // if the two registers are exchangeable, the xchg chain is added to the
+      // rop chain
+      if (!xchgChain.empty()) {
+        result.insert(result.end(), xchgChain.begin(), xchgChain.end());
+        result.emplace_back(ChainElem(gadget));
         break;
       }
     }
@@ -467,12 +474,16 @@ ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
     result.emplace_back(ChainElem(found));
   else {
     // search for a generic "add REG0, REG1" gadget
-    auto gadgets = findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG);
-    for (auto &gadget : gadgets) {
+    for (auto &gadget : findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
       if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
           checkXchgPath(dst, gadget->getOp(0).reg) &&
           checkXchgPath(src, gadget->getOp(1).reg)) {
-        // TODO: emplace the whole xchg chain
+        auto xchgChain0 = exchangeRegs(dst, gadget->getOp(0).reg);
+        auto xchgChain1 = exchangeRegs(src, gadget->getOp(1).reg);
+
+        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+        result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+        result.emplace_back(ChainElem(gadget));
         break;
       }
     }
@@ -530,4 +541,22 @@ ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
   }
 
   return result;
+}
+
+ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
+  ROPChain result;
+  if (reg0 == reg1)
+    return result;
+  llvm::dbgs() << "\tXCHG chain for " << reg0 << ", " << reg1 << "\n";
+  for (auto &gadget : getXchgPath(reg0, reg1)) {
+    result.emplace_back(ChainElem(gadget));
+    llvm::dbgs() << gadget->asmInstr << "\n";
+  }
+  llvm::dbgs() << "\n";
+
+  return result;
+}
+
+x86_reg BinaryAutopsy::getEffectiveReg(x86_reg reg) {
+  return static_cast<x86_reg>(xgraph.searchLogicalReg(reg));
 }
