@@ -242,21 +242,46 @@ Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
 
 Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
                                        x86_reg op1) {
-
   for (auto &gadget : Microgadgets) {
-    if (gadget.getID() == insn &&               // same opcode
-        gadget.getOp(0).type == X86_OP_REG &&   // operand 0 is a register
-        gadget.getOp(0).reg == op0 &&           // operand 0 is equal to op0
+    if (gadget.getID() == insn &&               // same instruction opcode
+        gadget.getOp(0).type == X86_OP_REG &&   // operand 0: register
+        gadget.getOp(0).reg == op0 &&           // operand 0: equal to op0
         (op1 == X86_REG_INVALID ||              // if operand 1 is present:
-         (gadget.getOp(1).type == X86_OP_REG && // it is a register
-          gadget.getOp(1).reg == op1)))         // it is equal to op1
+         (gadget.getOp(1).type == X86_OP_REG && //   operand 1: register
+          gadget.getOp(1).reg == op1)))         //   operand 1: equal to op1
 
       return &gadget;
   }
-
   return nullptr;
 }
 
+Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_op_mem op0,
+                                       x86_reg op1) {
+  for (auto &gadget : Microgadgets) {
+    if (gadget.getID() == insn &&               // same instruction opcode
+        gadget.getOp(0).type == X86_OP_MEM &&   // operand 0: memory
+        gadget.getOp(0).mem.base == op0.base && // operand 0: equal to op0
+        gadget.getOp(1).type == X86_OP_REG &&   // operand 1: register
+        gadget.getOp(1).reg == op1)             // operand 1: equal to op1
+
+      return &gadget;
+  }
+  return nullptr;
+}
+
+Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
+                                       x86_op_mem op1) {
+  for (auto &gadget : Microgadgets) {
+    if (gadget.getID() == insn &&             // same instruction opcode
+        gadget.getOp(0).type == X86_OP_REG && // operand 0: register
+        gadget.getOp(0).reg == op0 &&         // operand 0: equal to op0
+        gadget.getOp(1).type == X86_OP_MEM && // operand 1: memory
+        gadget.getOp(1).mem.base == op1.base) // operand 1: equal to op1
+
+      return &gadget;
+  }
+  return nullptr;
+}
 std::vector<Microgadget *>
 BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
@@ -439,24 +464,16 @@ ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
   ROPChain result;
 
   Microgadget *found = findGadget(X86_INS_POP, dst);
-  if (!found) {
-    // if a suitable gadget hasn't been found, try at least to search
-    // for a generic "pop REG" gadget, with "REG" exchangeable with "dst"
-    for (auto &gadget : findAllGadgets(X86_INS_POP, X86_OP_REG)) {
-      if (areExchangeable(dst, gadget->getOp(0).reg)) {
-        auto xchgChain = exchangeRegs(dst, gadget->getOp(0).reg);
-        result.insert(result.end(), xchgChain.begin(), xchgChain.end());
-        found = gadget;
-        break;
-      }
-    }
-    if (!found)
-      return result; // empty
+  if (found)
+    result.emplace_back(ChainElem(found));
+  else {
+    result = findGenericGadget(X86_INS_POP, X86_OP_REG, dst);
+
+    if (result.empty())
+      return result;
   }
 
-  result.emplace_back(ChainElem(found));
   result.emplace_back(val);
-
   return result;
 }
 
@@ -464,67 +481,33 @@ ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
   ROPChain result;
 
   Microgadget *found = findGadget(X86_INS_ADD, dst, src);
-  if (!found) {
-    for (auto &gadget : findAllGadgets(X86_INS_ADD, X86_OP_REG, X86_OP_REG)) {
-      if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
-          areExchangeable(dst, gadget->getOp(0).reg) &&
-          areExchangeable(src, gadget->getOp(1).reg)) {
+  if (found)
+    result.emplace_back(ChainElem(found));
+  else {
+    result = findGenericGadget(X86_INS_ADD, X86_OP_REG, dst, X86_OP_REG, src);
 
-        auto xchgChain0 = exchangeRegs(dst, gadget->getOp(0).reg);
-        auto xchgChain1 = exchangeRegs(src, gadget->getOp(1).reg);
-
-        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
-        result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
-        found = gadget;
-        break;
-      }
-    }
-    if (!found)
-      return result; // empty
+    if (result.empty())
+      return result;
   }
 
-  result.emplace_back(ChainElem(found));
-
   return result;
 }
 
-ROPChain BinaryAutopsy::calcAddr(x86_reg dst, x86_reg src, unsigned displ) {
-  ROPChain result, tmp;
-  // TODO: execute in reverse order
-
-  tmp = initReg(dst, displ);
-  result.insert(result.end(), tmp.begin(), tmp.end());
-
-  tmp = addRegs(dst, src);
-  result.insert(result.end(), tmp.begin(), tmp.end());
-
-  return result;
-}
-
-ROPChain BinaryAutopsy::load(x86_reg dst, x86_mem src) {
+ROPChain BinaryAutopsy::load(x86_reg dst, x86_reg src) {
   ROPChain result;
 
-  Microgadget *found = findGadget(X86_INS_MOV, dst, src);
-  if (!found) {
-    for (auto &gadget : findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_MEM)) {
-      if (gadget->getOp(0).reg != gadget->getOp(1).reg &&
-          areExchangeable(dst, gadget->getOp(0).reg) &&
-          areExchangeable(src, gadget->getOp(1).reg)) {
+  x86_op_mem src_mem = {};
+  src_mem.base = src;
 
-        auto xchgChain0 = exchangeRegs(dst, gadget->getOp(0).reg);
-        auto xchgChain1 = exchangeRegs(src, gadget->getOp(1).reg);
+  Microgadget *found = findGadget(X86_INS_MOV, dst, src_mem);
+  if (found)
+    result.emplace_back(ChainElem(found));
+  else {
+    result = findGenericGadget(X86_INS_ADD, X86_OP_REG, dst, X86_OP_MEM, src);
 
-        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
-        result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
-        found = gadget;
-        break;
-      }
-    }
-    if (!found)
-      return result; // empty
+    if (result.empty())
+      return result;
   }
-
-  result.emplace_back(ChainElem(found));
 
   return result;
 }
@@ -532,19 +515,55 @@ ROPChain BinaryAutopsy::load(x86_reg dst, x86_mem src) {
 ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
   ROPChain result;
 
-  // search for "mov DST, [SRC]" gadgets
-  std::vector<Microgadget *> gadgets =
-      findAllGadgets(X86_INS_MOV, X86_OP_REG, X86_OP_MEM);
-  if (!gadgets.empty()) {
-    for (auto &g : gadgets) {
-      auto op0 = g->getOp(0);
+  x86_op_mem dst_mem = {};
+  dst_mem.base = dst;
 
-      if (op0.mem.segment == 0 && op0.mem.index == 0 && op0.mem.scale == 1)
-        // TODO: xchg
-        result.emplace_back(ChainElem(g));
-    }
+  Microgadget *found = findGadget(X86_INS_MOV, dst_mem, src);
+  if (found)
+    result.emplace_back(ChainElem(found));
+  else {
+    result = findGenericGadget(X86_INS_ADD, X86_OP_MEM, dst, X86_OP_REG, src);
+
+    if (result.empty())
+      return result;
   }
 
+  return result;
+}
+
+ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
+                                          x86_reg op0, x86_op_type op1_type,
+                                          x86_reg op1) {
+  ROPChain result;
+  x86_reg gadget_op0, gadget_op1;
+
+  for (auto &gadget : findAllGadgets(insn, op0_type, op1_type)) {
+    if (op0_type == X86_OP_REG)
+      gadget_op0 = gadget->getOp(0).reg;
+    else
+      gadget_op0 = (x86_reg)gadget->getOp(0).mem.base;
+
+    if (op1 != X86_REG_INVALID) { // only if op1 is present
+      if (op1_type == X86_OP_REG)
+        gadget_op1 = gadget->getOp(1).reg;
+      else
+        gadget_op1 = gadget->getOp(1).reg;
+    }
+    if (areExchangeable(op0, gadget_op0) &&
+        (op1 == X86_REG_INVALID // only if op1 is present
+         || areExchangeable(op1, gadget_op1))) {
+
+      auto xchgChain0 = exchangeRegs(op0, gadget_op0);
+      result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+
+      if (op1 != X86_REG_INVALID) { // only if op1 is present
+        auto xchgChain1 = exchangeRegs(op1, gadget_op1);
+        result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+      }
+      result.emplace_back(ChainElem(gadget));
+      break;
+    }
+  }
   return result;
 }
 
