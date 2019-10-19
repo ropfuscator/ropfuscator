@@ -150,7 +150,7 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
 
   for (auto &scratchReg : scratchRegs) {
-    ROPChain init = BA->initReg(scratchReg, immediate);
+    ROPChain init = BA->initReg(getEffectiveReg(scratchReg), immediate);
     if (init.empty())
       continue;
     ROPChain add = BA->addRegs(reg, getEffectiveReg(scratchReg));
@@ -255,7 +255,10 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
 x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
                                   int displacement, x86_reg outputReg,
                                   std::vector<x86_reg> scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+
+  addImmToReg(MI, outputReg, displacement, scratchRegs);
+
+  /*
   llvm::dbgs() << "eax: " << X86_REG_EAX << ", ebp: " << X86_REG_EBP
                << ", ecx: " << X86_REG_ECX << ", edx: " << X86_REG_EDX
                << ", edi:" << X86_REG_EDI << ", esi: " << X86_REG_ESI << "\n";
@@ -402,7 +405,7 @@ x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
   // return the register where the computed address is saved. It is the LOGICAL
   // register, so whoever will use it, has to find the EFFECTIVE register that
   // holds it.
-  return scratchR1;
+  return scratchR1;*/
 }
 
 bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
