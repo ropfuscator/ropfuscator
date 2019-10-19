@@ -150,16 +150,15 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
 
   for (auto &scratchReg : scratchRegs) {
-    ROPChain tmp1 = BA->initReg(scratchReg, immediate);
-    if (tmp1.empty())
+    ROPChain init = BA->initReg(scratchReg, immediate);
+    if (init.empty())
       continue;
-    ROPChain tmp2 = BA->addRegs(reg, getEffectiveReg(scratchReg));
-    if (tmp2.empty())
+    ROPChain add = BA->addRegs(reg, getEffectiveReg(scratchReg));
+    if (add.empty())
       continue;
 
-    // at this point, the right combination has been found
-    chain.insert(chain.end(), tmp1.begin(), tmp1.end());
-    chain.insert(chain.end(), tmp2.begin(), tmp2.end());
+    chain.insert(chain.end(), init.begin(), init.end());
+    chain.insert(chain.end(), add.begin(), add.end());
 
     undoXchgs(MI);
     return true;
