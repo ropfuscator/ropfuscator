@@ -102,7 +102,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
   // Allocate memory and get the symbol table
   size = bfd_get_dynamic_symtab_upper_bound(BfdHandle);
-  auto **asymtab = static_cast<asymbol **>(malloc(size));
+  auto **asymtab = (asymbol **)malloc(size);
   nsym = bfd_canonicalize_dynamic_symtab(BfdHandle, asymtab);
 
   // Scan for all the symbols
@@ -183,8 +183,7 @@ void BinaryAutopsy::dumpGadgets() {
     int cnt = 0;
 
     // Scan for RET instructions
-    for (uint64_t i = s.Address;
-         i < static_cast<uint64_t>(s.Address + s.Length); i++) {
+    for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length); i++) {
 
       if (buf[i] == *ret) {
         size_t offset = i + 1;
@@ -427,14 +426,13 @@ vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
     // have to find the right gadget with the same operand order as decoded by
     // capstone.
 
-    // TODO: use the findGadget method instead
-    auto res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
-                              static_cast<x86_reg>(edge.second));
-    if (res.empty())
-      res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
-                           static_cast<x86_reg>(edge.first));
+    auto found =
+        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+    if (!found)
+      found =
+          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
-    result.push_back(res.front());
+    result.push_back(found);
   }
 
   return result;
@@ -448,13 +446,12 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
     // even if the XCHG instruction doesn't care about the order of operands, we
     // have to find the right gadget with the same operand order as decoded by
     // capstone.
-    auto res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.first),
-                              static_cast<x86_reg>(edge.second));
-    if (res.empty())
-      res = findAllGadgets(X86_INS_XCHG, static_cast<x86_reg>(edge.second),
-                           static_cast<x86_reg>(edge.first));
+    auto found =
+        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+    if (!found)
+      res = findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
-    result.push_back(res.front());
+    result.push_back(found);
   }
 
   return result;
