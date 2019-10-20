@@ -449,7 +449,7 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
     auto found =
         findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
     if (!found)
-      res = findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
+      found = findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
     result.push_back(found);
   }

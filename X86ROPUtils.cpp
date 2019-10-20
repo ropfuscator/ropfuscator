@@ -458,30 +458,44 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
 bool ROPEngine::handleMov32rm(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
-  int orig_disp;
-  Microgadget *mov;
 
-  // no scratch registers are available, or the dst operand is ESP (we are
-  // unable to modify it since we are using microgadgets) -> abort.
-  if (scratchRegs.size() < 2)
+  // Preliminary checks
+  if (scratchRegs.size() < 1 || // there isn't at least 1 scratch register
+      (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
+       || MI->getOperand(1).getReg() == 0))
     return false;
 
-  // sometimes mov instructions have operands that use segment registers, and
-  // we just cannot handle them
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
+
+  unsigned displacement;
+  if (MI->getOperand(4).isImm())
+    displacement = MI->getOperand(4).getImm();
+  else
     return false;
 
-  // dump all the useful operands from the MachineInstr we are processing:
-  //      mov     orig_0, [orig_1 + disp]
-  orig_0 = convertToCapstoneReg(MI->getOperand(0).getReg()); // dst
-  orig_1 = convertToCapstoneReg(MI->getOperand(1).getReg()); // src
+  for (auto &scratchReg : scratchRegs) {
+    ROPChain init =
+        BA->initReg(getEffectiveReg(scratchReg), displacement - 0x58);
+    ROPChain add = BA->addRegs(getEffectiveReg(scratchReg), src);
+    ROPChain load = BA->load(dst, getEffectiveReg(scratchReg));
 
-  if (!MI->getOperand(4).isImm())
-    return false;
+    if (init.empty() || add.empty() || load.empty()) {
+      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      continue;
+    }
+    chain.insert(chain.end(), init.begin(), init.end());
+    chain.insert(chain.end(), add.begin(), add.end());
+    chain.insert(chain.end(), load.begin(), load.end());
 
-  orig_disp = MI->getOperand(4).getImm(); // displacement
+    undoXchgs(MI);
+    return true;
+  }
 
+  return false;
+
+  /*
   // We will replace this instruction with its register-register variant,
   // like this (parametrising the operands):
   //      mov     mov_0, [mov_1]
@@ -525,7 +539,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
   /*dbgs() << "Results returned in: " << address << "\n";
   dbgs() << "[*] Chosen gadgets: \n";
   dbgs() << mov->asmInstr << "\n\n";
-*/
+
   // -----------
 
   dbgs() << "MOV32MR. Results in " << address << " ("
@@ -542,7 +556,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
 
   // dbgs() << mov->asmInstr << "\n";
   undoXchgs(MI);
-  return true;
+  return true;*/
 }
 
 bool ROPEngine::handleMov32mr(MachineInstr *MI,
@@ -644,12 +658,12 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
       return chain;
     break;
   }
-  // case X86::MOV32rm: {
-  //   if (!handleMov32rm(&MI, scratchRegs)) {
-  //     return chain;
-  //   }
-  //   break;
-  // }
+  case X86::MOV32rm: {
+    if (!handleMov32rm(&MI, scratchRegs)) {
+      return chain;
+    }
+    break;
+  }
   // case X86::MOV32mr: {
   //   if (!handleMov32mr(&MI, scratchRegs)) {
   //     return chain;
