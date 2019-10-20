@@ -571,16 +571,13 @@ ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
   ROPChain result;
   if (reg0 == reg1)
     return result;
-  llvm::dbgs() << "\tXCHG chain for " << reg0 << ", " << reg1 << "\n";
-  for (auto &gadget : getXchgPath(reg0, reg1)) {
+
+  for (auto &gadget : getXchgPath(reg0, reg1))
     result.emplace_back(ChainElem(gadget));
-    llvm::dbgs() << gadget->asmInstr << "\n";
-  }
-  llvm::dbgs() << "\n";
 
   return result;
 }
 
 x86_reg BinaryAutopsy::getEffectiveReg(x86_reg reg) {
-  return static_cast<x86_reg>(xgraph.searchLogicalReg(reg));
+  return (x86_reg)xgraph.searchLogicalReg(reg);
 }
