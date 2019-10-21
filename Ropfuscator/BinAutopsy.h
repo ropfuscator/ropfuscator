@@ -34,6 +34,7 @@
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,8 @@ public:
 
   // Microgadgets - results from dumpGadgets() are placed here
   std::vector<Microgadget> Microgadgets;
+
+  std::map<std::string, std::vector<Microgadget>> GadgetPrimitives;
 
   // BinaryPath - path of the binary file that is being analysed
   char *BinaryPath;

@@ -151,12 +151,12 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
 
   for (auto &scratchReg : scratchRegs) {
     ROPChain init = BA->initReg(getEffectiveReg(scratchReg), immediate);
-    if (init.empty())
-      continue;
     ROPChain add = BA->addRegs(reg, getEffectiveReg(scratchReg));
-    if (add.empty())
-      continue;
 
+    if (init.empty() || add.empty()) {
+      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      continue;
+    }
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), add.begin(), add.end());
 
@@ -470,18 +470,37 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
   unsigned displacement;
-  if (MI->getOperand(4).isImm())
+  if (MI->getOperand(4).isImm()) // is an immediate and not a symbol
     displacement = MI->getOperand(4).getImm();
   else
     return false;
 
   for (auto &scratchReg : scratchRegs) {
-    ROPChain init =
-        BA->initReg(getEffectiveReg(scratchReg), displacement - 0x58);
+    llvm::dbgs() << "*******\ninit: " << scratchReg << "("
+                 << getEffectiveReg(scratchReg) << "), " << displacement
+                 << "\n";
+    ROPChain init = BA->initReg(getEffectiveReg(scratchReg), displacement);
+    for (auto &a : init) {
+      if (a.type == GADGET)
+        llvm::dbgs() << a.microgadget->asmInstr << "\n";
+    }
+
+    llvm::dbgs() << "*******\nadd: " << scratchReg << "("
+                 << getEffectiveReg(scratchReg) << "), " << src << "\n";
     ROPChain add = BA->addRegs(getEffectiveReg(scratchReg), src);
+    for (auto &a : add) {
+      llvm::dbgs() << a.microgadget->asmInstr << "\n";
+    }
+
+    llvm::dbgs() << "*******\nload: " << dst << ", " << scratchReg << "("
+                 << getEffectiveReg(scratchReg) << ")\n";
     ROPChain load = BA->load(dst, getEffectiveReg(scratchReg));
+    for (auto &a : load) {
+      llvm::dbgs() << a.microgadget->asmInstr << "\n";
+    }
 
     if (init.empty() || add.empty() || load.empty()) {
+      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }

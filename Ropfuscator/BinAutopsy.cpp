@@ -367,15 +367,17 @@ void BinaryAutopsy::applyGadgetFilters() {
            g->getOp(1).mem.base == X86_REG_ESP)) ||
 
          // gadgets with memory operands having index and segment
-         // registers, or invalid base register
+         // registers, or invalid base register, or a displacement value
          ((g->getOp(0).type == X86_OP_MEM &&
            (g->getOp(0).mem.base == X86_REG_INVALID ||
             g->getOp(0).mem.index != X86_REG_INVALID ||
-            g->getOp(0).mem.segment != X86_REG_INVALID)) ||
+            g->getOp(0).mem.segment != X86_REG_INVALID ||
+            g->getOp(0).mem.disp != 0)) ||
           (g->getOp(1).type == X86_OP_MEM &&
            (g->getOp(1).mem.base == X86_REG_INVALID ||
             g->getOp(1).mem.index != X86_REG_INVALID ||
-            g->getOp(1).mem.segment != X86_REG_INVALID)))) {
+            g->getOp(1).mem.segment != X86_REG_INVALID ||
+            g->getOp(1).mem.disp != 0)))) {
 
       DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs()
                                          << "[GadgetFilter]\texcluded: "
@@ -386,6 +388,57 @@ void BinaryAutopsy::applyGadgetFilters() {
       ++g;
     }
   }
+
+  // Categorise the gadgets in primitives
+  for (auto &gadget : Microgadgets) {
+    switch (gadget.getID()) {
+    case X86_INS_POP: {
+      // pop REG: init
+      if (gadget.getOp(0).type == X86_OP_REG)
+        GadgetPrimitives["init"].push_back(gadget);
+      break;
+    }
+    case X86_INS_ADD: {
+      // add REG1, REG2: add
+      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["add"].push_back(gadget);
+      break;
+    }
+    case X86_INS_MOV: {
+      // mov REG1, REG2: copy
+      if (gadget.getOp(0).type == X86_OP_REG && // Register-register: copy
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["copy"].push_back(gadget);
+
+      else if (gadget.getOp(0).type == X86_OP_REG && // Register-memory: load
+               gadget.getOp(1).type == X86_OP_MEM) {
+        if (gadget.getOp(0).reg == gadget.getOp(1).mem.base)
+          // data is loaded in the same register of the source
+          GadgetPrimitives["load_1"].push_back(gadget);
+        else
+          // data is loaded onto another register
+          GadgetPrimitives["load_2"].push_back(gadget);
+
+      } else if (gadget.getOp(0).type == X86_OP_MEM // Register-memory: store
+                 && gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["store"].push_back(gadget);
+      break;
+    }
+    case X86_INS_XCHG: {
+      // xchg REG1, REG2: xchg
+      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["xchg"].push_back(gadget);
+      break;
+    }
+    default:
+      continue;
+    }
+  }
+  llvm::dbgs() << "RESULTS OF PRIMITIVE CATEGORISATION:\n \tinit : "
+               << GadgetPrimitives["init"].size()
+               << "\n \tadd: " << GadgetPrimitives["add"].size() << "\n ";
 
   DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << "[GadgetFilter]\t" << excluded
                                               << " gadgets have been excluded!"
@@ -449,7 +502,8 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
     auto found =
         findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
     if (!found)
-      found = findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
+      found =
+          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
     result.push_back(found);
   }
@@ -500,7 +554,7 @@ ROPChain BinaryAutopsy::load(x86_reg dst, x86_reg src) {
   if (found)
     result.emplace_back(ChainElem(found));
   else {
-    result = findGenericGadget(X86_INS_ADD, X86_OP_REG, dst, X86_OP_MEM, src);
+    result = findGenericGadget(X86_INS_MOV, X86_OP_REG, dst, X86_OP_MEM, src);
 
     if (result.empty())
       return result;
@@ -519,7 +573,7 @@ ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
   if (found)
     result.emplace_back(ChainElem(found));
   else {
-    result = findGenericGadget(X86_INS_ADD, X86_OP_MEM, dst, X86_OP_REG, src);
+    result = findGenericGadget(X86_INS_MOV, X86_OP_MEM, dst, X86_OP_REG, src);
 
     if (result.empty())
       return result;
@@ -535,6 +589,7 @@ ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
   x86_reg gadget_op0, gadget_op1;
 
   for (auto &gadget : findAllGadgets(insn, op0_type, op1_type)) {
+    // Step 1: extract registers basing on the operand type (REG/MEM)
     if (op0_type == X86_OP_REG)
       gadget_op0 = gadget->getOp(0).reg;
     else
@@ -544,19 +599,29 @@ ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
       if (op1_type == X86_OP_REG)
         gadget_op1 = gadget->getOp(1).reg;
       else
-        gadget_op1 = gadget->getOp(1).reg;
+        gadget_op1 = (x86_reg)gadget->getOp(1).mem.base;
     }
+
+    // Step 2: check if given op0 and op1 are respectively exchangeable with
+    // op0 and op1 of the gadget
     if (areExchangeable(op0, gadget_op0) &&
         (op1 == X86_REG_INVALID // only if op1 is present
          || areExchangeable(op1, gadget_op1))) {
 
-      auto xchgChain0 = exchangeRegs(op0, gadget_op0);
-      result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
-
-      if (op1 != X86_REG_INVALID) { // only if op1 is present
+      // exchange src operands first
+      if (op1 != X86_REG_INVALID) {
+        llvm::dbgs() << "\tgadget: " << gadget->asmInstr
+                     << ", entered in 2° IF \n";
         auto xchgChain1 = exchangeRegs(op1, gadget_op1);
         result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
       }
+
+      llvm::dbgs() << "\tgadget: " << gadget->asmInstr
+                   << ", entered in 1° IF \n";
+
+      auto xchgChain0 = exchangeRegs(op0, gadget_op0);
+      result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+
       result.emplace_back(ChainElem(gadget));
       break;
     }
