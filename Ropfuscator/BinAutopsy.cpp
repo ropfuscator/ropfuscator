@@ -582,6 +582,63 @@ ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
   return result;
 }
 
+ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
+                                            x86_reg op1) {
+  ROPChain result;
+  Microgadget *found = nullptr;
+
+  // Attempt #1: find a primitive gadget having the same operands
+  for (auto &gadget : GadgetPrimitives[type]) {
+    if (extractReg(gadget.getOp(0)) == op0 &&
+        (op1 == X86_REG_INVALID || extractReg(gadget.getOp(1)) == op1)) {
+      found = &gadget;
+      break;
+    }
+  }
+
+  if (found) {
+    result.emplace_back(ChainElem(found));
+  } else {
+    // Attempt #2: find a primitive gadget that has at least operands
+    // exchangeable with the ones required. A proper xchg chain will be
+    // generated.
+    x86_reg gadget_op0, gadget_op1;
+    for (auto &gadget : GadgetPrimitives[type]) {
+      gadget_op0 = extractReg(gadget.getOp(0));
+      gadget_op1 = extractReg(gadget.getOp(1));
+      llvm::dbgs() << "\tlooking for primitive " << type << " " << gadget_op0
+                   << ", " << gadget_op1 << " - for operands " << op0 << ", "
+                   << op1 << "\n";
+      // check if given op0 and op1 are respectively exchangeable with
+      // op0 and op1 of the gadget
+      if (areExchangeable(op0, gadget_op0) &&
+          (op1 == X86_REG_INVALID // only if op1 is present
+           ^ areExchangeable(op1, gadget_op1))) {
+
+        llvm::dbgs() << "\t\t" << gadget.asmInstr << "is a good candidate\n";
+
+        if (op1 != X86_REG_INVALID) {
+          if ((op0 == gadget_op1 && op1 == gadget_op0) ||
+              (op0 == gadget_op0 && op1 == gadget_op1)) {
+            llvm::dbgs() << "\t\tavoiding double xchg\n";
+          } else {
+            llvm::dbgs() << "\t\tusing 2° xchg chain\n";
+            auto xchgChain1 = exchangeRegs(op1, gadget_op1);
+            result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+          }
+        }
+
+        auto xchgChain0 = exchangeRegs(op0, gadget_op0);
+        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+
+        result.emplace_back(ChainElem(&gadget));
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
                                           x86_reg op0, x86_op_type op1_type,
                                           x86_reg op1) {
