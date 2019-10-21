@@ -350,14 +350,22 @@ bool ROPChain::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   Xchg(MI, pop_0, scratch);
 
   // ADD
-  DoubleXchg(MI, reg, add_0, scratch, add_1);
+  if (add_0 == scratch) {
+    DoubleXchg(MI, scratch, add_1, reg, add_0);
+  } else {
+    DoubleXchg(MI, reg, add_0, scratch, add_1);
+  }
 
   chain.emplace_back(ChainElem(add));
   addToInstrMap(MI, ChainElem(add));
 
   // dbgs() << add->asmInstr << "\n";
 
-  DoubleXchg(MI, add_1, scratch, add_0, reg);
+  if (add_0 == scratch) {
+    DoubleXchg(MI, add_0, reg, add_1, scratch);
+  } else {
+    DoubleXchg(MI, add_1, scratch, add_0, reg);
+  }
 
   return true;
 }
