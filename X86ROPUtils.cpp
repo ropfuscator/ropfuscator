@@ -399,6 +399,10 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     mov_0 = m->getOp(0).reg;
     mov_1 = m->getOp(1).reg;
 
+    // mov %eax, %eax is effectively nop
+    if (mov_0 == mov_1)
+      continue;
+
     for (auto &p : BA->gadgetLookup(X86_INS_POP, X86_OP_REG)) {
       if (combinationFound)
         break;
@@ -472,14 +476,26 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     // Okay, now it's time to build the chain!
 
     // MOV
-    DoubleXchg(MI, scratchR1, mov_0, inputReg, mov_1);
+    if (inputReg == scratchR1) {
+      // we do not need to move anything!
+    } else {
+      if (inputReg == mov_0) {
+        DoubleXchg(MI, inputReg, mov_1, scratchR1, mov_0);
+      } else {
+        DoubleXchg(MI, scratchR1, mov_0, inputReg, mov_1);
+      }
 
-    chain.emplace_back(ChainElem(mov));
-    addToInstrMap(MI, ChainElem(mov));
+      chain.emplace_back(ChainElem(mov));
+      addToInstrMap(MI, ChainElem(mov));
 
-    // dbgs() << mov->asmInstr << "\n";
+      // dbgs() << mov->asmInstr << "\n";
 
-    DoubleXchg(MI, mov_1, inputReg, mov_0, scratchR1);
+      if (inputReg == mov_0) {
+        DoubleXchg(MI, mov_0, scratchR1, mov_1, inputReg);
+      } else {
+        DoubleXchg(MI, mov_1, inputReg, mov_0, scratchR1);
+      }
+    }
 
     // POP
     Xchg(MI, scratchR2, pop_0);
@@ -495,14 +511,22 @@ x86_reg ROPChain::computeAddress(MachineInstr *MI, x86_reg inputReg,
     Xchg(MI, pop_0, scratchR2);
 
     // ADD
-    DoubleXchg(MI, scratchR1, add_0, scratchR2, add_1);
+    if (add_0 == scratchR2) {
+      DoubleXchg(MI, scratchR2, add_1, scratchR1, add_0);
+    } else {
+      DoubleXchg(MI, scratchR1, add_0, scratchR2, add_1);
+    }
 
     chain.emplace_back(ChainElem(add));
     addToInstrMap(MI, ChainElem(add));
 
     // dbgs() << add->asmInstr << "\n";
 
-    DoubleXchg(MI, add_1, scratchR2, add_0, scratchR1);
+    if (add_0 == scratchR2) {
+      DoubleXchg(MI, add_0, scratchR1, add_1, scratchR2);
+    } else {
+      DoubleXchg(MI, add_1, scratchR2, add_0, scratchR1);
+    }
   }
 
   return scratchR1;
@@ -617,8 +641,12 @@ bool ROPChain::handleMov32rm(MachineInstr *MI) {
 
     // if "orig_0" is the same as "address", there is no room to back up
     // temporary registers, so we skip this gadget
-    if (orig_0 == res && !(orig_0 == mov_0 && orig_0 == mov_1))
+    if (orig_0 == res && !(orig_0 == mov_0 && orig_0 == mov_1)) {
+      // clear chain created by computeAddress
+      chain.clear();
+      instrMap[MI].clear();
       continue;
+    }
 
     if (res != X86_REG_INVALID) {
       address = res;
@@ -731,8 +759,12 @@ bool ROPChain::handleMov32mr(MachineInstr *MI) {
         computeAddress(MI, orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
 
     // skip if the src and dst registers are the same
-    if (res == orig_1)
+    if (res == orig_1) {
+      // clear chain created by computeAddress
+      chain.clear();
+      instrMap[MI].clear();
       continue;
+    }
 
     if (res != X86_REG_INVALID) {
       address = res;
