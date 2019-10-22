@@ -124,8 +124,6 @@ public:
   Microgadget *findGadget(std::string asmInstr);
   Microgadget *findGadget(x86_insn insn, x86_reg op0,
                           x86_reg op1 = X86_REG_INVALID);
-  Microgadget *findGadget(x86_insn insn, x86_reg op0, x86_op_mem op1);
-  Microgadget *findGadget(x86_insn insn, x86_op_mem op0, x86_reg op1);
 
   std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
                                             x86_op_type op1 = x86_op_type());
@@ -133,9 +131,6 @@ public:
                                             x86_reg op1 = X86_REG_INVALID);
   std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
 
-  ROPChain findGenericGadget(x86_insn insn, x86_op_type op0_type, x86_reg op0,
-                             x86_op_type op1_type = x86_op_type(),
-                             x86_reg op1 = X86_REG_INVALID);
   ROPChain findGadgetPrimitive(std::string type, x86_reg op0,
                                x86_reg op1 = X86_REG_INVALID);
   // areExchangeable - uses XChgGraph to check whether two (or more

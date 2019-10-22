@@ -254,33 +254,6 @@ Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
   return nullptr;
 }
 
-Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_op_mem op0,
-                                       x86_reg op1) {
-  for (auto &gadget : Microgadgets) {
-    if (gadget.getID() == insn &&               // same instruction opcode
-        gadget.getOp(0).type == X86_OP_MEM &&   // operand 0: memory
-        gadget.getOp(0).mem.base == op0.base && // operand 0: equal to op0
-        gadget.getOp(1).type == X86_OP_REG &&   // operand 1: register
-        gadget.getOp(1).reg == op1)             // operand 1: equal to op1
-
-      return &gadget;
-  }
-  return nullptr;
-}
-
-Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
-                                       x86_op_mem op1) {
-  for (auto &gadget : Microgadgets) {
-    if (gadget.getID() == insn &&             // same instruction opcode
-        gadget.getOp(0).type == X86_OP_REG && // operand 0: register
-        gadget.getOp(0).reg == op0 &&         // operand 0: equal to op0
-        gadget.getOp(1).type == X86_OP_MEM && // operand 1: memory
-        gadget.getOp(1).mem.base == op1.base) // operand 1: equal to op1
-
-      return &gadget;
-  }
-  return nullptr;
-}
 std::vector<Microgadget *>
 BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   std::vector<Microgadget *> res;
@@ -292,33 +265,6 @@ BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
   for (auto &gadget : Microgadgets) {
     if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
         (op1 == 0 || op1 == gadget.getOp(1).type))
-      res.push_back(&gadget);
-  }
-
-  return res;
-}
-
-std::vector<Microgadget *>
-BinaryAutopsy::findAllGadgets(x86_insn insn, x86_reg op0, x86_reg op1) {
-  std::vector<Microgadget *> res;
-
-  if (Microgadgets.empty()) {
-    return res;
-  }
-
-  for (auto &gadget : Microgadgets) {
-    // do these checks:
-    // - instruction opcodes must be the same
-    // - op0 must be a register operand, and must be the same register
-    // - if op1 is set, it must be a register operand, and must be the same
-    // register; otherwise skip this check (we must do this to deal with
-    // gadgets with one operand).
-
-    if (gadget.getID() == insn && gadget.getOp(0).type == X86_OP_REG &&
-        gadget.getOp(0).reg == op0 &&
-        (op1 == X86_REG_INVALID ||
-         (gadget.getOp(1).type == X86_OP_REG && gadget.getOp(1).reg == op1)))
-
       res.push_back(&gadget);
   }
 
@@ -436,9 +382,6 @@ void BinaryAutopsy::applyGadgetFilters() {
       continue;
     }
   }
-  llvm::dbgs() << "RESULTS OF PRIMITIVE CATEGORISATION:\n \tinit : "
-               << GadgetPrimitives["init"].size()
-               << "\n \tadd: " << GadgetPrimitives["add"].size() << "\n ";
 
   DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << "[GadgetFilter]\t" << excluded
                                               << " gadgets have been excluded!"
@@ -548,55 +491,6 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
         result.emplace_back(ChainElem(&gadget));
         break;
       }
-    }
-  }
-  return result;
-}
-
-ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
-                                          x86_reg op0, x86_op_type op1_type,
-                                          x86_reg op1) {
-  ROPChain result;
-  x86_reg gadget_op0, gadget_op1;
-
-  for (auto &gadget : findAllGadgets(insn, op0_type, op1_type)) {
-    // Step 1: extract registers basing on the operand type (REG/MEM)
-    if (op0_type == X86_OP_REG)
-      gadget_op0 = gadget->getOp(0).reg;
-    else
-      gadget_op0 = (x86_reg)gadget->getOp(0).mem.base;
-
-    if (op1 != X86_REG_INVALID) { // only if op1 is present
-      if (op1_type == X86_OP_REG)
-        gadget_op1 = gadget->getOp(1).reg;
-      else
-        gadget_op1 = (x86_reg)gadget->getOp(1).mem.base;
-    }
-
-    // Step 2: check if given op0 and op1 are respectively exchangeable with
-    // op0 and op1 of the gadget
-    if (areExchangeable(op0, gadget_op0) &&
-        (op1 == X86_REG_INVALID // only if op1 is present
-         || areExchangeable(op1, gadget_op1))) {
-
-      auto xchgChain0 =
-          exchangeRegs(getEffectiveReg(op0), getEffectiveReg(gadget_op0));
-      // exchange src operands first
-      if (op1 != X86_REG_INVALID) {
-        llvm::dbgs() << "\tgadget: " << gadget->asmInstr
-                     << ", entered in 2° IF \n";
-        auto xchgChain1 =
-            exchangeRegs(getEffectiveReg(op1), getEffectiveReg(gadget_op1));
-        result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
-      }
-
-      llvm::dbgs() << "\tgadget: " << gadget->asmInstr
-                   << ", entered in 1° IF \n";
-
-      result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
-
-      result.emplace_back(ChainElem(gadget));
-      break;
     }
   }
   return result;

@@ -95,59 +95,22 @@ bool getLibraryPath(std::string &libraryPath) {
 
 ROPEngine::ROPEngine() {}
 
-x86_reg ROPEngine::getEffectiveReg(x86_reg reg) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  return static_cast<x86_reg>(BA->xgraph.searchLogicalReg(reg));
-}
-
-int ROPEngine::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  // avoid in case of equal registers
-  if (a == b) {
-    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\tavoiding exchanging "
-                                       << a << " with " << b << " (equal)\n");
-    return 0;
-  }
-
-  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\texchanging " << a
-                                     << " with " << b << "\n");
-
-  auto xchgPath = BA->getXchgPath(a, b);
-  for (auto &a : xchgPath) {
-    DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs()
-                                    << "[XchgChain]\t" << a->asmInstr << "\n");
-    chain.emplace_back(ChainElem(a));
-    addToInstrMap(MI, ChainElem(a));
-  }
-
-  DEBUG_WITH_TYPE(XCHG_CHAIN, dbgs() << "[XchgChain]\t"
-                                     << "performed " << xchgPath.size()
-                                     << " exchanges\n\n");
-  return xchgPath.size();
-}
-
 ROPChain ROPEngine::undoXchgs(MachineInstr *MI) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain result;
 
   // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
-  for (auto &a : xchgPath)
-    llvm::dbgs() << "-> " << a->asmInstr << "\n";
-  llvm::dbgs() << "undo xchgs: " << xchgPath.size() << "\n";
-  int iter = 0;
-  for (auto it = xchgPath.begin(); it != xchgPath.end(); it++) {
-    llvm::dbgs() << "\t " << iter << "\n";
-    // Skip equal and consecutive xchg gadgets
-    // if (it != xchgPath.end() && *(it + 1) == *it) {
-    //   ++it;
-    //   continue;
-    // }
-    result.emplace_back(ChainElem(*it));
-    addToInstrMap(MI, ChainElem(*it));
-    iter++;
+  removeDuplicates(xchgPath);
+  for (auto &edge : xchgPath) {
+    result.emplace_back(ChainElem(edge));
   }
+
   return result;
+}
+
+ROPChain ROPEngine::removeDuplicates(vector<Microgadget *> &chain) {
+  // TODO
 }
 
 bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
@@ -173,13 +136,6 @@ bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
   }
 
   return false;
-}
-
-x86_reg ROPEngine::computeAddress(MachineInstr *MI, x86_reg inputReg,
-                                  int displacement, x86_reg outputReg,
-                                  std::vector<x86_reg> scratchRegs) {
-
-  addImmToReg(MI, outputReg, displacement, scratchRegs);
 }
 
 bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
@@ -369,10 +325,6 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
   return chain;
 }
 
-void ROPEngine::addToInstrMap(MachineInstr *MI, ChainElem CE) {
-  // TODO: this won't be valid once the MI * gets invalidated after an erase().
-  instrMap[MI].emplace_back(CE);
-}
 
 void generateChainLabels(char **chainLabel, char **chainLabelC,
                          char **resumeLabel, char **resumeLabelC,

@@ -51,43 +51,16 @@ class ROPEngine {
   bool handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  void addToInstrMap(MachineInstr *, ChainElem);
+  bool addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
+                   std::vector<x86_reg> const &scratchRegs);
 
 public:
-  // instruction mapping between MachineInstrs and their gadget counterpart
-  map<MachineInstr *, vector<ChainElem>> instrMap;
-
   // Constructor
   ROPEngine();
 
   ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs);
-
-  // addImmToReg - adds an immediate value (stored into a scratch register) to
-  // the given register.
-  bool addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
-                   vector<x86_reg> const &scratchRegs);
-
-  // computeAddress - finds the correct set of gadgets such that:
-  // the value in "inputReg" is copied in a scratch register, incremented by the
-  // value of "displacement", and placed in any register that can be exchanged
-  // with "outputReg".
-  // The return value is the actual register in which the computed value is
-  // saved. This is useful to whom calls this method, in order to create an
-  // exchange chain to move the results onto another register.
-  x86_reg computeAddress(MachineInstr *MI, x86_reg inputReg, int displacement,
-                         x86_reg outputReg, vector<x86_reg> scratchRegs);
-
-  // Xchg - Concatenates a series of XCHG gadget in order to exchange reg a with
-  // reg b.
-  int Xchg(MachineInstr *, x86_reg a, x86_reg b);
-
-  // DoubleXchg - Concatenates a series of XCHG gadget in order to exchange reg
-  // a with reg b, and c with d. This method helps to prevent two exchange
-  // chains that have the same operands to undo each other.
-  void DoubleXchg(MachineInstr *, x86_reg a, x86_reg b, x86_reg c, x86_reg d);
-
   ROPChain undoXchgs(MachineInstr *MI);
-  x86_reg getEffectiveReg(x86_reg reg);
+  ROPChain removeDuplicates(vector<Microgadget *> &chain);
 };
 
 // Generates inline assembly labels that are used in the prologue and epilogue
