@@ -484,59 +484,13 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     return false;
 
   for (auto &scratchReg : scratchRegs) {
-    llvm::dbgs() << "*******\ninit: " << scratchReg << "("
-                 << getEffectiveReg(scratchReg) << "), " << displacement
-                 << "\n";
-    ROPChain init = BA->findGadgetPrimitive("init", (scratchReg));
-    for (auto &a : init) {
-      if (a.type == GADGET)
-        llvm::dbgs() << a.microgadget->asmInstr << "\n";
-    }
-    if (init.empty()) {
-      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
-      continue;
-    }
-    BA->xgraph.printAll();
-    llvm::dbgs() << "*******\nadd: " << scratchReg << "("
-                 << getEffectiveReg(scratchReg) << "), " << src << " ("
-                 << getEffectiveReg(src) << ")\n";
-    ROPChain add = BA->findGadgetPrimitive("add", (scratchReg), (src));
-    for (auto &a : add) {
-      llvm::dbgs() << a.microgadget->asmInstr << "\n";
-    }
-    if (add.empty()) {
-      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
-      continue;
-    }
-    BA->xgraph.printAll();
-    llvm::dbgs() << "*******\nload: " << scratchReg << " ("
-                 << getEffectiveReg(scratchReg) << "), " << scratchReg << "("
-                 << getEffectiveReg(scratchReg) << ")\n";
-    ROPChain load =
-        BA->findGadgetPrimitive("load_1", (scratchReg), (scratchReg));
-    for (auto &a : load) {
-      llvm::dbgs() << a.microgadget->asmInstr << "\n";
-    }
-
-    if (load.empty()) {
-      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
-      continue;
-    }
-
+    ROPChain init = BA->findGadgetPrimitive("init", scratchReg);
+    ROPChain add = BA->findGadgetPrimitive("add", scratchReg, src);
+    ROPChain load = BA->findGadgetPrimitive("load_1", scratchReg, scratchReg);
     ROPChain reorder = undoXchgs(MI);
-
-    llvm::dbgs() << "*******\txchg: " << dst << " (" << getEffectiveReg(dst)
-                 << "), " << scratchReg << "(" << getEffectiveReg(scratchReg)
-                 << ")\n";
     ROPChain xchg = BA->exchangeRegs(dst, scratchReg);
-    for (auto &a : xchg) {
-      llvm::dbgs() << a.microgadget->asmInstr << "\n";
-    }
-    if (xchg.empty()) {
-      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
+
+    if (init.empty() || add.empty() || load.empty() || xchg.empty()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
