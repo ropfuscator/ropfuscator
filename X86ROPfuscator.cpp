@@ -107,6 +107,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
       auto ropeng = ROPEngine();
       ROPChain result = ropeng.ropify(MI, MIScratchRegs);
+      llvm::dbgs() << "[*] Final ropchain:\n";
+      for (auto &g : result)
+        if (g.type == GADGET)
+          llvm::dbgs() << g.microgadget->asmInstr << "\n";
+      llvm::dbgs() << "\n";
       if (result.empty()) {
         // unable to obfuscate
         DEBUG_WITH_TYPE(
