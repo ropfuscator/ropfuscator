@@ -126,23 +126,28 @@ int ROPEngine::Xchg(MachineInstr *MI, x86_reg a, x86_reg b) {
   return xchgPath.size();
 }
 
-void ROPEngine::undoXchgs(MachineInstr *MI) {
+ROPChain ROPEngine::undoXchgs(MachineInstr *MI) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain result;
+
   // TODO: merge code with Xchg
   auto xchgPath = BA->undoXchgs();
+  for (auto &a : xchgPath)
+    llvm::dbgs() << "-> " << a->asmInstr << "\n";
   llvm::dbgs() << "undo xchgs: " << xchgPath.size() << "\n";
   int iter = 0;
   for (auto it = xchgPath.begin(); it != xchgPath.end(); it++) {
     llvm::dbgs() << "\t " << iter << "\n";
     // Skip equal and consecutive xchg gadgets
-    if (it != xchgPath.end() && *(it + 1) == *it) {
-      ++it;
-      continue;
-    }
-    chain.emplace_back(ChainElem(*it));
+    // if (it != xchgPath.end() && *(it + 1) == *it) {
+    //   ++it;
+    //   continue;
+    // }
+    result.emplace_back(ChainElem(*it));
     addToInstrMap(MI, ChainElem(*it));
     iter++;
   }
+  return result;
 }
 
 bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
@@ -482,8 +487,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     llvm::dbgs() << "*******\ninit: " << scratchReg << "("
                  << getEffectiveReg(scratchReg) << "), " << displacement
                  << "\n";
-    ROPChain init =
-        BA->findGadgetPrimitive("init", getEffectiveReg(scratchReg));
+    ROPChain init = BA->findGadgetPrimitive("init", (scratchReg));
     for (auto &a : init) {
       if (a.type == GADGET)
         llvm::dbgs() << a.microgadget->asmInstr << "\n";
@@ -493,12 +497,11 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
-
+    BA->xgraph.printAll();
     llvm::dbgs() << "*******\nadd: " << scratchReg << "("
                  << getEffectiveReg(scratchReg) << "), " << src << " ("
                  << getEffectiveReg(src) << ")\n";
-    ROPChain add = BA->findGadgetPrimitive("add", getEffectiveReg(scratchReg),
-                                           getEffectiveReg(src));
+    ROPChain add = BA->findGadgetPrimitive("add", (scratchReg), (src));
     for (auto &a : add) {
       llvm::dbgs() << a.microgadget->asmInstr << "\n";
     }
@@ -507,12 +510,12 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
-
-    llvm::dbgs() << "*******\nload: " << dst << " (" << getEffectiveReg(dst)
-                 << "), " << scratchReg << "(" << getEffectiveReg(scratchReg)
-                 << ")\n";
-    ROPChain load = BA->findGadgetPrimitive("load_1", getEffectiveReg(dst),
-                                            getEffectiveReg(scratchReg));
+    BA->xgraph.printAll();
+    llvm::dbgs() << "*******\nload: " << scratchReg << " ("
+                 << getEffectiveReg(scratchReg) << "), " << scratchReg << "("
+                 << getEffectiveReg(scratchReg) << ")\n";
+    ROPChain load =
+        BA->findGadgetPrimitive("load_1", (scratchReg), (scratchReg));
     for (auto &a : load) {
       llvm::dbgs() << a.microgadget->asmInstr << "\n";
     }
@@ -522,18 +525,28 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
+
+    ROPChain reorder = undoXchgs(MI);
+
+    llvm::dbgs() << "*******\txchg: " << dst << " (" << getEffectiveReg(dst)
+                 << "), " << scratchReg << "(" << getEffectiveReg(scratchReg)
+                 << ")\n";
+    ROPChain xchg = BA->exchangeRegs(dst, scratchReg);
+    for (auto &a : xchg) {
+      llvm::dbgs() << a.microgadget->asmInstr << "\n";
+    }
+    if (xchg.empty()) {
+      llvm::dbgs() << "*******\nInvalid ROP Chain: rolling back...\n";
+      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      continue;
+    }
+
     init.emplace_back(ChainElem(displacement));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), add.begin(), add.end());
     chain.insert(chain.end(), load.begin(), load.end());
-
-    undoXchgs(MI);
-
-    llvm::dbgs() << "[*] Final ropchain:\n";
-    for (auto &g : chain)
-      if (g.type == GADGET)
-        llvm::dbgs() << g.microgadget->asmInstr << "\n";
-    llvm::dbgs() << "\n";
+    chain.insert(chain.end(), reorder.begin(), reorder.end());
+    chain.insert(chain.end(), xchg.begin(), xchg.end());
     return true;
   }
 

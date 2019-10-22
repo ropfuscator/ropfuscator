@@ -589,8 +589,9 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
 
   // Attempt #1: find a primitive gadget having the same operands
   for (auto &gadget : GadgetPrimitives[type]) {
-    if (extractReg(gadget.getOp(0)) == op0 &&
-        (op1 == X86_REG_INVALID || extractReg(gadget.getOp(1)) == op1)) {
+    if (extractReg(gadget.getOp(0)) == getEffectiveReg(op0) &&
+        (op1 == X86_REG_INVALID ||
+         extractReg(gadget.getOp(1)) == getEffectiveReg(op1))) {
       found = &gadget;
       break;
     }
@@ -611,24 +612,31 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                    << op1 << "\n";
       // check if given op0 and op1 are respectively exchangeable with
       // op0 and op1 of the gadget
-      if (areExchangeable(op0, gadget_op0) &&
+      if (areExchangeable(getEffectiveReg(op0), gadget_op0) &&
           (op1 == X86_REG_INVALID // only if op1 is present
-           ^ areExchangeable(op1, gadget_op1))) {
+           ^ areExchangeable(getEffectiveReg(op1), gadget_op1))) {
 
         llvm::dbgs() << "\t\t" << gadget.asmInstr << "is a good candidate\n";
 
         if (op1 != X86_REG_INVALID) {
-          if ((op0 == gadget_op1 && op1 == gadget_op0) ||
-              (op0 == gadget_op0 && op1 == gadget_op1)) {
+          if ((getEffectiveReg(op0) == gadget_op1 &&
+               getEffectiveReg(op1) == gadget_op0) ||
+              (getEffectiveReg(op0) == gadget_op0 &&
+               getEffectiveReg(op1) == gadget_op1) ||
+              (getEffectiveReg(op0) == getEffectiveReg(op1) &&
+               gadget_op0 == gadget_op1)) {
             llvm::dbgs() << "\t\tavoiding double xchg\n";
           } else {
-            llvm::dbgs() << "\t\tusing 2° xchg chain\n";
-            auto xchgChain1 = exchangeRegs(op1, gadget_op1);
+            llvm::dbgs() << "\t\tusing 2° xchg chain\n\t\t\txchg " << op1 << "("
+                         << getEffectiveReg(op1) << "), " << gadget_op1 << "\n";
+            auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
             result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+            // op0 = getEffectiveReg(op0);
+            // gadget_op0 = getEffectiveReg(extractReg(gadget.getOp(0)));
           }
         }
 
-        auto xchgChain0 = exchangeRegs(op0, gadget_op0);
+        auto xchgChain0 = exchangeRegs(getEffectiveReg(op0), gadget_op0);
         result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
 
         result.emplace_back(ChainElem(&gadget));
@@ -665,18 +673,20 @@ ROPChain BinaryAutopsy::findGenericGadget(x86_insn insn, x86_op_type op0_type,
         (op1 == X86_REG_INVALID // only if op1 is present
          || areExchangeable(op1, gadget_op1))) {
 
+      auto xchgChain0 =
+          exchangeRegs(getEffectiveReg(op0), getEffectiveReg(gadget_op0));
       // exchange src operands first
       if (op1 != X86_REG_INVALID) {
         llvm::dbgs() << "\tgadget: " << gadget->asmInstr
                      << ", entered in 2° IF \n";
-        auto xchgChain1 = exchangeRegs(op1, gadget_op1);
+        auto xchgChain1 =
+            exchangeRegs(getEffectiveReg(op1), getEffectiveReg(gadget_op1));
         result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
       }
 
       llvm::dbgs() << "\tgadget: " << gadget->asmInstr
                    << ", entered in 1° IF \n";
 
-      auto xchgChain0 = exchangeRegs(op0, gadget_op0);
       result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
 
       result.emplace_back(ChainElem(gadget));

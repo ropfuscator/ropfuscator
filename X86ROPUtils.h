@@ -86,7 +86,7 @@ public:
   // chains that have the same operands to undo each other.
   void DoubleXchg(MachineInstr *, x86_reg a, x86_reg b, x86_reg c, x86_reg d);
 
-  void undoXchgs(MachineInstr *MI);
+  ROPChain undoXchgs(MachineInstr *MI);
   x86_reg getEffectiveReg(x86_reg reg);
 };
 

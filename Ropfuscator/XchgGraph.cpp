@@ -107,13 +107,20 @@ XchgPath XchgGraph::fixPath(XchgPath path) {
   result.insert(result.begin(), path.begin(), path.end());
   if (path.size() > 1)
     result.insert(result.end(), path.rbegin() + 1, path.rend());
-
+  llvm::dbgs() << "---> xchgStack contains " << xchgStack.size()
+               << " elements!\n";
+  xchgStack.insert(xchgStack.end(), result.begin(), result.end());
+  llvm::dbgs() << "---> xchgStack filled with " << xchgStack.size()
+               << " elements!\n";
   return result;
 }
 
 XchgPath XchgGraph::reorderRegisters() {
-  XchgPath result, tmp;
+  XchgPath result;
+  result.insert(result.end(), xchgStack.rbegin(), xchgStack.rend()); //, tmp;
 
+  llvm::dbgs() << "---> xchgStack cleared (" << xchgStack.size()
+               << " elements)\n";
   DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << "Exchanging back...\n");
 
   for (int i = 0; i < N_REGS; i++) {
@@ -126,11 +133,12 @@ XchgPath XchgGraph::reorderRegisters() {
       DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                       << "Xchanging logical register " << i
                                       << " with " << PReg << " !\n");
-      tmp = getPath(PReg, i);
-      result.insert(result.end(), tmp.begin(), tmp.end());
+      getPath(PReg, i);
+      // result.insert(result.end(), tmp.begin(), tmp.end());
       // printAll();
     }
   }
+  xchgStack.clear();
 
   return result;
 }
