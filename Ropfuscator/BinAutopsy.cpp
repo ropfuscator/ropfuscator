@@ -445,28 +445,11 @@ void BinaryAutopsy::applyGadgetFilters() {
                                               << "\n");
 }
 
-bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b, x86_reg c) {
+bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
-  // if the third param hasn't been set, check only the first two
-  if (c == X86_REG_INVALID)
-    return xgraph.checkPath(a, b, pred, dist, visited);
-
-  return (xgraph.checkPath(a, b, pred, dist, visited) &&
-          xgraph.checkPath(b, c, pred, dist, visited));
-}
-
-bool BinaryAutopsy::areExchangeable(x86_reg a, vector<x86_reg> B) {
-  int pred[N_REGS], dist[N_REGS];
-  bool visited[N_REGS];
-
-  for (auto &b : B) {
-    if (xgraph.checkPath(a, b, pred, dist, visited))
-      return true;
-  }
-
-  return false;
+  return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
 vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
@@ -511,79 +494,10 @@ vector<Microgadget *> BinaryAutopsy::undoXchgs() {
   return result;
 }
 
-ROPChain BinaryAutopsy::initReg(x86_reg dst, unsigned val) {
-  ROPChain result;
-
-  Microgadget *found = findGadget(X86_INS_POP, dst);
-  if (found)
-    result.emplace_back(ChainElem(found));
-  else {
-    result = findGenericGadget(X86_INS_POP, X86_OP_REG, dst);
-
-    if (result.empty())
-      return result;
-  }
-
-  result.emplace_back(val);
-  return result;
-}
-
-ROPChain BinaryAutopsy::addRegs(x86_reg dst, x86_reg src) {
-  ROPChain result;
-
-  Microgadget *found = findGadget(X86_INS_ADD, dst, src);
-  if (found)
-    result.emplace_back(ChainElem(found));
-  else {
-    result = findGenericGadget(X86_INS_ADD, X86_OP_REG, dst, X86_OP_REG, src);
-
-    if (result.empty())
-      return result;
-  }
-
-  return result;
-}
-
-ROPChain BinaryAutopsy::load(x86_reg dst, x86_reg src) {
-  ROPChain result;
-
-  x86_op_mem src_mem = {};
-  src_mem.base = src;
-
-  Microgadget *found = findGadget(X86_INS_MOV, dst, src_mem);
-  if (found)
-    result.emplace_back(ChainElem(found));
-  else {
-    result = findGenericGadget(X86_INS_MOV, X86_OP_REG, dst, X86_OP_MEM, src);
-
-    if (result.empty())
-      return result;
-  }
-
-  return result;
-}
-
-ROPChain BinaryAutopsy::store(x86_reg dst, x86_reg src) {
-  ROPChain result;
-
-  x86_op_mem dst_mem = {};
-  dst_mem.base = dst;
-
-  Microgadget *found = findGadget(X86_INS_MOV, dst_mem, src);
-  if (found)
-    result.emplace_back(ChainElem(found));
-  else {
-    result = findGenericGadget(X86_INS_MOV, X86_OP_MEM, dst, X86_OP_REG, src);
-
-    if (result.empty())
-      return result;
-  }
-
-  return result;
-}
-
 ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                                             x86_reg op1) {
+  // Note: everytime we need to operate on op0 and op1, we need to check which
+  // is the actual register that holds that operand.
   ROPChain result;
   Microgadget *found = nullptr;
 
@@ -607,16 +521,12 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
     for (auto &gadget : GadgetPrimitives[type]) {
       gadget_op0 = extractReg(gadget.getOp(0));
       gadget_op1 = extractReg(gadget.getOp(1));
-      llvm::dbgs() << "\tlooking for primitive " << type << " " << gadget_op0
-                   << ", " << gadget_op1 << " - for operands " << op0 << ", "
-                   << op1 << "\n";
+
       // check if given op0 and op1 are respectively exchangeable with
       // op0 and op1 of the gadget
       if (areExchangeable(getEffectiveReg(op0), gadget_op0) &&
           (op1 == X86_REG_INVALID // only if op1 is present
            ^ areExchangeable(getEffectiveReg(op1), gadget_op1))) {
-
-        llvm::dbgs() << "\t\t" << gadget.asmInstr << "is a good candidate\n";
 
         if (op1 != X86_REG_INVALID) {
           if ((getEffectiveReg(op0) == gadget_op1 &&
@@ -627,12 +537,8 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                gadget_op0 == gadget_op1)) {
             llvm::dbgs() << "\t\tavoiding double xchg\n";
           } else {
-            llvm::dbgs() << "\t\tusing 2° xchg chain\n\t\t\txchg " << op1 << "("
-                         << getEffectiveReg(op1) << "), " << gadget_op1 << "\n";
             auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
             result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
-            // op0 = getEffectiveReg(op0);
-            // gadget_op0 = getEffectiveReg(extractReg(gadget.getOp(0)));
           }
         }
 

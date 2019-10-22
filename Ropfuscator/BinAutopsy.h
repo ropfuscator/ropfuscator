@@ -136,11 +136,11 @@ public:
   ROPChain findGenericGadget(x86_insn insn, x86_op_type op0_type, x86_reg op0,
                              x86_op_type op1_type = x86_op_type(),
                              x86_reg op1 = X86_REG_INVALID);
-  ROPChain findGadgetPrimitive(std::string type, x86_reg op0, x86_reg op1 = X86_REG_INVALID);
+  ROPChain findGadgetPrimitive(std::string type, x86_reg op0,
+                               x86_reg op1 = X86_REG_INVALID);
   // areExchangeable - uses XChgGraph to check whether two (or more
   // registers) can be mutually exchanged.
-  bool areExchangeable(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
-  bool areExchangeable(x86_reg a, std::vector<x86_reg> B);
+  bool areExchangeable(x86_reg a, x86_reg b);
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
@@ -148,14 +148,6 @@ public:
   ROPChain exchangeRegs(x86_reg reg0, x86_reg reg1);
   std::vector<Microgadget *> undoXchgs();
   x86_reg getEffectiveReg(x86_reg reg);
-  // -------------------------------------------------------------
-  // GADGET PRIMITIVES
-
-  ROPChain initReg(x86_reg dst, unsigned val);
-  ROPChain addRegs(x86_reg dst, x86_reg src);
-  ROPChain load(x86_reg dst, x86_reg src);
-  ROPChain store(x86_reg dst, x86_reg src);
-  ROPChain calcAddr(x86_reg dst, x86_reg src, unsigned displ);
 };
 
 #endif

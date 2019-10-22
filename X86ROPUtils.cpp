@@ -254,6 +254,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     init = BA->findGadgetPrimitive("init", scratchReg);
     add = BA->findGadgetPrimitive("add", scratchReg, src);
     load = BA->findGadgetPrimitive("load_1", scratchReg, scratchReg);
+
     reorder = undoXchgs(MI);
     xchg = BA->exchangeRegs(dst, scratchReg);
     BA->xgraph.reorderRegisters(); // otherwise the last xchg would be undone by
