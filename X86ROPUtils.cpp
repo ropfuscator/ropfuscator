@@ -340,22 +340,22 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 
   switch (MI.getOpcode()) {
-  // case X86::ADD32ri8:
-  // case X86::ADD32ri:
-  // case X86::SUB32ri8:
-  // case X86::SUB32ri:
-  // case X86::INC32r:
-  // case X86::DEC32r: {
-  //   if (!handleAddSubIncDec(&MI, scratchRegs))
-  //     return chain;
-  //   break;
-  // }
-  // case X86::MOV32rm: {
-  //   if (!handleMov32rm(&MI, scratchRegs)) {
-  //     return chain;
-  //   }
-  //   break;
-  // }
+  case X86::ADD32ri8:
+  case X86::ADD32ri:
+  case X86::SUB32ri8:
+  case X86::SUB32ri:
+  case X86::INC32r:
+  case X86::DEC32r: {
+    if (!handleAddSubIncDec(&MI, scratchRegs))
+      return chain;
+    break;
+  }
+  case X86::MOV32rm: {
+    if (!handleMov32rm(&MI, scratchRegs)) {
+      return chain;
+    }
+    break;
+  }
   case X86::MOV32mr: {
     if (!handleMov32mr(&MI, scratchRegs)) {
       return chain;

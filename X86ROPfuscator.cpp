@@ -88,7 +88,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   // description of the target ISA (used to generate new instructions, below)
   MCInstrInfo const *TII = MF.getTarget().getMCInstrInfo();
-  ROPChain chain;
 
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
