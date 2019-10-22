@@ -281,73 +281,46 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
 bool ROPEngine::handleMov32mr(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  x86_reg orig_0, orig_1, mov_0, mov_1, address = X86_REG_INVALID;
-  int orig_disp;
-  Microgadget *mov;
+  ROPChain init, add, store, reorder;
 
-  // NOTE: for more comments, please check the case MOV32rm: we adopt the
-  // very same strategies.
-
-  // no scratch registers are available, or the dst operand is ESP
-  // (we are unable to modify it since we are using microgadgets) -> abort.
-  if (scratchRegs.size() < 2)
+  // Preliminary checks
+  if (scratchRegs.size() < 1 || // there isn't at least 1 scratch register
+      (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
+       || MI->getOperand(5).getReg() == 0))
     return false;
 
-  // sometimes mov instructions have operands that use segment registers, and
-  // we just cannot handle them
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(5).getReg() == 0)
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(5).getReg());
+
+  unsigned displacement;
+  if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
+    displacement = MI->getOperand(3).getImm();
+  else
     return false;
 
-  // dump all the useful operands from the MachineInstr we are processing:
-  //      mov     [orig_0 + disp], orig_1
-  orig_0 = convertToCapstoneReg(MI->getOperand(0).getReg()); // dst
-  orig_1 = convertToCapstoneReg(MI->getOperand(5).getReg()); // src
+  for (auto &scratchReg : scratchRegs) {
+    init = BA->findGadgetPrimitive("init", scratchReg);
+    add = BA->findGadgetPrimitive("add", scratchReg, dst);
+    store = BA->findGadgetPrimitive("store", scratchReg, src);
 
-  if (!MI->getOperand(3).isImm())
-    return false;
+    reorder = undoXchgs(MI);
 
-  orig_disp = MI->getOperand(3).getImm(); // displacement
-
-  for (auto &m : BA->findAllGadgets(X86_INS_MOV, X86_OP_MEM, X86_OP_REG)) {
-    // dbgs() << m->asmInstr << "\n";
-    //      mov     [mov_0], mov_1
-    mov_0 = static_cast<x86_reg>(m->getOp(0).mem.base);
-    mov_1 = m->getOp(1).reg;
-    int mov_disp = m->getOp(0).mem.disp;
-
-    // if the two src operands aren't connected, skip the gadget
-    if (!BA->areExchangeable(orig_1, mov_1))
+    if (init.empty() || add.empty() || store.empty()) {
+      BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
-
-    auto res =
-        computeAddress(MI, orig_0, orig_disp - mov_disp, mov_0, scratchRegs);
-
-    if (res != X86_REG_INVALID) {
-      address = res;
-      mov = m;
-      break;
     }
+
+    init.emplace_back(ChainElem(displacement));
+    chain.insert(chain.end(), init.begin(), init.end());
+    chain.insert(chain.end(), add.begin(), add.end());
+    chain.insert(chain.end(), store.begin(), store.end());
+    chain.insert(chain.end(), reorder.begin(), reorder.end());
+
+    return true;
   }
 
-  if (address == X86_REG_INVALID)
-    return false;
-
-  dbgs() << "Results returned in: " << address << "\n";
-  dbgs() << "[*] Chosen gadget: \n";
-  dbgs() << mov->asmInstr << "\n\n";
-
-  dbgs() << "MOV32MR. Results in " << address << " ("
-         << getEffectiveReg(address) << ")\n";
-
-  Xchg(MI, getEffectiveReg(orig_1), mov_1);
-  Xchg(MI, getEffectiveReg(address), mov_0);
-
-  chain.emplace_back(ChainElem(mov));
-  addToInstrMap(MI, ChainElem(mov));
-
-  dbgs() << mov->asmInstr << "\n";
-  undoXchgs(MI);
-  return true;
+  return false;
 }
 
 ROPChain ROPEngine::ropify(MachineInstr &MI,
@@ -367,28 +340,28 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 
   switch (MI.getOpcode()) {
-  case X86::ADD32ri8:
-  case X86::ADD32ri:
-  case X86::SUB32ri8:
-  case X86::SUB32ri:
-  case X86::INC32r:
-  case X86::DEC32r: {
-    if (!handleAddSubIncDec(&MI, scratchRegs))
-      return chain;
-    break;
-  }
-  case X86::MOV32rm: {
-    if (!handleMov32rm(&MI, scratchRegs)) {
-      return chain;
-    }
-    break;
-  }
-  // case X86::MOV32mr: {
-  //   if (!handleMov32mr(&MI, scratchRegs)) {
+  // case X86::ADD32ri8:
+  // case X86::ADD32ri:
+  // case X86::SUB32ri8:
+  // case X86::SUB32ri:
+  // case X86::INC32r:
+  // case X86::DEC32r: {
+  //   if (!handleAddSubIncDec(&MI, scratchRegs))
+  //     return chain;
+  //   break;
+  // }
+  // case X86::MOV32rm: {
+  //   if (!handleMov32rm(&MI, scratchRegs)) {
   //     return chain;
   //   }
   //   break;
   // }
+  case X86::MOV32mr: {
+    if (!handleMov32mr(&MI, scratchRegs)) {
+      return chain;
+    }
+    break;
+  }
   default:
     return chain;
   }

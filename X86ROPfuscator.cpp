@@ -88,13 +88,13 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   // description of the target ISA (used to generate new instructions, below)
   MCInstrInfo const *TII = MF.getTarget().getMCInstrInfo();
+  ROPChain chain;
 
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
     // safely clobbered to compute temporary data
     ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
-    ROPChain chain;
     for (MachineInstr &MI : MBB) {
       if (MI.isDebugInstr())
         continue;
@@ -107,11 +107,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
       auto ropeng = ROPEngine();
       ROPChain result = ropeng.ropify(MI, MIScratchRegs);
-      llvm::dbgs() << "[*] Final ropchain:\n";
-      for (auto &g : result)
-        if (g.type == GADGET)
-          llvm::dbgs() << g.microgadget->asmInstr << "\n";
-      llvm::dbgs() << "\n";
+
       if (result.empty()) {
         // unable to obfuscate
         DEBUG_WITH_TYPE(
