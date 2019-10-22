@@ -114,105 +114,96 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             PROCESSED_INSTR,
             dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
 
-        // ROP chain injection is deferred until an unsupported instruction is
-        // encountered
-        if (chain.size() > 0) {
-          // EMIT PROLOGUE
-          generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel,
-                              &resumeLabelC, funcName, chainID);
+        continue;
+      } else {
+        // add current instruction in the To-Delete list
+        instrToDelete.push_back(&MI);
 
-          // pushf (EFLAGS register backup)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-          // call funcName_chain_X
-          BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-              .addExternalSymbol(chainLabel);
-          // jmp resume_funcName_chain_X
-          BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
-              .addExternalSymbol(resumeLabel);
-          // funcName_chain_X:
-          BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-              .addExternalSymbol(chainLabelC)
-              .addImm(0);
+        // Inject the ROP Chain!
+        // EMIT PROLOGUE
+        generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel,
+                            &resumeLabelC, funcName, chainID);
 
-          // ROP Chain
-          // Pushes each chain element on the stack in reverse order
-          for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
-            switch (elem->type) {
+        // pushf (EFLAGS register backup)
+        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+        // call funcName_chain_X
+        BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
+            .addExternalSymbol(chainLabel);
+        // jmp resume_funcName_chain_X
+        BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
+            .addExternalSymbol(resumeLabel);
+        // funcName_chain_X:
+        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+            .addExternalSymbol(chainLabelC)
+            .addImm(0);
 
-            case IMMEDIATE: {
-              // Push the immediate value onto the stack //
-              // push $imm
-              BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-                  .addImm(elem->value);
-              break;
-            }
+        // ROP Chain
+        // Pushes each chain element on the stack in reverse order
+        for (auto elem = result.rbegin(); elem != result.rend(); ++elem) {
+          switch (elem->type) {
 
-            case GADGET: {
-              if (OpaquePredicatesEnabled) {
-                // call $opaquePredicate
-                BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-                    .addExternalSymbol("opaquePredicate");
-
-                // je $wrong_target
-                BuildMI(MBB, MI, nullptr, TII->get(X86::JNE_1))
-                    .addExternalSymbol(chainLabel);
-              }
-
-              // Get a random symbol to reference this gadget in memory
-              Symbol *sym = BA->getRandomSymbol();
-              uint64_t relativeAddr =
-                  elem->microgadget->getAddress() - sym->Address;
-
-              // .symver directive: necessary to prevent aliasing when more
-              // symbols have the same name. We do this exclusively when the
-              // symbol Version is not "Base" (i.e., it is the only one
-              // available).
-              if (strcmp(sym->Version, "Base") != 0) {
-                BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-                    .addExternalSymbol(sym->getSymVerDirective())
-                    .addImm(0);
-              }
-
-              // push $symbol
-              BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-                  .addExternalSymbol(sym->Label);
-
-              // add [esp], $offset
-              addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
-                           X86::ESP)
-                  .addImm(relativeAddr);
-              break;
-            }
-            }
+          case IMMEDIATE: {
+            // Push the immediate value onto the stack //
+            // push $imm
+            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+                .addImm(elem->value);
+            break;
           }
 
-          // EMIT EPILOGUE
-          // ret
-          BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
-          // resume_funcName_chain_X:
-          BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-              .addExternalSymbol(resumeLabelC)
-              .addImm(0);
-          // popf (EFLAGS register restore)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+          case GADGET: {
+            if (OpaquePredicatesEnabled) {
+              // call $opaquePredicate
+              BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
+                  .addExternalSymbol("opaquePredicate");
 
-          chainID++;
-          chain.clear();
+              // je $wrong_target
+              BuildMI(MBB, MI, nullptr, TII->get(X86::JNE_1))
+                  .addExternalSymbol(chainLabel);
+            }
+
+            // Get a random symbol to reference this gadget in memory
+            Symbol *sym = BA->getRandomSymbol();
+            uint64_t relativeAddr =
+                elem->microgadget->getAddress() - sym->Address;
+
+            // .symver directive: necessary to prevent aliasing when more
+            // symbols have the same name. We do this exclusively when the
+            // symbol Version is not "Base" (i.e., it is the only one
+            // available).
+            if (strcmp(sym->Version, "Base") != 0) {
+              BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+                  .addExternalSymbol(sym->getSymVerDirective())
+                  .addImm(0);
+            }
+
+            // push $symbol
+            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+                .addExternalSymbol(sym->Label);
+
+            // add [esp], $offset
+            addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
+                         X86::ESP)
+                .addImm(relativeAddr);
+            break;
+          }
+          }
         }
-        // skip to the next instruction
-        else
-          continue;
 
-      } else {
+        // EMIT EPILOGUE
+        // ret
+        BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
+        // resume_funcName_chain_X:
+        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+            .addExternalSymbol(resumeLabelC)
+            .addImm(0);
+        // popf (EFLAGS register restore)
+        BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
                         dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
-
-        // append the obtained chain (result) to the existing one (chain)
-        chain.insert(chain.end(), result.begin(), result.end());
+        chainID++;
         obfuscated++;
-        // add current instruction in the To-Delete list
-        instrToDelete.push_back(&MI);
       }
     }
 
