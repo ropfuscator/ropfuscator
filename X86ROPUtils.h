@@ -60,7 +60,7 @@ public:
 
   ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs);
   ROPChain undoXchgs(MachineInstr *MI);
-  ROPChain removeDuplicates(vector<Microgadget *> &chain);
+  void removeDuplicates(vector<Microgadget *> &chain);
 };
 
 // Generates inline assembly labels that are used in the prologue and epilogue
