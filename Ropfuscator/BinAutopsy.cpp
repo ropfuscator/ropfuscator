@@ -118,6 +118,31 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       if (strcmp(symbolName, "_init") == 0 || strcmp(symbolName, "_fini") == 0)
         continue;
 
+      // functions with name prefixed with "_dl" is possibly created
+      // by dynamic linkers, so we aviod them
+      if (strncmp(symbolName, "_dl", 3) == 0)
+        continue;
+
+      // these symbols are also used in libgcc_s.so (often linked), so we avoid them
+      static const char *LIBGCC_SYMBOLS[] = {
+        "__register_frame", "__register_frame_table",
+        "__register_frame_info", "__register_frame_info_bases",
+        "__register_frame_info_table", "__register_frame_info_table_bases",
+        "__deregister_frame", "__deregister_frame_info",
+        "__deregister_frame_info_bases", "__frame_state_for",
+        "__moddi3", "__umoddi3", "__divdi3", "__udivdi3"
+      };
+
+      bool avoided = false;
+      for (const char *avoided_name : LIBGCC_SYMBOLS) {
+        if (strcmp(symbolName, avoided_name) == 0) {
+          avoided = true;
+          break;
+        }
+      }
+      if (avoided)
+        continue;
+
       addr = bfd_asymbol_value(sym);
 
       // Get version string to avoid symbol aliasing
@@ -126,6 +151,10 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
       if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
         versionString = bfd_get_symbol_version_string(BfdHandle, sym, &hidden);
+
+      // may also exist in libgcc_s.so, so avoided
+      if (strncmp(versionString, "GCC", 3) == 0)
+        continue;
 
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
