@@ -109,7 +109,7 @@ ROPChain ROPEngine::undoXchgs(MachineInstr *MI) {
   return result;
 }
 
-ROPChain ROPEngine::removeDuplicates(vector<Microgadget *> &chain) {
+void ROPEngine::removeDuplicates(vector<Microgadget *> &chain) {
   // TODO
 }
 
@@ -196,6 +196,11 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
        || MI->getOperand(1).getReg() == 0))
     return false;
 
+  // skip scaled-index addressing mode since we cannot handle them
+  //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
+  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+     return false;
+
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
@@ -243,6 +248,11 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
   if (scratchRegs.size() < 1 || // there isn't at least 1 scratch register
       (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
        || MI->getOperand(5).getReg() == 0))
+    return false;
+
+  // skip scaled-index addressing mode since we cannot handle them
+  //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
+  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
     return false;
 
   // extract operands
