@@ -113,23 +113,23 @@ void ROPEngine::removeDuplicates(vector<Microgadget *> &chain) {
   // TODO
 }
 
-bool ROPEngine::addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
+bool ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
                             std::vector<x86_reg> const &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, add, reorder;
+  ROPChain init, addsub, reorder;
 
   for (auto &scratchReg : scratchRegs) {
     init = BA->findGadgetPrimitive("init", scratchReg);
-    add = BA->findGadgetPrimitive("add", reg, scratchReg);
+    addsub = BA->findGadgetPrimitive(isSub ? "sub" : "add", reg, scratchReg);
     reorder = undoXchgs(MI);
 
-    if (init.empty() || add.empty()) {
+    if (init.empty() || addsub.empty()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
     init.emplace_back(ChainElem(immediate));
     chain.insert(chain.end(), init.begin(), init.end());
-    chain.insert(chain.end(), add.begin(), add.end());
+    chain.insert(chain.end(), addsub.begin(), addsub.end());
     chain.insert(chain.end(), reorder.begin(), reorder.end());
 
     return true;
@@ -142,6 +142,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
+  bool isSub;
   int imm;
   x86_reg dest_reg;
 
@@ -155,6 +156,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
     if (!MI->getOperand(2).isImm())
       return false;
 
+    isSub = false;
     imm = MI->getOperand(2).getImm();
 
     break;
@@ -164,16 +166,19 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
     if (!MI->getOperand(2).isImm())
       return false;
 
-    imm = -MI->getOperand(2).getImm();
+    isSub = true;
+    imm = MI->getOperand(2).getImm();
 
     break;
   }
   case X86::INC32r: {
+    isSub = false;
     imm = 1;
     break;
   }
   case X86::DEC32r: {
-    imm = -1;
+    isSub = true;
+    imm = 1;
     break;
   }
   default:
@@ -182,7 +187,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
 
   dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
 
-  return addImmToReg(MI, dest_reg, imm, scratchRegs);
+  return addSubImmToReg(MI, dest_reg, isSub, imm, scratchRegs);
 }
 
 bool ROPEngine::handleMov32rm(MachineInstr *MI,
