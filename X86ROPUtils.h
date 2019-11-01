@@ -51,7 +51,7 @@ class ROPEngine {
   bool handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  bool addImmToReg(MachineInstr *MI, x86_reg reg, int immediate,
+  bool addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
                    std::vector<x86_reg> const &scratchRegs);
 
 public:

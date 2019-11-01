@@ -380,6 +380,13 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["add"].push_back(gadget);
       break;
     }
+    case X86_INS_SUB: {
+      // sub REG1, REG2: sub
+      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["sub"].push_back(gadget);
+      break;
+    }
     case X86_INS_MOV: {
       // mov REG1, REG2: copy
       if (gadget.getOp(0).type == X86_OP_REG && // Register-register: copy
