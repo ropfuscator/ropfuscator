@@ -58,7 +58,8 @@ public:
   // Constructor
   ROPEngine();
 
-  ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs);
+  ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
+                  bool &flagIsModifiedInInstr);
   ROPChain undoXchgs(MachineInstr *MI);
   void removeDuplicates(vector<Microgadget *> &chain);
 };

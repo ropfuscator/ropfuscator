@@ -104,8 +104,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       // get the list of scratch registers available for this instruction
       std::vector<x86_reg> MIScratchRegs = MBBScratchRegs.find(&MI)->second;
 
+      bool isFlagModifiedInInstr;
+
       auto ropeng = ROPEngine();
-      ROPChain result = ropeng.ropify(MI, MIScratchRegs);
+      ROPChain result = ropeng.ropify(MI, MIScratchRegs, isFlagModifiedInInstr);
 
       if (result.empty()) {
         // unable to obfuscate
@@ -123,8 +125,30 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel,
                             &resumeLabelC, funcName, chainID);
 
-        // pushf (EFLAGS register backup)
-        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+        // save eflags
+        if (isFlagModifiedInInstr) {
+          // If the obfuscated instruction will modify flags,
+          // the flags should be restored after ROP chain is constructed
+          // and just before the ROP chain is executed.
+          // flag is saved at the top of the stack
+
+          // lea esp, [esp-4*(N+1)]   # where N = chain size
+          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+            .addReg(X86::ESP).addImm(1).addReg(0).addImm(-4*(result.size()+1)).addReg(0);
+          // pushf (EFLAGS register backup)
+          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+          // add esp, 4*(N+2)         # where N = chain size
+          BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32ri), X86::ESP)
+            .addReg(X86::ESP).addImm(result.size()*4+8);
+        } else {
+          // If the obfuscated instruction will NOT modify flags,
+          // (and if the chain execution might modify the flags,)
+          // the flags should be restored after the ROP chain is executed.
+          // flag is saved at the bottom of the stack
+
+          // pushf (EFLAGS register backup)
+          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+        }
         // call funcName_chain_X
         BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
             .addExternalSymbol(chainLabel);
@@ -189,14 +213,25 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         }
 
         // EMIT EPILOGUE
+        // restore eflags, if eflags should be restored BEFORE chain execution
+        if (isFlagModifiedInInstr) {
+          // sub esp, 4
+          BuildMI(MBB, MI, nullptr, TII->get(X86::SUB32ri), X86::ESP)
+            .addReg(X86::ESP).addImm(4);
+          // popf (EFLAGS register restore)
+          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+        }
         // ret
         BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
         // resume_funcName_chain_X:
         BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
             .addExternalSymbol(resumeLabelC)
             .addImm(0);
-        // popf (EFLAGS register restore)
-        BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+        // restore eflags, if eflags should be restored AFTER chain execution
+        if (!isFlagModifiedInInstr) {
+          // popf (EFLAGS register restore)
+          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+        }
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,

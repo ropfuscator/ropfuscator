@@ -290,7 +290,7 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
 }
 
 ROPChain ROPEngine::ropify(MachineInstr &MI,
-                           std::vector<x86_reg> &scratchRegs) {
+                           std::vector<x86_reg> &scratchRegs, bool &flagIsModifiedInInstr) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -314,18 +314,21 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
   case X86::DEC32r: {
     if (!handleAddSubIncDec(&MI, scratchRegs))
       return chain;
+    flagIsModifiedInInstr = true;
     break;
   }
   case X86::MOV32rm: {
     if (!handleMov32rm(&MI, scratchRegs)) {
       return chain;
     }
+    flagIsModifiedInInstr = false;
     break;
   }
   case X86::MOV32mr: {
     if (!handleMov32mr(&MI, scratchRegs)) {
       return chain;
     }
+    flagIsModifiedInInstr = false;
     break;
   }
   default:
@@ -342,11 +345,10 @@ void generateChainLabels(char **chainLabel, char **chainLabelC,
   using namespace std;
   string funcName_s = funcName.str();
   string chainLabel_s = funcName_s + "_chain_" + to_string(chainID);
-  string chainLabelC_s = funcName_s + "_chain_" + to_string(chainID) + ":";
-  string resumeLabel_s =
-      "resume_" + funcName_s + "_chain_" + to_string(chainID);
-  string resumeLabelC_s =
-      "resume_" + funcName_s + "_chain_" + to_string(chainID) + ":";
+  std::replace(chainLabel_s.begin(), chainLabel_s.end(), '$', '_');
+  string chainLabelC_s = chainLabel_s + ":";
+  string resumeLabel_s = "resume_" + chainLabel_s;
+  string resumeLabelC_s = resumeLabel_s + ":";
 
   // we need to allocate these strings on the heap, since they will be
   // used by AsmPrinter *after* runOnMachineFunction() has returned!
