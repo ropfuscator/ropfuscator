@@ -134,20 +134,18 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
           // lea esp, [esp-4*(N+1)]   # where N = chain size
           BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-            .addReg(X86::ESP).addImm(1).addReg(0).addImm(-4*(result.size()+1)).addReg(0);
+              .addReg(X86::ESP)
+              .addImm(1)
+              .addReg(0)
+              .addImm(-4 * (result.size() + 1))
+              .addReg(0);
           // pushf (EFLAGS register backup)
           BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
           // add esp, 4*(N+2)         # where N = chain size
           BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32ri), X86::ESP)
-            .addReg(X86::ESP).addImm(result.size()*4+8);
-        } else {
-          // If the obfuscated instruction will NOT modify flags,
-          // (and if the chain execution might modify the flags,)
-          // the flags should be restored after the ROP chain is executed.
-          // flag is saved at the bottom of the stack
-
-          // pushf (EFLAGS register backup)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+              .addReg(X86::ESP)
+              .addImm(result.size() * 4 +
+                      8); // TODO: why not use LEA here as well?
         }
         // call funcName_chain_X
         BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
@@ -217,7 +215,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         if (isFlagModifiedInInstr) {
           // sub esp, 4
           BuildMI(MBB, MI, nullptr, TII->get(X86::SUB32ri), X86::ESP)
-            .addReg(X86::ESP).addImm(4);
+              .addReg(X86::ESP)
+              .addImm(4);
           // popf (EFLAGS register restore)
           BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
         }
@@ -227,11 +226,6 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
             .addExternalSymbol(resumeLabelC)
             .addImm(0);
-        // restore eflags, if eflags should be restored AFTER chain execution
-        if (!isFlagModifiedInInstr) {
-          // popf (EFLAGS register restore)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
-        }
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
