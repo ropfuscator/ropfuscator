@@ -141,11 +141,14 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
               .addReg(0);
           // pushf (EFLAGS register backup)
           BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-          // add esp, 4*(N+2)         # where N = chain size
-          BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32ri), X86::ESP)
+
+          // lea esp, [esp+4*(N+2)]   # where N = chain size
+          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
               .addReg(X86::ESP)
-              .addImm(result.size() * 4 +
-                      8); // TODO: why not use LEA here as well?
+              .addImm(1)
+              .addReg(0)
+              .addImm(4 * (result.size() + 2))
+              .addReg(0);
         }
         // call funcName_chain_X
         BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
@@ -213,10 +216,13 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         // EMIT EPILOGUE
         // restore eflags, if eflags should be restored BEFORE chain execution
         if (isFlagModifiedInInstr) {
-          // sub esp, 4
-          BuildMI(MBB, MI, nullptr, TII->get(X86::SUB32ri), X86::ESP)
+          // lea esp, [esp-4]
+          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
               .addReg(X86::ESP)
-              .addImm(4);
+              .addImm(1)
+              .addReg(0)
+              .addImm(-4)
+              .addReg(0);
           // popf (EFLAGS register restore)
           BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
         }
