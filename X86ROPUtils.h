@@ -52,7 +52,7 @@ class ROPEngine {
   bool handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
-                   std::vector<x86_reg> const &scratchRegs);
+                      std::vector<x86_reg> const &scratchRegs);
 
 public:
   // Constructor
@@ -61,7 +61,11 @@ public:
   ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
                   bool &flagIsModifiedInInstr);
   ROPChain undoXchgs(MachineInstr *MI);
-  void removeDuplicates(vector<Microgadget *> &chain);
+
+  // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
+  // chain size. Indeed, two consecutive equal xchg gadgets undo each other's
+  // effects.
+  void removeDuplicates(ROPChain &chain);
 };
 
 // Generates inline assembly labels that are used in the prologue and epilogue

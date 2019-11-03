@@ -35,10 +35,7 @@ struct Microgadget {
   uint64_t getAddress() const { return Instr[0].address; }
 
   // getID - returns the instruction opcode.
-  x86_insn getID() const {
-    // Returns the ID (opcode)
-    return static_cast<x86_insn>(Instr[0].id);
-  }
+  x86_insn getID() const { return (x86_insn)Instr[0].id; }
 
   // getOp - returns the i-th instruction operand.
   cs_x86_op getOp(int i) const {

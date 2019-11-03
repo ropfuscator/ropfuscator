@@ -123,15 +123,23 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       if (strncmp(symbolName, "_dl", 3) == 0)
         continue;
 
-      // these symbols are also used in libgcc_s.so (often linked), so we avoid them
+      // these symbols are also used in libgcc_s.so (often linked), so we avoid
+      // them
       static const char *LIBGCC_SYMBOLS[] = {
-        "__register_frame", "__register_frame_table",
-        "__register_frame_info", "__register_frame_info_bases",
-        "__register_frame_info_table", "__register_frame_info_table_bases",
-        "__deregister_frame", "__deregister_frame_info",
-        "__deregister_frame_info_bases", "__frame_state_for",
-        "__moddi3", "__umoddi3", "__divdi3", "__udivdi3"
-      };
+          "__register_frame",
+          "__register_frame_table",
+          "__register_frame_info",
+          "__register_frame_info_bases",
+          "__register_frame_info_table",
+          "__register_frame_info_table_bases",
+          "__deregister_frame",
+          "__deregister_frame_info",
+          "__deregister_frame_info_bases",
+          "__frame_state_for",
+          "__moddi3",
+          "__umoddi3",
+          "__divdi3",
+          "__udivdi3"};
 
       bool avoided = false;
       for (const char *avoided_name : LIBGCC_SYMBOLS) {
@@ -431,48 +439,6 @@ bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) {
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-vector<Microgadget *> BinaryAutopsy::getXchgPath(x86_reg a, x86_reg b) {
-  // TODO: directly return the ROP chain, like the gadget primitives
-  vector<Microgadget *> result;
-  XchgPath path = xgraph.getPath(a, b);
-
-  for (auto &edge : path) {
-    // even if the XCHG instruction doesn't care about the order of operands, we
-    // have to find the right gadget with the same operand order as decoded by
-    // capstone.
-
-    auto found =
-        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
-    if (!found)
-      found =
-          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
-
-    result.push_back(found);
-  }
-
-  return result;
-}
-
-vector<Microgadget *> BinaryAutopsy::undoXchgs() {
-  vector<Microgadget *> result;
-  XchgPath path = xgraph.reorderRegisters();
-
-  for (auto &edge : path) {
-    // even if the XCHG instruction doesn't care about the order of operands, we
-    // have to find the right gadget with the same operand order as decoded by
-    // capstone.
-    auto found =
-        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
-    if (!found)
-      found =
-          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
-
-    result.push_back(found);
-  }
-
-  return result;
-}
-
 ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                                             x86_reg op1) {
   // Note: everytime we need to operate on op0 and op1, we need to check which
@@ -532,13 +498,39 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
   return result;
 }
 
+ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
+  ROPChain result;
+
+  for (auto &edge : path) {
+    // in XCHG instructions the operands order doesn't matter
+    auto found =
+        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+    if (!found)
+      found =
+          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
+
+    result.emplace_back(ChainElem(found));
+  }
+
+  return result;
+}
+
 ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
   ROPChain result;
-  if (reg0 == reg1)
-    return result;
 
-  for (auto &gadget : getXchgPath(reg0, reg1))
-    result.emplace_back(ChainElem(gadget));
+  if (reg0 != reg1) {
+    XchgPath path = xgraph.getPath(reg0, reg1);
+    result = buildXchgChain(path);
+  }
+
+  return result;
+}
+
+ROPChain BinaryAutopsy::undoXchgs() {
+  ROPChain result;
+
+  XchgPath path = xgraph.reorderRegisters();
+  result = buildXchgChain(path);
 
   return result;
 }
