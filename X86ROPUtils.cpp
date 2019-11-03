@@ -95,33 +95,16 @@ bool getLibraryPath(std::string &libraryPath) {
 
 ROPEngine::ROPEngine() {}
 
-ROPChain ROPEngine::undoXchgs(MachineInstr *MI) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain result;
-
-  // TODO: merge code with Xchg
-  auto xchgPath = BA->undoXchgs();
-  removeDuplicates(xchgPath);
-  for (auto &edge : xchgPath) {
-    result.emplace_back(ChainElem(edge));
-  }
-
-  return result;
-}
-
-void ROPEngine::removeDuplicates(vector<Microgadget *> &chain) {
-  // TODO
-}
-
-bool ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
-                            std::vector<x86_reg> const &scratchRegs) {
+bool ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub,
+                               int immediate,
+                               std::vector<x86_reg> const &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain init, addsub, reorder;
 
   for (auto &scratchReg : scratchRegs) {
     init = BA->findGadgetPrimitive("init", scratchReg);
     addsub = BA->findGadgetPrimitive(isSub ? "sub" : "add", reg, scratchReg);
-    reorder = undoXchgs(MI);
+    reorder = BA->undoXchgs();
 
     if (init.empty() || addsub.empty()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
@@ -204,7 +187,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
   if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
-     return false;
+    return false;
 
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
@@ -221,7 +204,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     add = BA->findGadgetPrimitive("add", scratchReg, src);
     load = BA->findGadgetPrimitive("load_1", scratchReg, scratchReg);
 
-    reorder = undoXchgs(MI);
+    reorder = BA->undoXchgs();
     xchg = BA->exchangeRegs(dst, scratchReg);
     BA->xgraph.reorderRegisters(); // otherwise the last xchg would be undone by
                                    // the next obfuscated instruction
@@ -275,7 +258,7 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
     add = BA->findGadgetPrimitive("add", scratchReg, dst);
     store = BA->findGadgetPrimitive("store", scratchReg, src);
 
-    reorder = undoXchgs(MI);
+    reorder = BA->undoXchgs();
 
     if (init.empty() || add.empty() || store.empty()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
@@ -294,8 +277,8 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
   return false;
 }
 
-ROPChain ROPEngine::ropify(MachineInstr &MI,
-                           std::vector<x86_reg> &scratchRegs, bool &flagIsModifiedInInstr) {
+ROPChain ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
+                           bool &flagIsModifiedInInstr) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -317,32 +300,52 @@ ROPChain ROPEngine::ropify(MachineInstr &MI,
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    if (!handleAddSubIncDec(&MI, scratchRegs))
-      return chain;
+    handleAddSubIncDec(&MI, scratchRegs);
     flagIsModifiedInInstr = true;
     break;
   }
   case X86::MOV32rm: {
-    if (!handleMov32rm(&MI, scratchRegs)) {
-      return chain;
-    }
+    handleMov32rm(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
   }
   case X86::MOV32mr: {
-    if (!handleMov32mr(&MI, scratchRegs)) {
-      return chain;
-    }
+    handleMov32mr(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
   }
   default:
-    return chain;
+    break;
   }
 
+  removeDuplicates(chain);
   return chain;
 }
 
+void ROPEngine::removeDuplicates(ROPChain &chain) {
+  bool duplicates;
+
+  do {
+    duplicates = false;
+    if (chain.size() < 2)
+      break;
+
+    for (auto it = chain.begin() + 1; it != chain.end();) {
+      // equal microgadgets, but only if they're both XCHG instructions
+      if (*it == *(it - 1) && it->type == GADGET &&
+          it->microgadget->getID() == X86_INS_XCHG) {
+        it = chain.erase(it - 1);
+        it = chain.erase(it);
+        duplicates = true;
+      }
+      if (it != chain.end())
+        ++it;
+      else
+        break;
+    }
+
+  } while (duplicates);
+}
 
 void generateChainLabels(char **chainLabel, char **chainLabelC,
                          char **resumeLabel, char **resumeLabelC,

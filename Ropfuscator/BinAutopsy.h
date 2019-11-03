@@ -139,10 +139,13 @@ public:
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
-  std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
   ROPChain exchangeRegs(x86_reg reg0, x86_reg reg1);
-  std::vector<Microgadget *> undoXchgs();
+  ROPChain undoXchgs();
   x86_reg getEffectiveReg(x86_reg reg);
+
+  // Takes a path from the XchgGraph and build a ROP Chains with the right
+  // Xchg microgadgets
+  ROPChain buildXchgChain(XchgPath const &path);
 };
 
 #endif

@@ -2,6 +2,7 @@
 #include "BinAutopsy.h"
 #include "Microgadget.h"
 #include "Symbol.h"
+#include "llvm/Support/raw_ostream.h"
 
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
@@ -33,6 +34,16 @@ struct ChainElem {
   ChainElem(int64_t value) {
     this->type = IMMEDIATE;
     this->value = value;
+  }
+
+  friend bool operator==(ChainElem const &A, ChainElem const &B) {
+    if (A.type != B.type)
+      return false;
+
+    if (A.type == GADGET)
+      return (A.microgadget == B.microgadget);
+    else
+      return (A.value == B.value);
   }
 };
 
