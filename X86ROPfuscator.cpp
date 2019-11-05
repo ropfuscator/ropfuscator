@@ -87,14 +87,16 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   std::vector<MachineInstr *> instrToDelete;
 
   // description of the target ISA (used to generate new instructions, below)
-  MCInstrInfo const *TII = MF.getTarget().getMCInstrInfo();
+  X86InstrInfo const *TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
 
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
     // safely clobbered to compute temporary data
     ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
-    for (MachineInstr &MI : MBB) {
+    for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
+      MachineInstr &MI = *it;
+
       if (MI.isDebugInstr())
         continue;
 
@@ -104,7 +106,21 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       // get the list of scratch registers available for this instruction
       std::vector<x86_reg> MIScratchRegs = MBBScratchRegs.find(&MI)->second;
 
+      // Do this instruction and/or following instructions
+      // use current flags (i.e. affected by current flags)?
+      bool shouldFlagSaved = !TII->isSafeToClobberEFLAGS(MBB, it);
+      // Does this instruction modify (define/kill) flags?
       bool isFlagModifiedInInstr;
+      // Example instruction sequence describing how these booleans are set:
+      //   mov eax, 1    # false, false
+      //   add eax, 1    # false, true
+      //   cmp eax, ebx  # false, true
+      //   mov ecx, 1    # true,  false (caution!)
+      //   mov edx, 2    # true,  false (caution!)
+      //   je .Local1    # true,  false
+      //   add eax, ebx  # false, true
+      //   adc ecx, edx  # true,  true
+      //   adc ecx, 1    # true,  true
 
       auto ropeng = ROPEngine();
       ROPChain result = ropeng.ropify(MI, MIScratchRegs, isFlagModifiedInInstr);
@@ -125,30 +141,39 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel,
                             &resumeLabelC, funcName, chainID);
 
-        // save eflags
-        if (isFlagModifiedInInstr) {
-          // If the obfuscated instruction will modify flags,
-          // the flags should be restored after ROP chain is constructed
-          // and just before the ROP chain is executed.
-          // flag is saved at the top of the stack
+        if (shouldFlagSaved) {
+          // save eflags
+          if (isFlagModifiedInInstr) {
+            // If the obfuscated instruction will modify flags,
+            // the flags should be restored after ROP chain is constructed
+            // and just before the ROP chain is executed.
+            // flag is saved at the top of the stack
 
-          // lea esp, [esp-4*(N+1)]   # where N = chain size
-          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-              .addReg(X86::ESP)
-              .addImm(1)
-              .addReg(0)
-              .addImm(-4 * (result.size() + 1))
-              .addReg(0);
-          // pushf (EFLAGS register backup)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+            // lea esp, [esp-4*(N+1)]   # where N = chain size
+            BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+                .addReg(X86::ESP)
+                .addImm(1)
+                .addReg(0)
+                .addImm(-4 * (result.size() + 1))
+                .addReg(0);
+            // pushf (EFLAGS register backup)
+            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
 
-          // lea esp, [esp+4*(N+2)]   # where N = chain size
-          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-              .addReg(X86::ESP)
-              .addImm(1)
-              .addReg(0)
-              .addImm(4 * (result.size() + 2))
-              .addReg(0);
+            // lea esp, [esp+4*(N+2)]   # where N = chain size
+            BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+                .addReg(X86::ESP)
+                .addImm(1)
+                .addReg(0)
+                .addImm(4 * (result.size() + 2))
+                .addReg(0);
+          } else {
+            // If the obfuscated instruction will NOT modify flags,
+            // (and if the chain execution might modify the flags,)
+            // the flags should be restored after the ROP chain is executed.
+            // flag is saved at the bottom of the stack
+            // pushf (EFLAGS register backup)
+            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+          }
         }
         // call funcName_chain_X
         BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
@@ -215,7 +240,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
         // EMIT EPILOGUE
         // restore eflags, if eflags should be restored BEFORE chain execution
-        if (isFlagModifiedInInstr) {
+        if (shouldFlagSaved && isFlagModifiedInInstr) {
           // lea esp, [esp-4]
           BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
               .addReg(X86::ESP)
@@ -232,6 +257,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
             .addExternalSymbol(resumeLabelC)
             .addImm(0);
+        // restore eflags, if eflags should be restored AFTER chain execution
+        if (shouldFlagSaved && !isFlagModifiedInInstr) {
+          // popf (EFLAGS register restore)
+          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+        }
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
