@@ -16,3 +16,7 @@ bool opValid(cs_x86_op op);
 // convertToCapstoneReg - simple lookup table that translates register enums
 // from the LLVM representation (e.g. X86::EAX) to capstone (X86_REG_EAX).
 x86_reg convertToCapstoneReg(unsigned int reg);
+
+bool areEqualOps(const cs_x86_op &op0, const cs_x86_op &op1);
+
+x86_reg extractReg(const cs_x86_op op);

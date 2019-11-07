@@ -25,94 +25,22 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "RopfuscatorXchgGraph.h"
+#include "../X86ROPUtils.h"
+#include "ChainElem.h"
+#include "Microgadget.h"
+#include "Section.h"
+#include "Symbol.h"
+#include "XchgGraph.h"
 #include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
+#include <map>
 #include <string>
 #include <vector>
 
 // Max bytes before the RET to be examined (RET included!)
 // see BinaryAutopsy::extractGadgets()
 #define MAXDEPTH 4
-
-// Symbol - entry of the dynamic symbol table. We use them as references
-// to locate the needed gadgets.
-struct Symbol {
-  // Label - symbol name.
-  char *Label;
-
-  // Version - this is mostly useful when dealing with libc, because within it
-  // there are lots of symbols with the same label. GNU LIBC uses versioning to
-  // ensure compatibility with binaries using old ABI versions.
-  char *Version;
-
-  // SymVerDirective - it is just an inline asm directive we need to place to
-  // force the static linker to pick the right symbol version during the
-  // compilation.
-  char *SymVerDirective;
-
-  // Address - offset relative to the analysed binary file. When we'll reference
-  // a gadget in memory we'll use this as base address.
-  uint64_t Address;
-
-  // Constructor
-  Symbol(std::string label, std::string version, uint64_t address);
-
-  // getSymVerDirective - returns a pointer to the SymVerDirective string.
-  char *getSymVerDirective();
-};
-
-// Section - section data dumped from the ELF header
-struct Section {
-  // Label - section name
-  std::string Label;
-
-  // Address - offset relative to the analysed binary file.
-  // Length - Size of the section.
-  uint64_t Address, Length;
-
-  // Constructor
-  Section(std::string label, uint64_t address, uint64_t length);
-};
-
-enum GadgetClass_t {
-  REG_INIT,
-  REG_RESET,
-  REG_LOAD,
-  REG_STORE,
-  REG_XCHG,
-  UNDEFINED
-};
-
-// Microgadget - represents a single x86 instruction that precedes a RET.
-struct Microgadget {
-  // Instr - pointer to a capstone-engine data structure that contains details
-  // on the overall semantics of the instruction, along with address, opcode,
-  // etc.
-  const cs_insn *Instr;
-
-  // Class - gives basic semantic information about the instruction
-  GadgetClass_t Class;
-
-  // debug
-  std::string asmInstr;
-
-  // Constructor
-  Microgadget(cs_insn *instr, std::string asmInstr);
-
-  // getAddress - returns the offset relative to the analysed binary file.
-  uint64_t getAddress() const;
-
-  // getID - returns the instruction opcode.
-  x86_insn getID() const;
-
-  // getOp - returns the i-th instruction operand.
-  cs_x86_op getOp(int i) const;
-
-  // getNumOp - returns the total number of operands of the instruction
-  uint8_t getNumOp() const;
-};
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.
 // It provides also methods to look for specific gadgets and performs
@@ -139,6 +67,8 @@ public:
   // Microgadgets - results from dumpGadgets() are placed here
   std::vector<Microgadget> Microgadgets;
 
+  std::map<std::string, std::vector<Microgadget>> GadgetPrimitives;
+
   // BinaryPath - path of the binary file that is being analysed
   char *BinaryPath;
 
@@ -148,6 +78,7 @@ public:
 
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
+  static BinaryAutopsy *getInstance();
 
   // -----------------------------------------------------------------------------
   //  ANALYSES
@@ -175,10 +106,6 @@ public:
   // XCHG gadgets that have been found.
   void buildXchgGraph();
 
-  // analyseGadgets - performs a very simple gadget classification based on the
-  // semantic of specific instructions.
-  void analyseGadgets();
-
   // applyGadgetFilters - removes problematic gadgets from the set of discovered
   // ones, basing on the defined filters.
   void applyGadgetFilters();
@@ -194,35 +121,31 @@ public:
 
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
-  Microgadget *gadgetLookup(std::string asmInstr);
-  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_op_type op0,
-                                          x86_op_type op1 = x86_op_type());
-  std::vector<Microgadget *> gadgetLookup(x86_insn insn, x86_reg op0,
-                                          x86_reg op1 = X86_REG_INVALID);
-  std::vector<Microgadget *> gadgetLookup(GadgetClass_t Class);
+  Microgadget *findGadget(std::string asmInstr);
+  Microgadget *findGadget(x86_insn insn, x86_reg op0,
+                          x86_reg op1 = X86_REG_INVALID);
 
-  // canInitReg - tells if a given register can be initialised using a gadget.
-  bool canInitReg(unsigned int reg);
+  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
+                                            x86_op_type op1 = x86_op_type());
+  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
+                                            x86_reg op1 = X86_REG_INVALID);
+  std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
 
-  // getInitialisableRegs - returns a vector of registers that can be
-  // initialised using appropriate gadgets.
-  std::vector<x86_reg> getInitialisableRegs();
-
-  // checkXchgPath - uses XChgGraph to check whether two (or more registers) can
-  // be mutually exchanged.
-  bool checkXchgPath(x86_reg a, x86_reg b, x86_reg c = X86_REG_INVALID);
-  bool checkXchgPath(x86_reg a, std::vector<x86_reg> B);
+  ROPChain findGadgetPrimitive(std::string type, x86_reg op0,
+                               x86_reg op1 = X86_REG_INVALID);
+  // areExchangeable - uses XChgGraph to check whether two (or more
+  // registers) can be mutually exchanged.
+  bool areExchangeable(x86_reg a, x86_reg b);
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
-  std::vector<Microgadget *> getXchgPath(x86_reg a, x86_reg b);
+  ROPChain exchangeRegs(x86_reg reg0, x86_reg reg1);
+  ROPChain undoXchgs();
+  x86_reg getEffectiveReg(x86_reg reg);
 
-  std::vector<Microgadget *> undoXchgs();
-
-  // getReachableRegs - returns a list of all the nodes that can be reached
-  // starting the exploration from the given register. If no other register can
-  // be reached, it returns just the src itself.
-  std::vector<int> getReachableRegs(int src);
+  // Takes a path from the XchgGraph and build a ROP Chains with the right
+  // Xchg microgadgets
+  ROPChain buildXchgChain(XchgPath const &path);
 };
 
 #endif

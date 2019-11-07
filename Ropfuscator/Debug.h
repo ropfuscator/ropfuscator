@@ -1,7 +1,6 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <fmt/format.h>
 
 #define XCHG_CHAIN "xchg_chains"
 #define ROPCHAIN "ropchains"
@@ -26,24 +25,3 @@
 #define COLOR_YELLOW "\x1b[33m"
 #define COLOR_BLUE "\x1b[34m"
 #define COLOR_RESET "\x1b[0m"
-
-template <> struct fmt::formatter<llvm::MachineInstr> {
-  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const llvm::MachineInstr &MI, FormatContext &ctx) {
-    std::string s;
-    llvm::raw_string_ostream rso(s);
-
-    // writing into raw_string_ostream
-    MI.print(rso);
-
-    // stripping newline at end
-    auto mistr = rso.str();
-    mistr.erase(std::remove(mistr.begin(), mistr.end(), '\n'), mistr.end());
-
-    return fmt::format_to(ctx.begin(), "{}", mistr);
-  }
-};
