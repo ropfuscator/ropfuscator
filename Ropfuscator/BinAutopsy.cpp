@@ -480,7 +480,8 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                getEffectiveReg(op1) == gadget_op1) ||
               (getEffectiveReg(op0) == getEffectiveReg(op1) &&
                gadget_op0 == gadget_op1)) {
-            llvm::dbgs() << "\t\tavoiding double xchg\n";
+            DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
+                                            << "\t\tavoiding double xchg\n");
           } else {
             auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
             result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
