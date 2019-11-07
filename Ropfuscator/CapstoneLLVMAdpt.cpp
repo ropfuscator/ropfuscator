@@ -1,6 +1,40 @@
-#include "RopfuscatorCapstoneLLVMAdpt.h"
-#include "X86TargetMachine.h"
+#include "CapstoneLLVMAdpt.h"
+#include "../X86TargetMachine.h"
 #include <assert.h>
+
+bool areEqualOps(const cs_x86_op &op0, const cs_x86_op &op1) {
+  if (op0.type != op1.type)
+    return false;
+
+  switch (op0.type) {
+  case X86_OP_REG:
+    return (op0.reg == op1.reg);
+  case X86_OP_MEM: {
+    if (op0.mem.segment != op1.mem.segment)
+      return false;
+    if (op0.mem.base != op1.mem.base)
+      return false;
+    if (op0.mem.index != op1.mem.index)
+      return false;
+    if (op0.mem.scale != op1.mem.scale)
+      return false;
+    return (op0.mem.disp == op1.mem.disp);
+  }
+  case X86_OP_IMM:
+    return (op0.imm == op1.imm);
+  default: {
+    assert(false && "trying to compare invalid operands!");
+    return false;
+  }
+  }
+}
+
+x86_reg extractReg(const cs_x86_op op) {
+  if (op.type == X86_OP_REG)
+    return op.reg;
+  else
+    return (x86_reg)op.mem.base;
+}
 
 cs_x86_op opCreate(x86_op_type type, unsigned int value) {
   cs_x86_op op;
@@ -8,17 +42,17 @@ cs_x86_op opCreate(x86_op_type type, unsigned int value) {
 
   switch (type) {
   case X86_OP_REG: {
-    op.reg = static_cast<x86_reg>(value);
+    op.reg = (x86_reg)value;
     break;
   }
   case X86_OP_IMM: {
-    op.imm = static_cast<uint64_t>(value);
+    op.imm = (uint64_t)value;
     break;
   }
   case X86_OP_MEM: {
     x86_op_mem mem;
     op.mem = mem;
-    op.mem.base = static_cast<x86_reg>(value);
+    op.mem.base = (x86_reg)value;
     break;
   }
   default:
@@ -27,8 +61,6 @@ cs_x86_op opCreate(x86_op_type type, unsigned int value) {
 
   return op;
 }
-
-
 
 x86_reg convertToCapstoneReg(unsigned int reg) {
   switch (reg) {

@@ -23,11 +23,11 @@ add_public_tablegen_target(X86CommonTableGen)
 
 set(ROPFUSCATOR_SOURCES
         X86ROPfuscator.cpp
-        RopfuscatorBinAutopsy.cpp
-        RopfuscatorXchgGraph.cpp
-        RopfuscatorCapstoneLLVMAdpt.cpp
-        RopfuscatorLivenessAnalysis.cpp
         X86ROPUtils.cpp
+        Ropfuscator/BinAutopsy.cpp
+        Ropfuscator/XchgGraph.cpp
+        Ropfuscator/CapstoneLLVMAdpt.cpp
+        Ropfuscator/LivenessAnalysis.cpp
         )
 
 set(sources

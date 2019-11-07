@@ -1,5 +1,5 @@
-#include "RopfuscatorXchgGraph.h"
-#include "RopfuscatorDebug.h"
+#include "XchgGraph.h"
+#include "Debug.h"
 #include <limits.h>
 #include <list>
 
@@ -69,8 +69,8 @@ XchgPath XchgGraph::getPath(int src, int dest) {
   // llvm::dbgs() << "[getPath] Exchanging " << src << " with " << dest
   //              << " instead!\n";
 
-  assert(checkPath(src, dest, pred, dist, visited) &&
-         "Src and dest operand are not connected. Use checkPath() first.");
+  if (!checkPath(src, dest, pred, dist, visited))
+    return result;
 
   crawl = dest;
   path.push_back(crawl);
@@ -104,15 +104,18 @@ int XchgGraph::searchLogicalReg(int LReg) {
 
 XchgPath XchgGraph::fixPath(XchgPath path) {
   XchgPath result;
+
   result.insert(result.begin(), path.begin(), path.end());
   if (path.size() > 1)
     result.insert(result.end(), path.rbegin() + 1, path.rend());
 
+  xchgStack.insert(xchgStack.end(), result.begin(), result.end());
   return result;
 }
 
 XchgPath XchgGraph::reorderRegisters() {
-  XchgPath result, tmp;
+  XchgPath result;
+  result.insert(result.end(), xchgStack.rbegin(), xchgStack.rend()); //, tmp;
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << "Exchanging back...\n");
 
@@ -126,11 +129,12 @@ XchgPath XchgGraph::reorderRegisters() {
       DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                       << "Xchanging logical register " << i
                                       << " with " << PReg << " !\n");
-      tmp = getPath(PReg, i);
-      result.insert(result.end(), tmp.begin(), tmp.end());
-      printAll();
+      getPath(PReg, i);
+      // result.insert(result.end(), tmp.begin(), tmp.end());
+      // printAll();
     }
   }
+  xchgStack.clear();
 
   return result;
 }

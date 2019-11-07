@@ -38,6 +38,8 @@ class XchgGraph {
   // adj[] - adjacency list
   std::vector<int> adj[N_REGS];
 
+  XchgPath xchgStack;
+
   // fixPath - given a straight path between the two registers to exchange, this
   // function elaborates the full path in order to avoid having other
   // intermediate registers scrambled through the whole path.
