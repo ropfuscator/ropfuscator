@@ -8,6 +8,7 @@ enable_testing()
 set(testcases
     testcase001
     testcase002
+    testcase003
     testcase-example1
 )
 # ====================
@@ -22,6 +23,7 @@ endforeach()
 # ====================
 target_compile_options(testcase001       PUBLIC -O2)
 target_compile_options(testcase002       PUBLIC -O0)
+target_compile_options(testcase003       PUBLIC -O2)
 target_compile_options(testcase-example1 PUBLIC -O0)
 # ====================
 
