@@ -28,7 +28,8 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   // Initialises LibBFD and opens the binary
   bfd_init();
   BfdHandle = bfd_openr(BinaryPath, NULL);
-  assert(bfd_check_format(BfdHandle, bfd_object) &&
+  if (!bfd_check_format(BfdHandle, bfd_object))
+    assert(false &&
          "Given file does not look like a valid ELF file");
 
   // Seeds the PRNG (we'll use it in getRandomSymbol());
