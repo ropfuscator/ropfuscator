@@ -34,6 +34,7 @@ BinaryAutopsy::BinaryAutopsy(string path) {
 
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
+  isModuleSymbolAnalysed = false;
 
   dissect();
 }
@@ -183,6 +184,24 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
 
   assert(!Symbols.empty() && "No symbols found!");
+}
+
+void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
+  isModuleSymbolAnalysed = true;
+  std::set<std::string> names;
+  for (const auto &f : module->getFunctionList()) {
+    names.insert(f.getName().str());
+  }
+  for (const auto &g : module->getGlobalList()) {
+    names.insert(g.getName().str());
+  }
+  for (auto it = Symbols.begin(); it != Symbols.end(); ) {
+    if (names.find(it->Label) != names.end()) {
+      it = Symbols.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 Symbol *BinaryAutopsy::getRandomSymbol() {

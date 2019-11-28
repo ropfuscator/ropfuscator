@@ -53,6 +53,8 @@ private:
   // Singleton
   static BinaryAutopsy *instance;
   BinaryAutopsy(std::string path);
+  BinaryAutopsy() = delete;
+  BinaryAutopsy(const BinaryAutopsy &) = delete;
 
 public:
   // XchgGraph instance
@@ -75,6 +77,8 @@ public:
   // BfdHandle - an handle to read ELF headers. Used by dumpSections() and
   // dumpDynamicSymbols()
   bfd *BfdHandle;
+
+  bool isModuleSymbolAnalysed;
 
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
@@ -109,6 +113,10 @@ public:
   // applyGadgetFilters - removes problematic gadgets from the set of discovered
   // ones, basing on the defined filters.
   void applyGadgetFilters();
+
+  // analyseUsedSymbols - traverse the module and register the symbol names
+  // with forbidden list
+  void analyseUsedSymbols(const llvm::Module *module);
 
   // -----------------------------------------------------------------------------
   //  HELPER METHODS
