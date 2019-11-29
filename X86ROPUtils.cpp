@@ -339,6 +339,30 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
   return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
+ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain store, reorder;
+
+  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
+
+  store = BA->findGadgetPrimitive("store", dst, src);
+  reorder = BA->undoXchgs();
+
+  if (store.empty())
+    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+  chain.insert(chain.end(), store.begin(), store.end());
+  chain.insert(chain.end(), reorder.begin(), reorder.end());
+
+  return ROPChainStatus::OK;
+}
+
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
                            bool &flagIsModifiedInInstr, ROPChain &resultChain) {
   // if ESP is one of the operands of MI -> abort
@@ -379,6 +403,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   }
   case X86::MOV32mi:
     status = handleMov32mi(&MI, scratchRegs);
+    flagIsModifiedInInstr = false;
+    break;
+  case X86::MOV32rr:
+    status = handleMov32rr(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
   default:
