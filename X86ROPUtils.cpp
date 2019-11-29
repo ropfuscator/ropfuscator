@@ -351,7 +351,7 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
-  store = BA->findGadgetPrimitive("store", dst, src);
+  store = BA->findGadgetPrimitive("copy", dst, src);
   reorder = BA->undoXchgs();
 
   if (store.empty())
@@ -361,6 +361,111 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
   chain.insert(chain.end(), reorder.begin(), reorder.end());
 
   return ROPChainStatus::OK;
+}
+
+ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain initImm, initOfs, add, load, sub, reorder;
+
+  // Preliminary checks
+  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+
+  if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // skip scaled-index addressing mode since we cannot handle them
+  //      cmp     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
+  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0
+      || MI->getOperand(4).isReg() && MI->getOperand(4).getReg() != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  unsigned int imm = (unsigned int)MI->getOperand(5).getImm();
+
+  unsigned displacement;
+  if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
+    displacement = MI->getOperand(3).getImm();
+  else
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  for (auto &scratchReg1 : scratchRegs) {
+    for (auto &scratchReg2 : scratchRegs) {
+      if (scratchReg1 == scratchReg2)
+        continue;
+      initImm = BA->findGadgetPrimitive("init", scratchReg2);
+      initOfs = BA->findGadgetPrimitive("init", scratchReg1);
+      add = BA->findGadgetPrimitive("add", scratchReg1, dst);
+      load = BA->findGadgetPrimitive("load_1", scratchReg1);
+      sub = BA->findGadgetPrimitive("sub", scratchReg1, scratchReg2);
+
+      reorder = BA->undoXchgs();
+
+      if (initImm.empty() || initOfs.empty() || add.empty() || load.empty() || sub.empty()) {
+        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        continue;
+      }
+
+      initImm.emplace_back(ChainElem(imm));
+      initOfs.emplace_back(ChainElem(displacement));
+      chain.insert(chain.end(), initImm.begin(), initImm.end());
+      chain.insert(chain.end(), initOfs.begin(), initOfs.end());
+      chain.insert(chain.end(), add.begin(), add.end());
+      chain.insert(chain.end(), load.begin(), load.end());
+      chain.insert(chain.end(), sub.begin(), sub.end());
+      chain.insert(chain.end(), reorder.begin(), reorder.end());
+
+      return ROPChainStatus::OK;
+    }
+  }
+
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+}
+
+ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain init, copy, sub, reorder;
+
+  // Preliminary checks
+  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+
+  if (MI->getOperand(0).getReg() == 0 || !MI->getOperand(1).isImm())
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
+  unsigned int imm = (unsigned int)MI->getOperand(1).getImm();
+
+  for (auto &scratchReg1 : scratchRegs) {
+    for (auto &scratchReg2 : scratchRegs) {
+      if (scratchReg1 == scratchReg2)
+        continue;
+      init = BA->findGadgetPrimitive("init", scratchReg2);
+      copy = BA->findGadgetPrimitive("copy", scratchReg1, reg);
+      sub = BA->findGadgetPrimitive("sub", scratchReg1, scratchReg2);
+
+      reorder = BA->undoXchgs();
+
+      if (init.empty() || copy.empty() || sub.empty()) {
+        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        continue;
+      }
+
+      init.emplace_back(ChainElem(imm));
+      chain.insert(chain.end(), init.begin(), init.end());
+      chain.insert(chain.end(), copy.begin(), copy.end());
+      chain.insert(chain.end(), sub.begin(), sub.end());
+      chain.insert(chain.end(), reorder.begin(), reorder.end());
+
+      return ROPChainStatus::OK;
+    }
+  }
+
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
@@ -391,6 +496,16 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
     flagIsModifiedInInstr = true;
     break;
   }
+  case X86::CMP32mi:
+  case X86::CMP32mi8:
+    status = handleCmp32mi(&MI, scratchRegs);
+    flagIsModifiedInInstr = true;
+    break;
+  case X86::CMP32ri:
+  case X86::CMP32ri8:
+    status = handleCmp32ri(&MI, scratchRegs);
+    flagIsModifiedInInstr = true;
+    break;
   case X86::MOV32rm: {
     status = handleMov32rm(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
