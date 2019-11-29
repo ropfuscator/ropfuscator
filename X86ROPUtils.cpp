@@ -95,8 +95,8 @@ bool getLibraryPath(std::string &libraryPath) {
 
 ROPEngine::ROPEngine() {}
 
-bool ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub,
-                               int immediate,
+ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
+                               bool isSub, int immediate,
                                std::vector<x86_reg> const &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain init, addsub, reorder;
@@ -115,13 +115,13 @@ bool ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub,
     chain.insert(chain.end(), addsub.begin(), addsub.end());
     chain.insert(chain.end(), reorder.begin(), reorder.end());
 
-    return true;
+    return ROPChainStatus::OK;
   }
 
-  return false;
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
-bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleAddSubIncDec(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
@@ -131,13 +131,13 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
 
   // no scratch registers are available -> abort.
   if (scratchRegs.empty())
-    return false;
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   switch (opcode) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
     if (!MI->getOperand(2).isImm())
-      return false;
+      return ROPChainStatus::ERR_UNSUPPORTED;
 
     isSub = false;
     imm = MI->getOperand(2).getImm();
@@ -147,7 +147,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
   case X86::SUB32ri8:
   case X86::SUB32ri: {
     if (!MI->getOperand(2).isImm())
-      return false;
+      return ROPChainStatus::ERR_UNSUPPORTED;
 
     isSub = true;
     imm = MI->getOperand(2).getImm();
@@ -165,7 +165,7 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
     break;
   }
   default:
-    return false;
+    return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
   dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
@@ -173,21 +173,23 @@ bool ROPEngine::handleAddSubIncDec(MachineInstr *MI,
   return addSubImmToReg(MI, dest_reg, isSub, imm, scratchRegs);
 }
 
-bool ROPEngine::handleMov32rm(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain init, add, load, xchg, reorder;
 
   // Preliminary checks
-  if (scratchRegs.size() < 1 || // there isn't at least 1 scratch register
-      (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
-       || MI->getOperand(1).getReg() == 0))
-    return false;
+  if (scratchRegs.size() < 1) // there isn't at least 1 scratch register
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+
+  if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
+       || MI->getOperand(1).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
   if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
-    return false;
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
@@ -197,7 +199,7 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
   if (MI->getOperand(4).isImm()) // is an immediate and not a symbol
     displacement = MI->getOperand(4).getImm();
   else
-    return false;
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   for (auto &scratchReg : scratchRegs) {
     init = BA->findGadgetPrimitive("init", scratchReg);
@@ -221,27 +223,29 @@ bool ROPEngine::handleMov32rm(MachineInstr *MI,
     chain.insert(chain.end(), reorder.begin(), reorder.end());
     chain.insert(chain.end(), xchg.begin(), xchg.end());
 
-    return true;
+    return ROPChainStatus::OK;
   }
 
-  return false;
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
-bool ROPEngine::handleMov32mr(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain init, add, store, reorder;
 
   // Preliminary checks
-  if (scratchRegs.size() < 1 || // there isn't at least 1 scratch register
-      (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
-       || MI->getOperand(5).getReg() == 0))
-    return false;
+  if (scratchRegs.size() < 1) // there isn't at least 1 scratch register
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+
+  if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
+       || MI->getOperand(5).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
   if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
-    return false;
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
@@ -251,7 +255,7 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
   if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
     displacement = MI->getOperand(3).getImm();
   else
-    return false;
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   for (auto &scratchReg : scratchRegs) {
     init = BA->findGadgetPrimitive("init", scratchReg);
@@ -271,18 +275,18 @@ bool ROPEngine::handleMov32mr(MachineInstr *MI,
     chain.insert(chain.end(), store.begin(), store.end());
     chain.insert(chain.end(), reorder.begin(), reorder.end());
 
-    return true;
+    return ROPChainStatus::OK;
   }
 
-  return false;
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
-ROPChain ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
-                           bool &flagIsModifiedInInstr) {
+ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
+                           bool &flagIsModifiedInInstr, ROPChain &resultChain) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
-      return chain;
+      return ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER;
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
@@ -293,6 +297,7 @@ ROPChain ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 
+  ROPChainStatus status;
   switch (MI.getOpcode()) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
@@ -300,26 +305,27 @@ ROPChain ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    handleAddSubIncDec(&MI, scratchRegs);
+    status = handleAddSubIncDec(&MI, scratchRegs);
     flagIsModifiedInInstr = true;
     break;
   }
   case X86::MOV32rm: {
-    handleMov32rm(&MI, scratchRegs);
+    status = handleMov32rm(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
   }
   case X86::MOV32mr: {
-    handleMov32mr(&MI, scratchRegs);
+    status = handleMov32mr(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
   }
   default:
-    break;
+    return ROPChainStatus::ERR_NOT_IMPLEMENTED;
   }
 
   removeDuplicates(chain);
-  return chain;
+  resultChain = std::move(chain);
+  return status;
 }
 
 void ROPEngine::removeDuplicates(ROPChain &chain) {
