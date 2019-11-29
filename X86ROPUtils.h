@@ -58,7 +58,8 @@ bool getLibraryPath(std::string &libraryPath);
 class ROPEngine {
   ROPChain chain;
 
-  ROPChainStatus handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleAddSubIncDecRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleAddSubRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);

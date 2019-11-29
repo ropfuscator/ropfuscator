@@ -121,7 +121,7 @@ ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
   return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
-ROPChainStatus ROPEngine::handleAddSubIncDec(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
@@ -171,6 +171,42 @@ ROPChainStatus ROPEngine::handleAddSubIncDec(MachineInstr *MI,
   dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
 
   return addSubImmToReg(MI, dest_reg, isSub, imm, scratchRegs);
+}
+
+ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
+                                   std::vector<x86_reg> &scratchRegs) {
+  unsigned opcode = MI->getOpcode();
+
+  const char *gadget_type;
+
+  switch (opcode) {
+  case X86::ADD32rr:
+    gadget_type = "add";
+    break;
+  case X86::SUB32rr:
+    gadget_type = "sub";
+    break;
+  default:
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
+
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain addsub, reorder;
+
+  addsub = BA->findGadgetPrimitive(gadget_type, dst, src);
+  reorder = BA->undoXchgs();
+
+  if (addsub.empty())
+    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+  chain.insert(chain.end(), addsub.begin(), addsub.end());
+  chain.insert(chain.end(), reorder.begin(), reorder.end());
+
+  return ROPChainStatus::OK;
 }
 
 ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
@@ -492,10 +528,15 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   case X86::SUB32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    status = handleAddSubIncDec(&MI, scratchRegs);
+    status = handleAddSubIncDecRI(&MI, scratchRegs);
     flagIsModifiedInInstr = true;
     break;
   }
+  case X86::ADD32rr:
+  case X86::SUB32rr:
+    status = handleAddSubRR(&MI, scratchRegs);
+    flagIsModifiedInInstr = true;
+    break;
   case X86::CMP32mi:
   case X86::CMP32mi8:
     status = handleCmp32mi(&MI, scratchRegs);
