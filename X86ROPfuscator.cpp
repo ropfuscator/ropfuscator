@@ -73,6 +73,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   std::string libraryPath;
   getLibraryPath(libraryPath);
   BinaryAutopsy *BA = BinaryAutopsy::getInstance(libraryPath);
+  BA->analyseUsedSymbols(MF.getFunction().getParent());
 
   // stats
   int processed = 0, obfuscated = 0;
