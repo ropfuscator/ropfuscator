@@ -63,6 +63,8 @@ class ROPEngine {
   ROPChainStatus handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32rr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32ri(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
                       std::vector<x86_reg> const &scratchRegs);
 
