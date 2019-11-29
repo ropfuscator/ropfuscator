@@ -36,6 +36,16 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 
 typedef std::vector<ChainElem> ROPChain;
 
+enum class ROPChainStatus {
+  OK = 0, // chain generated without error
+  ERR_NOT_IMPLEMENTED, // unknown instruction
+  ERR_NO_REGISTER_AVAILABLE, // enough registers are not available
+  ERR_NO_GADGETS_AVAILABLE, // no gadgets are available
+  ERR_UNSUPPORTED, // known instruction, but not supported for some reason
+  ERR_UNSUPPORTED_STACKPOINTER, // not supported as it uses/modifies stack pointer
+  COUNT
+};
+
 using namespace std;
 using namespace llvm;
 
@@ -48,18 +58,18 @@ bool getLibraryPath(std::string &libraryPath);
 class ROPEngine {
   ROPChain chain;
 
-  bool handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  bool handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  bool handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  bool addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
+  ROPChainStatus handleAddSubIncDec(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
                       std::vector<x86_reg> const &scratchRegs);
 
 public:
   // Constructor
   ROPEngine();
 
-  ROPChain ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
-                  bool &flagIsModifiedInInstr);
+  ROPChainStatus ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
+                        bool &flagIsModifiedInInstr, ROPChain &resultChain);
   ROPChain undoXchgs(MachineInstr *MI);
 
   // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the

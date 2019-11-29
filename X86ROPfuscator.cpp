@@ -29,6 +29,38 @@
 #define X86_ROPFUSCATOR_PASS_NAME "x86-ropfuscator"
 #define X86_ROPFUSCATOR_PASS_DESC "Obfuscate machine code through ROP chains"
 
+#define ROPFUSCATOR_INSTRUCTION_STAT
+
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+struct ROPChainStatEntry {
+  static const int entry_size = static_cast<int>(ROPChainStatus::COUNT);
+  int data[entry_size];
+  int &operator[](ROPChainStatus status) {
+    return data[static_cast<int>(status)];
+  }
+  int operator[](ROPChainStatus status) const {
+    return data[static_cast<int>(status)];
+  }
+  int total() const {
+    return std::accumulate(&data[0], &data[entry_size], 0);
+  }
+  ROPChainStatEntry() {
+    memset(data, 0, sizeof(data));
+  }
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ROPChainStatEntry &entry) {
+    os << "stat:ropfuscated " << entry[ROPChainStatus::OK]
+       << " / total " << entry.total() << " ["
+       << " not-implemented: " << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED]
+       << " no-register: " << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE]
+       << " no-gadget: " << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE]
+       << " unsupported: " << entry[ROPChainStatus::ERR_UNSUPPORTED]
+       << " unsupported-esp: " << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER]
+       << " ]";
+    return os;
+  }
+};
+#endif
+
 using namespace llvm;
 
 // ----------------------------------------------------------------
@@ -90,6 +122,10 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   // description of the target ISA (used to generate new instructions, below)
   X86InstrInfo const *TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
 
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+  static std::map<unsigned, ROPChainStatEntry> instr_stat;
+#endif
+
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
     // safely clobbered to compute temporary data
@@ -111,7 +147,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       // use current flags (i.e. affected by current flags)?
       bool shouldFlagSaved = !TII->isSafeToClobberEFLAGS(MBB, it);
       // Does this instruction modify (define/kill) flags?
-      bool isFlagModifiedInInstr;
+      bool isFlagModifiedInInstr = false;
       // Example instruction sequence describing how these booleans are set:
       //   mov eax, 1    # false, false
       //   add eax, 1    # false, true
@@ -124,9 +160,14 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       //   adc ecx, 1    # true,  true
 
       auto ropeng = ROPEngine();
-      ROPChain result = ropeng.ropify(MI, MIScratchRegs, isFlagModifiedInInstr);
+      ROPChain result;
+      ROPChainStatus status = ropeng.ropify(MI, MIScratchRegs, isFlagModifiedInInstr, result);
 
-      if (result.empty()) {
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+      instr_stat[MI.getOpcode()][status]++;
+#endif
+
+      if (status != ROPChainStatus::OK) {
         // unable to obfuscate
         DEBUG_WITH_TYPE(
             PROCESSED_INSTR,
@@ -285,7 +326,12 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
                                     << obfuscated << "/" << processed << " ("
                                     << (obfuscated * 100) / processed
                                     << "%) instructions obfuscated\n");
-
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+  for (auto &kv : instr_stat) {
+    DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = " << TII->getName(kv.first)
+                                      << " : " << kv.second << "\n");
+  }
+  #endif
   // the MachineFunction has been modified
   return true;
 }
