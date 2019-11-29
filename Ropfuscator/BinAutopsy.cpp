@@ -28,11 +28,13 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   // Initialises LibBFD and opens the binary
   bfd_init();
   BfdHandle = bfd_openr(BinaryPath, NULL);
-  assert(bfd_check_format(BfdHandle, bfd_object) &&
+  if (!bfd_check_format(BfdHandle, bfd_object))
+    assert(false &&
          "Given file does not look like a valid ELF file");
 
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
+  isModuleSymbolAnalysed = false;
 
   dissect();
 }
@@ -182,6 +184,24 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
 
   assert(!Symbols.empty() && "No symbols found!");
+}
+
+void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
+  isModuleSymbolAnalysed = true;
+  std::set<std::string> names;
+  for (const auto &f : module->getFunctionList()) {
+    names.insert(f.getName().str());
+  }
+  for (const auto &g : module->getGlobalList()) {
+    names.insert(g.getName().str());
+  }
+  for (auto it = Symbols.begin(); it != Symbols.end(); ) {
+    if (names.find(it->Label) != names.end()) {
+      it = Symbols.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 Symbol *BinaryAutopsy::getRandomSymbol() {

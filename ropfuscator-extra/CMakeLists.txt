@@ -6,7 +6,10 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
 set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
-set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis) #--use-custom-lib /home/user/crash/libc-2.29.so)
+set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim) #--use-custom-lib /path/to/your/libc.so
+IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis) #--use-custom-lib /path/to/your/libc.so
+ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
 project(ropfuscator-extra ASM)
 
@@ -22,3 +25,4 @@ option(ROPF_OPAQUEP "Enable opaque predicates to protect the ROP chains." OFF)
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
 add_subdirectory("examples" EXCLUDE_FROM_ALL)
 add_subdirectory("lib" EXCLUDE_FROM_ALL)
+add_subdirectory("testcase" EXCLUDE_FROM_ALL)
