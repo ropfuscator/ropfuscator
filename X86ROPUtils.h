@@ -60,6 +60,7 @@ class ROPEngine {
 
   ROPChainStatus handleAddSubIncDecRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleAddSubRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleLea32r(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);

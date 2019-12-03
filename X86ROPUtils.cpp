@@ -213,6 +213,109 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
   return ROPChainStatus::OK;
 }
 
+ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
+                              std::vector<x86_reg> &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain init, add, reorder;
+
+  unsigned int op_dst = MI->getOperand(0).getReg();
+  unsigned int op_reg1 = MI->getOperand(1).getReg();
+  // int64_t op_scale = MI->getOperand(2).getImm();
+  unsigned int op_reg2 = MI->getOperand(3).getReg();
+  llvm::MachineOperand op_disp = MI->getOperand(4);
+  unsigned int op_segment = MI->getOperand(5).getReg();
+
+  // lea op_dst, op_segment:[op_reg1 + op_scale * op_reg2 + op_disp]
+
+  if (op_dst == 0 || op_segment != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // skip scaled-index addressing mode
+  if (op_reg2 != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  x86_reg dst = convertToCapstoneReg(op_dst);
+  unsigned displacement;
+  const llvm::GlobalValue *disp_global = nullptr;
+  if (op_disp.isImm()) {
+    displacement = op_disp.getImm();
+  } else if (op_disp.isGlobal()) {
+    disp_global = op_disp.getGlobal();
+    displacement = op_disp.getOffset();
+  } else {
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+
+  init = BA->findGadgetPrimitive("init", dst);
+  if (init.empty())
+    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+  if (disp_global)
+    init.emplace_back(ChainElem(disp_global, displacement));
+  else
+    init.emplace_back(ChainElem(displacement));
+
+  if (op_reg1 == 0) {
+    // lea dst, [disp]
+    // -> mov dst, disp
+
+    init = BA->findGadgetPrimitive("init", dst);
+    reorder = BA->undoXchgs();
+    if (init.empty())
+      return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+    if (disp_global)
+      init.emplace_back(ChainElem(disp_global, displacement));
+    else
+      init.emplace_back(ChainElem(displacement));
+    chain.insert(chain.end(), init.begin(), init.end());
+    chain.insert(chain.end(), reorder.begin(), reorder.end());
+    return ROPChainStatus::OK;
+  } else {
+    // lea dst, [src + disp]
+    x86_reg src = convertToCapstoneReg(op_reg1);
+    if (src != dst) {
+      // -> mov dst, disp; add dst, src
+
+      init = BA->findGadgetPrimitive("init", dst);
+      add = BA->findGadgetPrimitive("add", dst, src);
+      reorder = BA->undoXchgs();
+      if (init.empty() || add.empty())
+        return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+      if (disp_global)
+        init.emplace_back(ChainElem(disp_global, displacement));
+      else
+        init.emplace_back(ChainElem(displacement));
+      chain.insert(chain.end(), init.begin(), init.end());
+      chain.insert(chain.end(), add.begin(), add.end());
+      chain.insert(chain.end(), reorder.begin(), reorder.end());
+      return ROPChainStatus::OK;
+    } else {
+      // -> mov scratch, disp; add dst, scratch
+      if (scratchRegs.size() < 1)
+        return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+      for (auto &scratchReg : scratchRegs) {
+        init = BA->findGadgetPrimitive("init", scratchReg);
+        add = BA->findGadgetPrimitive("add", dst, scratchReg);
+        reorder = BA->undoXchgs();
+        if (init.empty() || add.empty())
+          continue;
+
+        if (disp_global)
+          init.emplace_back(ChainElem(disp_global, displacement));
+        else
+          init.emplace_back(ChainElem(displacement));
+        chain.insert(chain.end(), init.begin(), init.end());
+        chain.insert(chain.end(), add.begin(), add.end());
+        chain.insert(chain.end(), reorder.begin(), reorder.end());
+        return ROPChainStatus::OK;
+      }
+      return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+    }
+  }
+}
+
 ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
@@ -561,6 +664,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   case X86::CMP32ri8:
     status = handleCmp32ri(&MI, scratchRegs);
     flagIsModifiedInInstr = true;
+    break;
+  case X86::LEA32r:
+    status = handleLea32r(&MI, scratchRegs);
+    flagIsModifiedInInstr = false;
     break;
   case X86::MOV32rm: {
     status = handleMov32rm(&MI, scratchRegs);
