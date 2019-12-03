@@ -236,10 +236,15 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
   unsigned displacement;
-  if (MI->getOperand(4).isImm()) // is an immediate and not a symbol
+  const llvm::GlobalValue *disp_global = nullptr;
+  if (MI->getOperand(4).isImm()) {
     displacement = MI->getOperand(4).getImm();
-  else
+  } else if (MI->getOperand(4).isGlobal()) {
+    disp_global = MI->getOperand(4).getGlobal();
+    displacement = MI->getOperand(4).getOffset();
+  } else {
     return ROPChainStatus::ERR_UNSUPPORTED;
+  }
 
   for (auto &scratchReg : scratchRegs) {
     init = BA->findGadgetPrimitive("init", scratchReg);
@@ -256,7 +261,10 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
       continue;
     }
 
-    init.emplace_back(ChainElem(displacement));
+    if (disp_global)
+      init.emplace_back(ChainElem(disp_global, displacement));
+    else
+      init.emplace_back(ChainElem(displacement));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), add.begin(), add.end());
     chain.insert(chain.end(), load.begin(), load.end());
@@ -420,8 +428,8 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
 
   // skip scaled-index addressing mode since we cannot handle them
   //      cmp     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
-  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0
-      || MI->getOperand(4).isReg() && MI->getOperand(4).getReg() != 0)
+  if ((MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
+      || (MI->getOperand(4).isReg() && MI->getOperand(4).getReg() != 0))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
@@ -591,7 +599,7 @@ void ROPEngine::removeDuplicates(ROPChain &chain) {
 
     for (auto it = chain.begin() + 1; it != chain.end();) {
       // equal microgadgets, but only if they're both XCHG instructions
-      if (*it == *(it - 1) && it->type == GADGET &&
+      if (*it == *(it - 1) && it->type == ChainElem::Type::GADGET &&
           it->microgadget->getID() == X86_INS_XCHG) {
         it = chain.erase(it - 1);
         it = chain.erase(it);
