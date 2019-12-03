@@ -192,12 +192,16 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
 
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
-  x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
+  x86_reg src1 = convertToCapstoneReg(MI->getOperand(1).getReg());
+  x86_reg src2 = convertToCapstoneReg(MI->getOperand(2).getReg());
+
+  if (dst != src1)
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain addsub, reorder;
 
-  addsub = BA->findGadgetPrimitive(gadget_type, dst, src);
+  addsub = BA->findGadgetPrimitive(gadget_type, dst, src2);
   reorder = BA->undoXchgs();
 
   if (addsub.empty())
@@ -332,6 +336,9 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
   if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  if (!MI->getOperand(5).isImm())
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
