@@ -233,7 +233,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         for (auto elem = result.rbegin(); elem != result.rend(); ++elem) {
           switch (elem->type) {
 
-          case IMMEDIATE: {
+          case ChainElem::Type::IMM_VALUE: {
             // Push the immediate value onto the stack //
             // push $imm
             BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
@@ -241,7 +241,15 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             break;
           }
 
-          case GADGET: {
+          case ChainElem::Type::IMM_GLOBAL: {
+            // Push the global symbol onto the stack
+            // push global_symbol
+            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+                .addGlobalAddress(elem->global, elem->value);
+            break;
+          }
+
+          case ChainElem::Type::GADGET: {
             if (OpaquePredicatesEnabled) {
               // call $opaquePredicate
               BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
@@ -331,7 +339,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = " << TII->getName(kv.first)
                                       << " : " << kv.second << "\n");
   }
-  #endif
+#endif
   // the MachineFunction has been modified
   return true;
 }
