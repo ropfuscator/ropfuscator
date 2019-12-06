@@ -83,16 +83,21 @@ public:
 
   X86ROPfuscator() : MachineFunctionPass(ID) {
     initializeX86ROPfuscatorPass(*PassRegistry::getPassRegistry());
+    BA = nullptr;
+    TII = nullptr;
   }
 
   StringRef getPassName() const override { return X86_ROPFUSCATOR_PASS_NAME; }
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
-  void insertROPChain(MachineFunction &MF, const ROPChain &chain,
-                      MachineBasicBlock &MBB, MachineInstr &MI,
-                      const TargetInstrInfo *TII, BinaryAutopsy *BA,
-                      int chainID, bool shouldFlagSaved,
+  BinaryAutopsy *BA;
+  const X86InstrInfo *TII;
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+  std::map<unsigned, ROPChainStatEntry> instr_stat;
+#endif
+  void insertROPChain(const ROPChain &chain, MachineBasicBlock &MBB,
+                      MachineInstr &MI, int chainID, bool shouldFlagSaved,
                       bool isFlagModifiedInInstr);
 };
 
@@ -103,17 +108,15 @@ FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 // ----------------------------------------------------------------
 
-void X86ROPfuscator::insertROPChain(MachineFunction &MF, const ROPChain &chain,
+void X86ROPfuscator::insertROPChain(const ROPChain &chain,
                                     MachineBasicBlock &MBB, MachineInstr &MI,
-                                    const TargetInstrInfo *TII,
-                                    BinaryAutopsy *BA, int chainID,
-                                    bool shouldFlagSaved,
+                                    int chainID, bool shouldFlagSaved,
                                     bool isFlagModifiedInInstr) {
 
   char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
   // EMIT PROLOGUE
   generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
-                      MF.getName(), chainID);
+                      MBB.getParent()->getName(), chainID);
 
   if (shouldFlagSaved) {
     // save eflags
@@ -249,29 +252,27 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     return false;
 
   // create a new singleton instance of Binary Autopsy
-  std::string libraryPath;
-  getLibraryPath(libraryPath);
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance(libraryPath);
-  BA->analyseUsedSymbols(MF.getFunction().getParent());
+  if (BA == nullptr) {
+    std::string libraryPath;
+    getLibraryPath(libraryPath);
+    BA = BinaryAutopsy::getInstance(libraryPath);
+    BA->analyseUsedSymbols(MF.getFunction().getParent());
+  }
+
+  if (TII == nullptr) {
+    // description of the target ISA (used to generate new instructions, below)
+    TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
+  }
 
   // stats
   int processed = 0, obfuscated = 0;
-  StringRef const funcName = MF.getName();
 
   // ASM labels for each ROP chain
   int chainID = 0;
-  char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
 
   // original instructions that have been successfully ROPified and that will be
   // removed at the end
   std::vector<MachineInstr *> instrToDelete;
-
-  // description of the target ISA (used to generate new instructions, below)
-  X86InstrInfo const *TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
-
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  static std::map<unsigned, ROPChainStatEntry> instr_stat;
-#endif
 
   for (MachineBasicBlock &MBB : MF) {
     // perform register liveness analysis to get a list of registers that can be
@@ -324,7 +325,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       } else {
         // add current instruction in the To-Delete list
         instrToDelete.push_back(&MI);
-        insertROPChain(MF, result, MBB, MI, TII, BA, chainID, shouldFlagSaved,
+        insertROPChain(result, MBB, MI, chainID, shouldFlagSaved,
                        isFlagModifiedInInstr);
 
         // successfully obfuscated
@@ -344,14 +345,15 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   }
 
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << funcName << ":  \t"
+  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << MF.getName() << ":  \t"
                                     << obfuscated << "/" << processed << " ("
                                     << (obfuscated * 100) / processed
                                     << "%) instructions obfuscated\n");
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   for (auto &kv : instr_stat) {
-    DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = " << TII->getName(kv.first)
-                                      << " : " << kv.second << "\n");
+    DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = "
+                                      << TII->getName(kv.first) << " : "
+                                      << kv.second << "\n");
   }
 #endif
   // the MachineFunction has been modified
