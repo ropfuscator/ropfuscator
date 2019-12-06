@@ -477,7 +477,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
   }
 
   if (found) {
-    result.emplace_back(ChainElem(found));
+    result.emplace_back(ChainElem::fromGadget(found));
   } else {
     // Attempt #2: find a primitive gadget that has at least operands
     // exchangeable with the ones required. A proper xchg chain will be
@@ -511,7 +511,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
         auto xchgChain0 = exchangeRegs(getEffectiveReg(op0), gadget_op0);
         result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
 
-        result.emplace_back(ChainElem(&gadget));
+        result.emplace_back(ChainElem::fromGadget(&gadget));
         break;
       }
     }
@@ -530,7 +530,7 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
       found =
           findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
-    result.emplace_back(ChainElem(found));
+    result.emplace_back(ChainElem::fromGadget(found));
   }
 
   return result;

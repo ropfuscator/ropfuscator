@@ -110,7 +110,7 @@ ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
-    init.emplace_back(ChainElem(immediate));
+    init.emplace_back(ChainElem::fromImmediate(immediate));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), addsub.begin(), addsub.end());
     chain.insert(chain.end(), reorder.begin(), reorder.end());
@@ -251,9 +251,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
   if (disp_global)
-    init.emplace_back(ChainElem(disp_global, displacement));
+    init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
   else
-    init.emplace_back(ChainElem(displacement));
+    init.emplace_back(ChainElem::fromImmediate(displacement));
 
   if (op_reg1 == 0) {
     // lea dst, [disp]
@@ -265,9 +265,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
     if (disp_global)
-      init.emplace_back(ChainElem(disp_global, displacement));
+      init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
     else
-      init.emplace_back(ChainElem(displacement));
+      init.emplace_back(ChainElem::fromImmediate(displacement));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), reorder.begin(), reorder.end());
     return ROPChainStatus::OK;
@@ -284,9 +284,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
         return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
       if (disp_global)
-        init.emplace_back(ChainElem(disp_global, displacement));
+        init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
       else
-        init.emplace_back(ChainElem(displacement));
+        init.emplace_back(ChainElem::fromImmediate(displacement));
       chain.insert(chain.end(), init.begin(), init.end());
       chain.insert(chain.end(), add.begin(), add.end());
       chain.insert(chain.end(), reorder.begin(), reorder.end());
@@ -303,9 +303,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
           continue;
 
         if (disp_global)
-          init.emplace_back(ChainElem(disp_global, displacement));
+          init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
         else
-          init.emplace_back(ChainElem(displacement));
+          init.emplace_back(ChainElem::fromImmediate(displacement));
         chain.insert(chain.end(), init.begin(), init.end());
         chain.insert(chain.end(), add.begin(), add.end());
         chain.insert(chain.end(), reorder.begin(), reorder.end());
@@ -365,9 +365,9 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
     }
 
     if (disp_global)
-      init.emplace_back(ChainElem(disp_global, displacement));
+      init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
     else
-      init.emplace_back(ChainElem(displacement));
+      init.emplace_back(ChainElem::fromImmediate(displacement));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), add.begin(), add.end());
     chain.insert(chain.end(), load.begin(), load.end());
@@ -420,7 +420,7 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
       continue;
     }
 
-    init.emplace_back(ChainElem(displacement));
+    init.emplace_back(ChainElem::fromImmediate(displacement));
     chain.insert(chain.end(), init.begin(), init.end());
     chain.insert(chain.end(), add.begin(), add.end());
     chain.insert(chain.end(), store.begin(), store.end());
@@ -478,8 +478,8 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
         continue;
       }
 
-      initImm.emplace_back(ChainElem(imm));
-      initOfs.emplace_back(ChainElem(displacement));
+      initImm.emplace_back(ChainElem::fromImmediate(imm));
+      initOfs.emplace_back(ChainElem::fromImmediate(displacement));
       chain.insert(chain.end(), initImm.begin(), initImm.end());
       chain.insert(chain.end(), initOfs.begin(), initOfs.end());
       chain.insert(chain.end(), add.begin(), add.end());
@@ -562,8 +562,8 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
         continue;
       }
 
-      initImm.emplace_back(ChainElem(imm));
-      initOfs.emplace_back(ChainElem(displacement));
+      initImm.emplace_back(ChainElem::fromImmediate(imm));
+      initOfs.emplace_back(ChainElem::fromImmediate(displacement));
       chain.insert(chain.end(), initImm.begin(), initImm.end());
       chain.insert(chain.end(), initOfs.begin(), initOfs.end());
       chain.insert(chain.end(), add.begin(), add.end());
@@ -609,7 +609,7 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
         continue;
       }
 
-      init.emplace_back(ChainElem(imm));
+      init.emplace_back(ChainElem::fromImmediate(imm));
       chain.insert(chain.end(), init.begin(), init.end());
       chain.insert(chain.end(), copy.begin(), copy.end());
       chain.insert(chain.end(), sub.begin(), sub.end());
@@ -620,6 +620,15 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
   }
 
   return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+}
+
+ROPChainStatus ROPEngine::handleJmp1(MachineInstr *MI,
+                                     std::vector<x86_reg> &scratchRegs) {
+  if (!MI->getOperand(0).isMBB()) {
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+  chain.emplace_back(ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
+  return ROPChainStatus::OK;
 }
 
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
@@ -687,6 +696,11 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
     status = handleMov32rr(&MI, scratchRegs);
     flagIsModifiedInInstr = false;
     break;
+  case X86::JMP_1:
+    // status = handleJmp1(&MI, scratchRegs);
+    // flagIsModifiedInInstr = false;
+    // break;
+    return ROPChainStatus::ERR_NOT_IMPLEMENTED;
   default:
     return ROPChainStatus::ERR_NOT_IMPLEMENTED;
   }
