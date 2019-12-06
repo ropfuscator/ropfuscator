@@ -118,7 +118,9 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
   generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
                       MBB.getParent()->getName(), chainID);
 
+  bool hasJump = chain.back().type == ChainElem::Type::JMP_BLOCK;
   if (shouldFlagSaved) {
+    assert(!hasJump);
     // save eflags
     if (isFlagModifiedInInstr) {
       // If the obfuscated instruction will modify flags,
@@ -152,12 +154,17 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
     }
   }
-  // call funcName_chain_X
-  BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-      .addExternalSymbol(chainLabel);
-  // jmp resume_funcName_chain_X
-  BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
-      .addExternalSymbol(resumeLabel);
+  if (hasJump) {
+    // jmp funcName_chain_X
+    // (omitted since it would be redundant)
+  } else {
+    // call funcName_chain_X
+    BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
+        .addExternalSymbol(chainLabel);
+    // jmp resume_funcName_chain_X
+    BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
+        .addExternalSymbol(resumeLabel);
+  }
   // funcName_chain_X:
   BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
       .addExternalSymbol(chainLabelC)
@@ -215,6 +222,23 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       // add [esp], $offset
       addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)), X86::ESP)
           .addImm(relativeAddr);
+      break;
+    }
+
+    case ChainElem::Type::JMP_BLOCK: {
+      // push label
+      MachineBasicBlock *targetMBB = elem->jmptarget;
+      static int labelNo = 0;
+      labelNo++;
+      char *newLabel = new char[32];
+      char *newLabelC = new char[32];
+      snprintf(newLabel, 32, ".JMPTGT_%d", labelNo);
+      snprintf(newLabelC, 32, ".JMPTGT_%d:", labelNo);
+      BuildMI(*targetMBB, targetMBB->begin(), nullptr, TII->get(TargetOpcode::INLINEASM))
+        .addExternalSymbol(newLabelC)
+        .addImm(0);
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+          .addExternalSymbol(newLabel);
       break;
     }
     }
@@ -314,6 +338,13 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       ROPChainStatus status =
           ROPEngine().ropify(MI, MIScratchRegs, isFlagModifiedInInstr, result);
 
+      bool isJump =
+          !result.empty() && result.back().type == ChainElem::Type::JMP_BLOCK;
+      if (shouldFlagSaved && isJump) {
+        // when flag should be saved, jmp instruction cannot be ROPified
+        status = ROPChainStatus::ERR_UNSUPPORTED;
+      }
+
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
       instr_stat[MI.getOpcode()][status]++;
 #endif
@@ -354,6 +385,17 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
           } else {
             ROPEngine().mergeChains(chain1, result);
             prevMI = &MI;
+          }
+        }
+        if (isJump) {
+          // We have to split chain after jump instructions
+          if (!chain0.empty()) {
+            insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+            chain0.clear();
+          }
+          if (!chain1.empty()) {
+            insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
+            chain1.clear();
           }
         }
 

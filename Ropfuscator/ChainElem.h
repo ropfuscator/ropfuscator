@@ -4,6 +4,7 @@
 #include "Symbol.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
@@ -11,7 +12,7 @@
 // Generic element to be put in the chain.
 struct ChainElem {
 
-  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL };
+  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK };
 
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
   // type because we will use different strategies during the creation of
@@ -23,27 +24,43 @@ struct ChainElem {
     const llvm::GlobalValue *global;
     // pointer to a microgadget
     const Microgadget *microgadget;
+    // jump target MBB
+    llvm::MachineBasicBlock *jmptarget;
   };
   // value - immediate value
   int64_t value;
 
-  // Constructor (type: GADGET)
-  explicit ChainElem(Microgadget *gadget) {
-    this->type = Type::GADGET;
-    this->microgadget = gadget;
+  // Factory method (type: GADGET)
+  static ChainElem fromGadget(Microgadget *gadget) {
+    ChainElem e;
+    e.type = Type::GADGET;
+    e.microgadget = gadget;
+    return e;
   }
 
-  // Constructor (type: IMM_VALUE)
-  explicit ChainElem(int64_t value) {
-    this->type = Type::IMM_VALUE;
-    this->value = value;
+  // Factory method (type: IMM_VALUE)
+  static ChainElem fromImmediate(int64_t value) {
+    ChainElem e;
+    e.type = Type::IMM_VALUE;
+    e.value = value;
+    return e;
   }
 
-  // Constructor (type: IMM_GLOBAL)
-  ChainElem(const llvm::GlobalValue *global, int64_t offset) {
-    this->type = Type::IMM_GLOBAL;
-    this->global = global;
-    this->value = offset;
+  // Factory method (type: IMM_GLOBAL)
+  static ChainElem fromGlobal(const llvm::GlobalValue *global, int64_t offset) {
+    ChainElem e;
+    e.type = Type::IMM_GLOBAL;
+    e.global = global;
+    e.value = offset;
+    return e;
+  }
+
+  // Factory method (type: JMP_BLOCK)
+  static ChainElem fromJmpTarget(llvm::MachineBasicBlock *jmptarget) {
+    ChainElem e;
+    e.type = Type::JMP_BLOCK;
+    e.jmptarget = jmptarget;
+    return e;
   }
 
   friend bool operator==(ChainElem const &A, ChainElem const &B) {
