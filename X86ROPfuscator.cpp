@@ -87,6 +87,13 @@ public:
 
   StringRef getPassName() const override { return X86_ROPFUSCATOR_PASS_NAME; }
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+private:
+  void insertROPChain(MachineFunction &MF, const ROPChain &chain,
+                      MachineBasicBlock &MBB, MachineInstr &MI,
+                      const TargetInstrInfo *TII, BinaryAutopsy *BA,
+                      int chainID, bool shouldFlagSaved,
+                      bool isFlagModifiedInInstr);
 };
 
 char X86ROPfuscator::ID = 0;
@@ -95,6 +102,146 @@ char X86ROPfuscator::ID = 0;
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 // ----------------------------------------------------------------
+
+void X86ROPfuscator::insertROPChain(MachineFunction &MF, const ROPChain &chain,
+                                    MachineBasicBlock &MBB, MachineInstr &MI,
+                                    const TargetInstrInfo *TII,
+                                    BinaryAutopsy *BA, int chainID,
+                                    bool shouldFlagSaved,
+                                    bool isFlagModifiedInInstr) {
+
+  char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
+  // EMIT PROLOGUE
+  generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
+                      MF.getName(), chainID);
+
+  if (shouldFlagSaved) {
+    // save eflags
+    if (isFlagModifiedInInstr) {
+      // If the obfuscated instruction will modify flags,
+      // the flags should be restored after ROP chain is constructed
+      // and just before the ROP chain is executed.
+      // flag is saved at the top of the stack
+
+      // lea esp, [esp-4*(N+1)]   # where N = chain size
+      BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+          .addReg(X86::ESP)
+          .addImm(1)
+          .addReg(0)
+          .addImm(-4 * (chain.size() + 1))
+          .addReg(0);
+      // pushf (EFLAGS register backup)
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+
+      // lea esp, [esp+4*(N+2)]   # where N = chain size
+      BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+          .addReg(X86::ESP)
+          .addImm(1)
+          .addReg(0)
+          .addImm(4 * (chain.size() + 2))
+          .addReg(0);
+    } else {
+      // If the obfuscated instruction will NOT modify flags,
+      // (and if the chain execution might modify the flags,)
+      // the flags should be restored after the ROP chain is executed.
+      // flag is saved at the bottom of the stack
+      // pushf (EFLAGS register backup)
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+    }
+  }
+  // call funcName_chain_X
+  BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
+      .addExternalSymbol(chainLabel);
+  // jmp resume_funcName_chain_X
+  BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
+      .addExternalSymbol(resumeLabel);
+  // funcName_chain_X:
+  BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+      .addExternalSymbol(chainLabelC)
+      .addImm(0);
+
+  // ROP Chain
+  // Pushes each chain element on the stack in reverse order
+  for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
+    switch (elem->type) {
+
+    case ChainElem::Type::IMM_VALUE: {
+      // Push the immediate value onto the stack //
+      // push $imm
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32)).addImm(elem->value);
+      break;
+    }
+
+    case ChainElem::Type::IMM_GLOBAL: {
+      // Push the global symbol onto the stack
+      // push global_symbol
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+          .addGlobalAddress(elem->global, elem->value);
+      break;
+    }
+
+    case ChainElem::Type::GADGET: {
+      if (OpaquePredicatesEnabled) {
+        // call $opaquePredicate
+        BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
+            .addExternalSymbol("opaquePredicate");
+
+        // je $wrong_target
+        BuildMI(MBB, MI, nullptr, TII->get(X86::JNE_1))
+            .addExternalSymbol(chainLabel);
+      }
+
+      // Get a random symbol to reference this gadget in memory
+      Symbol *sym = BA->getRandomSymbol();
+      uint64_t relativeAddr = elem->microgadget->getAddress() - sym->Address;
+
+      // .symver directive: necessary to prevent aliasing when more
+      // symbols have the same name. We do this exclusively when the
+      // symbol Version is not "Base" (i.e., it is the only one
+      // available).
+      if (strcmp(sym->Version, "Base") != 0) {
+        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+            .addExternalSymbol(sym->getSymVerDirective())
+            .addImm(0);
+      }
+
+      // push $symbol
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+          .addExternalSymbol(sym->Label);
+
+      // add [esp], $offset
+      addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)), X86::ESP)
+          .addImm(relativeAddr);
+      break;
+    }
+    }
+  }
+
+  // EMIT EPILOGUE
+  // restore eflags, if eflags should be restored BEFORE chain execution
+  if (shouldFlagSaved && isFlagModifiedInInstr) {
+    // lea esp, [esp-4]
+    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+        .addReg(X86::ESP)
+        .addImm(1)
+        .addReg(0)
+        .addImm(-4)
+        .addReg(0);
+    // popf (EFLAGS register restore)
+    BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+  }
+  // ret
+  BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
+  // resume_funcName_chain_X:
+  BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+      .addExternalSymbol(resumeLabelC)
+      .addImm(0);
+  // restore eflags, if eflags should be restored AFTER chain execution
+  if (shouldFlagSaved && !isFlagModifiedInInstr) {
+    // popf (EFLAGS register restore)
+    BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+  }
+}
 
 bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
   // disable ROPfuscator is -fno-ropfuscator flag is passed
@@ -159,9 +306,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       //   adc ecx, edx  # true,  true
       //   adc ecx, 1    # true,  true
 
-      auto ropeng = ROPEngine();
       ROPChain result;
-      ROPChainStatus status = ropeng.ropify(MI, MIScratchRegs, isFlagModifiedInInstr, result);
+      ROPChainStatus status =
+          ROPEngine().ropify(MI, MIScratchRegs, isFlagModifiedInInstr, result);
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
       instr_stat[MI.getOpcode()][status]++;
@@ -177,141 +324,8 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       } else {
         // add current instruction in the To-Delete list
         instrToDelete.push_back(&MI);
-
-        // Inject the ROP Chain!
-        // EMIT PROLOGUE
-        generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel,
-                            &resumeLabelC, funcName, chainID);
-
-        if (shouldFlagSaved) {
-          // save eflags
-          if (isFlagModifiedInInstr) {
-            // If the obfuscated instruction will modify flags,
-            // the flags should be restored after ROP chain is constructed
-            // and just before the ROP chain is executed.
-            // flag is saved at the top of the stack
-
-            // lea esp, [esp-4*(N+1)]   # where N = chain size
-            BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-                .addReg(X86::ESP)
-                .addImm(1)
-                .addReg(0)
-                .addImm(-4 * (result.size() + 1))
-                .addReg(0);
-            // pushf (EFLAGS register backup)
-            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-
-            // lea esp, [esp+4*(N+2)]   # where N = chain size
-            BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-                .addReg(X86::ESP)
-                .addImm(1)
-                .addReg(0)
-                .addImm(4 * (result.size() + 2))
-                .addReg(0);
-          } else {
-            // If the obfuscated instruction will NOT modify flags,
-            // (and if the chain execution might modify the flags,)
-            // the flags should be restored after the ROP chain is executed.
-            // flag is saved at the bottom of the stack
-            // pushf (EFLAGS register backup)
-            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-          }
-        }
-        // call funcName_chain_X
-        BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-            .addExternalSymbol(chainLabel);
-        // jmp resume_funcName_chain_X
-        BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
-            .addExternalSymbol(resumeLabel);
-        // funcName_chain_X:
-        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(chainLabelC)
-            .addImm(0);
-
-        // ROP Chain
-        // Pushes each chain element on the stack in reverse order
-        for (auto elem = result.rbegin(); elem != result.rend(); ++elem) {
-          switch (elem->type) {
-
-          case ChainElem::Type::IMM_VALUE: {
-            // Push the immediate value onto the stack //
-            // push $imm
-            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-                .addImm(elem->value);
-            break;
-          }
-
-          case ChainElem::Type::IMM_GLOBAL: {
-            // Push the global symbol onto the stack
-            // push global_symbol
-            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-                .addGlobalAddress(elem->global, elem->value);
-            break;
-          }
-
-          case ChainElem::Type::GADGET: {
-            if (OpaquePredicatesEnabled) {
-              // call $opaquePredicate
-              BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-                  .addExternalSymbol("opaquePredicate");
-
-              // je $wrong_target
-              BuildMI(MBB, MI, nullptr, TII->get(X86::JNE_1))
-                  .addExternalSymbol(chainLabel);
-            }
-
-            // Get a random symbol to reference this gadget in memory
-            Symbol *sym = BA->getRandomSymbol();
-            uint64_t relativeAddr =
-                elem->microgadget->getAddress() - sym->Address;
-
-            // .symver directive: necessary to prevent aliasing when more
-            // symbols have the same name. We do this exclusively when the
-            // symbol Version is not "Base" (i.e., it is the only one
-            // available).
-            if (strcmp(sym->Version, "Base") != 0) {
-              BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-                  .addExternalSymbol(sym->getSymVerDirective())
-                  .addImm(0);
-            }
-
-            // push $symbol
-            BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-                .addExternalSymbol(sym->Label);
-
-            // add [esp], $offset
-            addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
-                         X86::ESP)
-                .addImm(relativeAddr);
-            break;
-          }
-          }
-        }
-
-        // EMIT EPILOGUE
-        // restore eflags, if eflags should be restored BEFORE chain execution
-        if (shouldFlagSaved && isFlagModifiedInInstr) {
-          // lea esp, [esp-4]
-          BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-              .addReg(X86::ESP)
-              .addImm(1)
-              .addReg(0)
-              .addImm(-4)
-              .addReg(0);
-          // popf (EFLAGS register restore)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
-        }
-        // ret
-        BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
-        // resume_funcName_chain_X:
-        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(resumeLabelC)
-            .addImm(0);
-        // restore eflags, if eflags should be restored AFTER chain execution
-        if (shouldFlagSaved && !isFlagModifiedInInstr) {
-          // popf (EFLAGS register restore)
-          BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
-        }
+        insertROPChain(MF, result, MBB, MI, TII, BA, chainID, shouldFlagSaved,
+                       isFlagModifiedInInstr);
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
