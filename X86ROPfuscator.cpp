@@ -279,6 +279,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     // safely clobbered to compute temporary data
     ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
+    ROPChain chain0; // merged chain, flag not saved
+    ROPChain chain1; // merged chain, flag saved (flag not modified)
+    MachineInstr *prevMI = nullptr;
     for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
       MachineInstr &MI = *it;
 
@@ -321,19 +324,52 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             PROCESSED_INSTR,
             dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
 
+        if (!chain0.empty()) {
+          insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+          chain0.clear();
+        }
+        if (!chain1.empty()) {
+          insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
+          chain1.clear();
+        }
         continue;
       } else {
         // add current instruction in the To-Delete list
         instrToDelete.push_back(&MI);
-        insertROPChain(result, MBB, MI, chainID, shouldFlagSaved,
-                       isFlagModifiedInInstr);
+        if (!shouldFlagSaved) {
+          if (!chain1.empty()) {
+            insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
+            chain1.clear();
+          }
+          ROPEngine().mergeChains(chain0, result);
+          prevMI = &MI;
+        } else {
+          if (!chain0.empty()) {
+            insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+            chain0.clear();
+          }
+          if (isFlagModifiedInInstr) {
+            insertROPChain(result, MBB, MI, chainID++, shouldFlagSaved,
+                           isFlagModifiedInInstr);
+          } else {
+            ROPEngine().mergeChains(chain1, result);
+            prevMI = &MI;
+          }
+        }
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
                         dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
-        chainID++;
         obfuscated++;
       }
+    }
+    if (!chain0.empty()) {
+      insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+      chain0.clear();
+    }
+    if (!chain1.empty()) {
+      insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
+      chain1.clear();
     }
 
     // delete old vanilla instructions only after we finished to iterate through

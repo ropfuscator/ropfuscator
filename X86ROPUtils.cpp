@@ -696,6 +696,11 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   return status;
 }
 
+void ROPEngine::mergeChains(ROPChain &chain1, const ROPChain &chain2) {
+  chain1.insert(chain1.end(), chain2.begin(), chain2.end());
+  removeDuplicates(chain1);
+}
+
 void ROPEngine::removeDuplicates(ROPChain &chain) {
   bool duplicates;
 

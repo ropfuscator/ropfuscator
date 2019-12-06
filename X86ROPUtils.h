@@ -77,6 +77,7 @@ public:
   ROPChainStatus ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
                         bool &flagIsModifiedInInstr, ROPChain &resultChain);
   ROPChain undoXchgs(MachineInstr *MI);
+  void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 
   // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
   // chain size. Indeed, two consecutive equal xchg gadgets undo each other's
