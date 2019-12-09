@@ -9,6 +9,7 @@ set(testcases
     testcase001
     testcase002
     testcase003
+    testcase004
     testcase-example1
     testcase-example2
     testcase-example3
@@ -27,6 +28,7 @@ endforeach()
 target_compile_options(testcase001       PUBLIC -O2)
 target_compile_options(testcase002       PUBLIC -O0)
 target_compile_options(testcase003       PUBLIC -O2)
+target_compile_options(testcase004       PUBLIC -O0)
 target_compile_options(testcase-example1 PUBLIC -O0)
 target_compile_options(testcase-example2 PUBLIC -O0)
 target_compile_options(testcase-example3 PUBLIC -O0)
