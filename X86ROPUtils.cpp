@@ -697,10 +697,9 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
     flagIsModifiedInInstr = false;
     break;
   case X86::JMP_1:
-    // status = handleJmp1(&MI, scratchRegs);
-    // flagIsModifiedInInstr = false;
-    // break;
-    return ROPChainStatus::ERR_NOT_IMPLEMENTED;
+    status = handleJmp1(&MI, scratchRegs);
+    flagIsModifiedInInstr = false;
+    break;
   default:
     return ROPChainStatus::ERR_NOT_IMPLEMENTED;
   }
