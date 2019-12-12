@@ -228,17 +228,9 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
     case ChainElem::Type::JMP_BLOCK: {
       // push label
       MachineBasicBlock *targetMBB = elem->jmptarget;
-      static int labelNo = 0;
-      labelNo++;
-      char *newLabel = new char[32];
-      char *newLabelC = new char[32];
-      snprintf(newLabel, 32, ".JMPTGT_%d", labelNo);
-      snprintf(newLabelC, 32, ".JMPTGT_%d:", labelNo);
-      BuildMI(*targetMBB, targetMBB->begin(), nullptr, TII->get(TargetOpcode::INLINEASM))
-        .addExternalSymbol(newLabelC)
-        .addImm(0);
       BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(newLabel);
+          .addMBB(targetMBB);
+      MBB.addSuccessorWithoutProb(targetMBB);
       break;
     }
     }
@@ -260,9 +252,13 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
   // ret
   BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
   // resume_funcName_chain_X:
-  BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-      .addExternalSymbol(resumeLabelC)
-      .addImm(0);
+  if (!hasJump) {
+    // If the label is inserted when ROP chain terminates with jump,
+    // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
+    BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
+        .addExternalSymbol(resumeLabelC)
+        .addImm(0);
+  }
   // restore eflags, if eflags should be restored AFTER chain execution
   if (shouldFlagSaved && !isFlagModifiedInInstr) {
     // popf (EFLAGS register restore)
