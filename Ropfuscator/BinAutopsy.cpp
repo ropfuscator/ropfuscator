@@ -440,6 +440,17 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["sub"].push_back(gadget);
       break;
     }
+    case X86_INS_XOR: {
+      // xor REG1, REG2: xor_1, xor_2
+      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
+          gadget.getOp(1).type == X86_OP_REG) {
+        if (gadget.getOp(0).reg == gadget.getOp(1).reg)
+          GadgetPrimitives["xor_1"].push_back(gadget);
+        else
+          GadgetPrimitives["xor_2"].push_back(gadget);
+      }
+      break;
+    }
     case X86_INS_MOV: {
       // mov REG1, REG2: copy
       if (gadget.getOp(0).type == X86_OP_REG && // Register-register: copy
@@ -474,8 +485,14 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["cmove"].push_back(gadget);
       break;
     }
+    case X86_INS_PUSH: {
+      // push REG1; ret: jmp
+      if (gadget.getOp(0).type == X86_OP_REG)
+        GadgetPrimitives["jmp"].push_back(gadget);
+      break;
+    }
     case X86_INS_JMP: {
-      // jmp REG1: jmpreg
+      // jmp REG1: jmp
       if (gadget.getOp(0).type == X86_OP_REG)
         GadgetPrimitives["jmp"].push_back(gadget);
       break;
