@@ -268,6 +268,32 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
   return ROPChainStatus::OK;
 }
 
+ROPChainStatus ROPEngine::handleXor32RR(MachineInstr *MI,
+                                        std::vector<x86_reg> &scratchRegs) {
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src1 = convertToCapstoneReg(MI->getOperand(1).getReg());
+  x86_reg src2 = convertToCapstoneReg(MI->getOperand(1).getReg());
+
+  // only handle xor eax, eax which is widely used and gadgets are often found
+  if (dst != src1 || dst != src2)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain xor1, reorder;
+
+  xor1 = BA->findGadgetPrimitive("xor_1", dst);
+  reorder = BA->undoXchgs();
+
+  if (!xor1.valid())
+    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+  chain.append(xor1).append(reorder);
+  chain.hasNormalInstr = true;
+
+  return ROPChainStatus::OK;
+}
+
 ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
@@ -777,6 +803,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   case X86::ADD32rr:
   case X86::SUB32rr:
     status = handleAddSubRR(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
+  case X86::XOR32rr:
+    status = handleXor32RR(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::CMP32mi:
