@@ -12,7 +12,7 @@
 // Generic element to be put in the chain.
 struct ChainElem {
 
-  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK };
+  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK, JMP_FALLTHROUGH };
 
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
   // type because we will use different strategies during the creation of
@@ -60,6 +60,13 @@ struct ChainElem {
     ChainElem e;
     e.type = Type::JMP_BLOCK;
     e.jmptarget = jmptarget;
+    return e;
+  }
+
+  // Factory method (type: JMP_FALLTHROUGH)
+  static ChainElem createJmpFallthrough() {
+    ChainElem e;
+    e.type = Type::JMP_FALLTHROUGH;
     return e;
   }
 

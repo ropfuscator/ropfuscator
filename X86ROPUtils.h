@@ -34,7 +34,59 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 #endif
 #endif
 
-typedef std::vector<ChainElem> ROPChain;
+enum class FlagSaveMode {
+  NOT_SAVED,
+  SAVE_BEFORE_EXEC,
+  SAVE_AFTER_EXEC
+};
+
+class ROPChain {
+public:
+  std::vector<ChainElem> chain;
+  ChainElem *successor; // jump target at the end of chain
+  FlagSaveMode flagSave;
+  bool hasNormalInstr;
+  bool hasConditionalJump;
+  bool hasUnconditionalJump;
+
+  std::vector<ChainElem>::iterator begin() { return chain.begin(); }
+  std::vector<ChainElem>::const_iterator begin() const { return chain.begin(); }
+  std::vector<ChainElem>::iterator end() { return chain.end(); }
+  std::vector<ChainElem>::const_iterator end() const { return chain.end(); }
+  std::vector<ChainElem>::reverse_iterator rbegin() { return chain.rbegin(); }
+  std::vector<ChainElem>::const_reverse_iterator rbegin() const {
+    return chain.rbegin();
+  }
+  std::vector<ChainElem>::reverse_iterator rend() { return chain.rend(); }
+  std::vector<ChainElem>::const_reverse_iterator rend() const {
+    return chain.rend();
+  }
+  size_t size() const { return chain.size(); }
+  void emplace_back(const ChainElem &elem) { chain.emplace_back(elem); }
+  bool valid() { return !chain.empty() || successor; }
+  ROPChain &append(const ROPChain &other) {
+    chain.insert(chain.end(), other.begin(), other.end());
+    return *this;
+  }
+  void append(std::initializer_list<std::reference_wrapper<const ROPChain>> list) {
+    for (const ROPChain &c : list) append(c);
+  }
+  bool canMerge(const ROPChain &other);
+  void merge(const ROPChain &other);
+  void clear() {
+    chain.clear();
+    successor = nullptr;
+    flagSave = FlagSaveMode::NOT_SAVED;
+    hasNormalInstr = false;
+    hasConditionalJump = false;
+    hasUnconditionalJump = false;
+  }
+  // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
+  // chain size. Indeed, two consecutive equal xchg gadgets undo each other's
+  // effects.
+  void removeDuplicates();
+  ROPChain() { clear(); }
+};
 
 enum class ROPChainStatus {
   OK = 0, // chain generated without error
@@ -68,6 +120,7 @@ class ROPEngine {
   ROPChainStatus handleCmp32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCmp32ri(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus addSubImmToReg(MachineInstr *MI, x86_reg reg, bool isSub, int immediate,
                       std::vector<x86_reg> const &scratchRegs);
 
@@ -76,14 +129,10 @@ public:
   ROPEngine();
 
   ROPChainStatus ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
-                        bool &flagIsModifiedInInstr, ROPChain &resultChain);
+                        bool shouldFlagSaved, ROPChain &resultChain);
   ROPChain undoXchgs(MachineInstr *MI);
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 
-  // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
-  // chain size. Indeed, two consecutive equal xchg gadgets undo each other's
-  // effects.
-  void removeDuplicates(ROPChain &chain);
 };
 
 // Generates inline assembly labels that are used in the prologue and epilogue

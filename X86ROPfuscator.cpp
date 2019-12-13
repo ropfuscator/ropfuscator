@@ -97,8 +97,7 @@ private:
   std::map<unsigned, ROPChainStatEntry> instr_stat;
 #endif
   void insertROPChain(const ROPChain &chain, MachineBasicBlock &MBB,
-                      MachineInstr &MI, int chainID, bool shouldFlagSaved,
-                      bool isFlagModifiedInInstr);
+                      MachineInstr &MI, int chainID);
 };
 
 char X86ROPfuscator::ID = 0;
@@ -110,51 +109,53 @@ FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
 void X86ROPfuscator::insertROPChain(const ROPChain &chain,
                                     MachineBasicBlock &MBB, MachineInstr &MI,
-                                    int chainID, bool shouldFlagSaved,
-                                    bool isFlagModifiedInInstr) {
+                                    int chainID) {
 
   char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
   // EMIT PROLOGUE
   generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
                       MBB.getParent()->getName(), chainID);
 
-  bool hasJump = chain.back().type == ChainElem::Type::JMP_BLOCK;
-  if (shouldFlagSaved) {
-    assert(!hasJump);
-    // save eflags
-    if (isFlagModifiedInInstr) {
-      // If the obfuscated instruction will modify flags,
-      // the flags should be restored after ROP chain is constructed
-      // and just before the ROP chain is executed.
-      // flag is saved at the top of the stack
+  bool isLastInstrInBlock = MI.getNextNode() == nullptr;
 
-      // lea esp, [esp-4*(N+1)]   # where N = chain size
-      BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-          .addReg(X86::ESP)
-          .addImm(1)
-          .addReg(0)
-          .addImm(-4 * (chain.size() + 1))
-          .addReg(0);
-      // pushf (EFLAGS register backup)
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+  if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
+    // If the obfuscated instruction will modify flags,
+    // the flags should be restored after ROP chain is constructed
+    // and just before the ROP chain is executed.
+    // flag is saved at the top of the stack
+    int flagSavedOffset = 4 * (chain.size() + 1);
+    if (chain.hasUnconditionalJump || chain.hasConditionalJump)
+      flagSavedOffset -= 4;
 
-      // lea esp, [esp+4*(N+2)]   # where N = chain size
-      BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-          .addReg(X86::ESP)
-          .addImm(1)
-          .addReg(0)
-          .addImm(4 * (chain.size() + 2))
-          .addReg(0);
-    } else {
-      // If the obfuscated instruction will NOT modify flags,
-      // (and if the chain execution might modify the flags,)
-      // the flags should be restored after the ROP chain is executed.
-      // flag is saved at the bottom of the stack
-      // pushf (EFLAGS register backup)
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-    }
+    // lea esp, [esp-4*(N+1)]   # where N = chain size
+    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+        .addReg(X86::ESP)
+        .addImm(1)
+        .addReg(0)
+        .addImm(-flagSavedOffset)
+        .addReg(0);
+    // pushf (EFLAGS register backup)
+    BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+
+    // lea esp, [esp+4*(N+2)]   # where N = chain size
+    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
+        .addReg(X86::ESP)
+        .addImm(1)
+        .addReg(0)
+        .addImm(flagSavedOffset + 4)
+        .addReg(0);
   }
-  if (hasJump) {
+  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
+    assert(!chain.hasUnconditionalJump || !chain.hasConditionalJump);
+
+    // If the obfuscated instruction will NOT modify flags,
+    // (and if the chain execution might modify the flags,)
+    // the flags should be restored after the ROP chain is executed.
+    // flag is saved at the bottom of the stack
+    // pushf (EFLAGS register backup)
+    BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+  }
+  if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
     // jmp funcName_chain_X
     // (omitted since it would be redundant)
   } else {
@@ -233,12 +234,32 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       MBB.addSuccessorWithoutProb(targetMBB);
       break;
     }
+
+    case ChainElem::Type::JMP_FALLTHROUGH: {
+      // push label
+      if (isLastInstrInBlock) {
+        MachineBasicBlock *targetMBB = nullptr;
+        for (auto it = MBB.succ_begin(); it != MBB.succ_end(); ++it) {
+          if (MBB.isLayoutSuccessor(*it)) {
+            targetMBB = *it;
+            break;
+          }
+        }
+        assert(targetMBB && "conditional jump at the end of function");
+        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+          .addMBB(targetMBB);
+      } else {
+        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+          .addExternalSymbol(resumeLabel);
+      }
+      break;
+    }
     }
   }
 
   // EMIT EPILOGUE
   // restore eflags, if eflags should be restored BEFORE chain execution
-  if (shouldFlagSaved && isFlagModifiedInInstr) {
+  if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
     // lea esp, [esp-4]
     BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
         .addReg(X86::ESP)
@@ -252,7 +273,8 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
   // ret
   BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
   // resume_funcName_chain_X:
-  if (!hasJump) {
+  if (!(chain.hasUnconditionalJump ||
+        (chain.hasConditionalJump && isLastInstrInBlock))) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
     BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
@@ -260,7 +282,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
         .addImm(0);
   }
   // restore eflags, if eflags should be restored AFTER chain execution
-  if (shouldFlagSaved && !isFlagModifiedInInstr) {
+  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
     // popf (EFLAGS register restore)
     BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
   }
@@ -299,8 +321,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
     // safely clobbered to compute temporary data
     ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
-    ROPChain chain0; // merged chain, flag not saved
-    ROPChain chain1; // merged chain, flag saved (flag not modified)
+    ROPChain chain0; // merged chain
     MachineInstr *prevMI = nullptr;
     for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
       MachineInstr &MI = *it;
@@ -318,7 +339,7 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
       // use current flags (i.e. affected by current flags)?
       bool shouldFlagSaved = !TII->isSafeToClobberEFLAGS(MBB, it);
       // Does this instruction modify (define/kill) flags?
-      bool isFlagModifiedInInstr = false;
+      // bool isFlagModifiedInInstr = false;
       // Example instruction sequence describing how these booleans are set:
       //   mov eax, 1    # false, false
       //   add eax, 1    # false, true
@@ -332,12 +353,11 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
       ROPChain result;
       ROPChainStatus status =
-          ROPEngine().ropify(MI, MIScratchRegs, isFlagModifiedInInstr, result);
+          ROPEngine().ropify(MI, MIScratchRegs, shouldFlagSaved, result);
 
-      bool isJump =
-          !result.empty() && result.back().type == ChainElem::Type::JMP_BLOCK;
-      if (shouldFlagSaved && isJump) {
-        // when flag should be saved, jmp instruction cannot be ROPified
+      bool isJump = result.hasConditionalJump || result.hasUnconditionalJump;
+      if (isJump && result.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
+        // when flag should be saved after resume, jmp instruction cannot be ROPified
         status = ROPChainStatus::ERR_UNSUPPORTED;
       }
 
@@ -351,49 +371,25 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
             PROCESSED_INSTR,
             dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
 
-        if (!chain0.empty()) {
-          insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+        if (chain0.valid()) {
+          insertROPChain(chain0, MBB, *prevMI, chainID++);
           chain0.clear();
-        }
-        if (!chain1.empty()) {
-          insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
-          chain1.clear();
         }
         continue;
       } else {
         // add current instruction in the To-Delete list
         instrToDelete.push_back(&MI);
-        if (!shouldFlagSaved) {
-          if (!chain1.empty()) {
-            insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
-            chain1.clear();
-          }
-          ROPEngine().mergeChains(chain0, result);
-          prevMI = &MI;
+
+        if (chain0.canMerge(result)) {
+          chain0.merge(result);
         } else {
-          if (!chain0.empty()) {
-            insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+          if (chain0.valid()) {
+            insertROPChain(chain0, MBB, *prevMI, chainID++);
             chain0.clear();
           }
-          if (isFlagModifiedInInstr) {
-            insertROPChain(result, MBB, MI, chainID++, shouldFlagSaved,
-                           isFlagModifiedInInstr);
-          } else {
-            ROPEngine().mergeChains(chain1, result);
-            prevMI = &MI;
-          }
+          chain0 = std::move(result);
         }
-        if (isJump) {
-          // We have to split chain after jump instructions
-          if (!chain0.empty()) {
-            insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
-            chain0.clear();
-          }
-          if (!chain1.empty()) {
-            insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
-            chain1.clear();
-          }
-        }
+        prevMI = &MI;
 
         // successfully obfuscated
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
@@ -401,13 +397,9 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
         obfuscated++;
       }
     }
-    if (!chain0.empty()) {
-      insertROPChain(chain0, MBB, *prevMI, chainID++, false, false);
+    if (chain0.valid()) {
+      insertROPChain(chain0, MBB, *prevMI, chainID++);
       chain0.clear();
-    }
-    if (!chain1.empty()) {
-      insertROPChain(chain1, MBB, *prevMI, chainID++, true, false);
-      chain1.clear();
     }
 
     // delete old vanilla instructions only after we finished to iterate through

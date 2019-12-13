@@ -93,6 +93,62 @@ bool getLibraryPath(std::string &libraryPath) {
 // ROP Chain
 // ------------------------------------------------------------------------
 
+bool ROPChain::canMerge(const ROPChain &other) {
+  if (!valid())
+    return true;
+    return false;
+  // unconditional jump will terminate rop chain
+  if (hasUnconditionalJump)
+    return false;
+  // conditional jump will terminate rop chain,
+  // except for following unconditional jump
+  if (hasConditionalJump && other.hasNormalInstr)
+    return false;
+  if (hasConditionalJump && other.hasConditionalJump)
+    return false;
+  // otherwise, test if flag save mode is compatible
+  //             NOT_SAVED SAVE_BEFORE SAVE_AFTER (other)
+  // NOT_SAVED   compat    incompat    incompat
+  // SAVE_BEFORE compat    incompat    incompat
+  // SAVE_AFTER  incompat  incompat    incompat
+  // (this)
+  return other.flagSave == FlagSaveMode::NOT_SAVED &&
+         (flagSave == FlagSaveMode::NOT_SAVED ||
+          flagSave == FlagSaveMode::SAVE_BEFORE_EXEC);
+}
+
+void ROPChain::merge(const ROPChain &other) {
+  if (!valid()) {
+    *this = other;
+    return;
+  }
+  append(other);
+  removeDuplicates();
+  hasNormalInstr |= other.hasNormalInstr;
+  hasConditionalJump |= other.hasConditionalJump;
+  hasUnconditionalJump |= other.hasUnconditionalJump;
+  // handle conditional jump + unconditional jmp chain
+  if (other.successor && !successor) {
+    for (auto it = rbegin(); it != rend(); ++it) {
+      if (*it == *other.successor) {
+        successor = &*it;
+        break;
+      }
+    }
+    bool conditionalJumpFound = false;
+    for (auto it = begin(); it != end();) {
+      if (it->type == ChainElem::Type::JMP_FALLTHROUGH) {
+        *it = *successor;
+        conditionalJumpFound = true;
+      } else if (conditionalJumpFound && *successor == *it) {
+        it = chain.erase(it);
+        continue;
+      }
+      ++it;
+    }
+  }
+}
+
 ROPEngine::ROPEngine() {}
 
 ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
@@ -106,14 +162,13 @@ ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
     addsub = BA->findGadgetPrimitive(isSub ? "sub" : "add", reg, scratchReg);
     reorder = BA->undoXchgs();
 
-    if (init.empty() || addsub.empty()) {
+    if (!init.valid() || !addsub.valid()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
     init.emplace_back(ChainElem::fromImmediate(immediate));
-    chain.insert(chain.end(), init.begin(), init.end());
-    chain.insert(chain.end(), addsub.begin(), addsub.end());
-    chain.insert(chain.end(), reorder.begin(), reorder.end());
+    chain.append(init).append(addsub).append(reorder);
+    chain.hasNormalInstr = true;
 
     return ROPChainStatus::OK;
   }
@@ -204,11 +259,11 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
   addsub = BA->findGadgetPrimitive(gadget_type, dst, src2);
   reorder = BA->undoXchgs();
 
-  if (addsub.empty())
+  if (!addsub.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
-  chain.insert(chain.end(), addsub.begin(), addsub.end());
-  chain.insert(chain.end(), reorder.begin(), reorder.end());
+  chain.append(addsub).append(reorder);
+  chain.hasNormalInstr = true;
 
   return ROPChainStatus::OK;
 }
@@ -247,7 +302,7 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
   }
 
   init = BA->findGadgetPrimitive("init", dst);
-  if (init.empty())
+  if (!init.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
   if (disp_global)
@@ -261,15 +316,15 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
 
     init = BA->findGadgetPrimitive("init", dst);
     reorder = BA->undoXchgs();
-    if (init.empty())
+    if (!init.valid())
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
     if (disp_global)
       init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
     else
       init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.insert(chain.end(), init.begin(), init.end());
-    chain.insert(chain.end(), reorder.begin(), reorder.end());
+    chain.append(init).append(reorder);
+    chain.hasNormalInstr = true;
     return ROPChainStatus::OK;
   } else {
     // lea dst, [src + disp]
@@ -280,16 +335,15 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
       init = BA->findGadgetPrimitive("init", dst);
       add = BA->findGadgetPrimitive("add", dst, src);
       reorder = BA->undoXchgs();
-      if (init.empty() || add.empty())
+      if (!init.valid() || !add.valid())
         return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
       if (disp_global)
         init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
       else
         init.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.insert(chain.end(), init.begin(), init.end());
-      chain.insert(chain.end(), add.begin(), add.end());
-      chain.insert(chain.end(), reorder.begin(), reorder.end());
+      chain.append(init).append(add).append(reorder);
+      chain.hasNormalInstr = true;
       return ROPChainStatus::OK;
     } else {
       // -> mov scratch, disp; add dst, scratch
@@ -299,16 +353,15 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
         init = BA->findGadgetPrimitive("init", scratchReg);
         add = BA->findGadgetPrimitive("add", dst, scratchReg);
         reorder = BA->undoXchgs();
-        if (init.empty() || add.empty())
+        if (!init.valid() || !add.valid())
           continue;
 
         if (disp_global)
           init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
         else
           init.emplace_back(ChainElem::fromImmediate(displacement));
-        chain.insert(chain.end(), init.begin(), init.end());
-        chain.insert(chain.end(), add.begin(), add.end());
-        chain.insert(chain.end(), reorder.begin(), reorder.end());
+        chain.append(init).append(add).append(reorder);
+        chain.hasNormalInstr = true;
         return ROPChainStatus::OK;
       }
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
@@ -359,7 +412,7 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
     BA->xgraph.reorderRegisters(); // otherwise the last xchg would be undone by
                                    // the next obfuscated instruction
 
-    if (init.empty() || add.empty() || load.empty() || xchg.empty()) {
+    if (!init.valid() || !add.valid() || !load.valid() || !xchg.valid()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
@@ -368,11 +421,8 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
       init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
     else
       init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.insert(chain.end(), init.begin(), init.end());
-    chain.insert(chain.end(), add.begin(), add.end());
-    chain.insert(chain.end(), load.begin(), load.end());
-    chain.insert(chain.end(), reorder.begin(), reorder.end());
-    chain.insert(chain.end(), xchg.begin(), xchg.end());
+    chain.append(init).append(add).append(load).append(reorder).append(xchg);
+    chain.hasNormalInstr = true;
 
     return ROPChainStatus::OK;
   }
@@ -415,16 +465,14 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
 
     reorder = BA->undoXchgs();
 
-    if (init.empty() || add.empty() || store.empty()) {
+    if (!init.valid() || !add.valid() || !store.valid()) {
       BA->xgraph.reorderRegisters(); // xchg graph rollback
       continue;
     }
 
     init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.insert(chain.end(), init.begin(), init.end());
-    chain.insert(chain.end(), add.begin(), add.end());
-    chain.insert(chain.end(), store.begin(), store.end());
-    chain.insert(chain.end(), reorder.begin(), reorder.end());
+    chain.append(init).append(add).append(store).append(reorder);
+    chain.hasNormalInstr = true;
 
     return ROPChainStatus::OK;
   }
@@ -473,18 +521,15 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
 
       reorder = BA->undoXchgs();
 
-      if (initImm.empty() || initOfs.empty() || add.empty() || store.empty()) {
+      if (!initImm.valid() || !initOfs.valid() || !add.valid() || !store.valid()) {
         BA->xgraph.reorderRegisters(); // xchg graph rollback
         continue;
       }
 
       initImm.emplace_back(ChainElem::fromImmediate(imm));
       initOfs.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.insert(chain.end(), initImm.begin(), initImm.end());
-      chain.insert(chain.end(), initOfs.begin(), initOfs.end());
-      chain.insert(chain.end(), add.begin(), add.end());
-      chain.insert(chain.end(), store.begin(), store.end());
-      chain.insert(chain.end(), reorder.begin(), reorder.end());
+      chain.append(initImm).append(initOfs).append(add).append(store).append(reorder);
+      chain.hasNormalInstr = true;
 
       return ROPChainStatus::OK;
     }
@@ -508,11 +553,11 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
   store = BA->findGadgetPrimitive("copy", dst, src);
   reorder = BA->undoXchgs();
 
-  if (store.empty())
+  if (!store.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
-  chain.insert(chain.end(), store.begin(), store.end());
-  chain.insert(chain.end(), reorder.begin(), reorder.end());
+  chain.append(store).append(reorder);
+  chain.hasNormalInstr = true;
 
   return ROPChainStatus::OK;
 }
@@ -557,19 +602,15 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
 
       reorder = BA->undoXchgs();
 
-      if (initImm.empty() || initOfs.empty() || add.empty() || load.empty() || sub.empty()) {
+      if (!initImm.valid() || !initOfs.valid() || !add.valid() || !load.valid() || !sub.valid()) {
         BA->xgraph.reorderRegisters(); // xchg graph rollback
         continue;
       }
 
       initImm.emplace_back(ChainElem::fromImmediate(imm));
       initOfs.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.insert(chain.end(), initImm.begin(), initImm.end());
-      chain.insert(chain.end(), initOfs.begin(), initOfs.end());
-      chain.insert(chain.end(), add.begin(), add.end());
-      chain.insert(chain.end(), load.begin(), load.end());
-      chain.insert(chain.end(), sub.begin(), sub.end());
-      chain.insert(chain.end(), reorder.begin(), reorder.end());
+      chain.append(initImm).append(initOfs).append(add).append(load).append(sub).append(reorder);
+      chain.hasNormalInstr = true;
 
       return ROPChainStatus::OK;
     }
@@ -604,16 +645,14 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
 
       reorder = BA->undoXchgs();
 
-      if (init.empty() || copy.empty() || sub.empty()) {
+      if (!init.valid() || !copy.valid() || !sub.valid()) {
         BA->xgraph.reorderRegisters(); // xchg graph rollback
         continue;
       }
 
       init.emplace_back(ChainElem::fromImmediate(imm));
-      chain.insert(chain.end(), init.begin(), init.end());
-      chain.insert(chain.end(), copy.begin(), copy.end());
-      chain.insert(chain.end(), sub.begin(), sub.end());
-      chain.insert(chain.end(), reorder.begin(), reorder.end());
+      chain.append(init).append(copy).append(sub).append(reorder);
+      chain.hasNormalInstr = true;
 
       return ROPChainStatus::OK;
     }
@@ -628,11 +667,86 @@ ROPChainStatus ROPEngine::handleJmp1(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
   chain.emplace_back(ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
+  chain.hasUnconditionalJump = true;
+  chain.successor = &chain.chain.back();
   return ROPChainStatus::OK;
 }
 
-ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
-                           bool &flagIsModifiedInInstr, ROPChain &resultChain) {
+ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
+                                     std::vector<x86_reg> &scratchRegs) {
+  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
+  ROPChain init1, init2, cmov, reorder, jmpreg;
+  // Jcc1 ROPification strategy:
+  //   pop reg1
+  //   ...target1...
+  //   pop reg2
+  //   ...target2...
+  //   cmov?? reg1, reg2
+  //   (xchg reg2)
+  //   jmp reg1  # xchg is not allowed
+
+  if (!MI->getOperand(0).isMBB())
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  const char *cmov_type;
+  bool reverse;
+  switch (MI->getOpcode()) {
+  case X86::JE_1:
+    cmov_type = "cmove";
+    reverse = false;
+    break;
+  case X86::JNE_1:
+    cmov_type = "cmove";
+    reverse = true;
+    break;
+  default:
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+
+  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
+    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+
+  for (auto &scratchReg1 : scratchRegs) {
+    for (auto &scratchReg2 : scratchRegs) {
+      if (scratchReg1 == scratchReg2)
+        continue;
+      jmpreg = BA->findGadgetPrimitive("jmp", scratchReg1);
+      if (!jmpreg.valid() || jmpreg.size() > 1) {
+        // xchg is not allowed here
+        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        continue;
+      }
+      init1 = BA->findGadgetPrimitive("init", scratchReg1);
+      init2 = BA->findGadgetPrimitive("init", scratchReg2);
+      cmov = BA->findGadgetPrimitive(cmov_type, scratchReg1, scratchReg2);
+      reorder = BA->undoXchgs();
+
+      if (!init1.valid() || !init2.valid() || !cmov.valid()) {
+        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        continue;
+      }
+
+      if (reverse) {
+        init1.emplace_back(
+            ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
+        init2.emplace_back(ChainElem::createJmpFallthrough());
+      } else {
+        init1.emplace_back(ChainElem::createJmpFallthrough());
+        init2.emplace_back(
+            ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
+      }
+      chain.append(init1).append(init2).append(cmov).append(reorder).append(jmpreg);
+      chain.hasConditionalJump = true;
+
+      return ROPChainStatus::OK;
+    }
+  }
+  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+}
+
+ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
+                                 std::vector<x86_reg> &scratchRegs,
+                                 bool shouldFlagSaved, ROPChain &resultChain) {
   // if ESP is one of the operands of MI -> abort
   for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
     if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -648,6 +762,7 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 
   ROPChainStatus status;
+  FlagSaveMode flagSave;
   switch (MI.getOpcode()) {
   case X86::ADD32ri8:
   case X86::ADD32ri:
@@ -656,65 +771,68 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI, std::vector<x86_reg> &scratch
   case X86::INC32r:
   case X86::DEC32r: {
     status = handleAddSubIncDecRI(&MI, scratchRegs);
-    flagIsModifiedInInstr = true;
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   }
   case X86::ADD32rr:
   case X86::SUB32rr:
     status = handleAddSubRR(&MI, scratchRegs);
-    flagIsModifiedInInstr = true;
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::CMP32mi:
   case X86::CMP32mi8:
     status = handleCmp32mi(&MI, scratchRegs);
-    flagIsModifiedInInstr = true;
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::CMP32ri:
   case X86::CMP32ri8:
     status = handleCmp32ri(&MI, scratchRegs);
-    flagIsModifiedInInstr = true;
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::LEA32r:
     status = handleLea32r(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   case X86::MOV32rm: {
     status = handleMov32rm(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   }
   case X86::MOV32mr: {
     status = handleMov32mr(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   }
   case X86::MOV32mi:
     status = handleMov32mi(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   case X86::MOV32rr:
     status = handleMov32rr(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   case X86::JMP_1:
     status = handleJmp1(&MI, scratchRegs);
-    flagIsModifiedInInstr = false;
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
+  case X86::JE_1:
+  case X86::JNE_1:
+    status = handleJcc1(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   default:
     return ROPChainStatus::ERR_NOT_IMPLEMENTED;
   }
 
-  removeDuplicates(chain);
-  resultChain = std::move(chain);
+  if (status == ROPChainStatus::OK) {
+    chain.flagSave = shouldFlagSaved ? flagSave : FlagSaveMode::NOT_SAVED;
+    chain.removeDuplicates();
+    resultChain = std::move(chain);
+  }
   return status;
 }
 
-void ROPEngine::mergeChains(ROPChain &chain1, const ROPChain &chain2) {
-  chain1.insert(chain1.end(), chain2.begin(), chain2.end());
-  removeDuplicates(chain1);
-}
-
-void ROPEngine::removeDuplicates(ROPChain &chain) {
+void ROPChain::removeDuplicates() {
   bool duplicates;
 
   do {
