@@ -251,11 +251,11 @@ void BinaryAutopsy::dumpGadgets() {
         for (int depth = MAXDEPTH; depth >= 0; depth--) {
 
           size_t count = cs_disasm(handle, cur_pos - depth, depth,
-                                   offset - depth, depth, &instructions);
+                                   offset - depth, 2, &instructions);
 
           // Valid gadgets must have two instructions, and the
           // last one must be a RET
-          if (count == 2 && instructions[count - 1].id == X86_INS_RET) {
+          if (count == 2 && instructions[1].id == X86_INS_RET) {
 
             // Each gadget is identified with its mnemonic
             // and operators (ugly but straightforward :P)
@@ -272,6 +272,31 @@ void BinaryAutopsy::dumpGadgets() {
 
               cnt++;
             }
+          }
+        }
+      }
+    }
+    // scan for indirect jmp instructions
+    for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length) - 1;
+         i++) {
+
+      if (buf[i] == 0xff && buf[i + 1] >= 0xe0 && buf[i + 1] < 0xe8) {
+        size_t count = cs_disasm(handle, &buf[i], 2, i, 1, &instructions);
+
+        // Valid gadgets must have two instructions, and the
+        // last one must be a RET
+        if (count == 1 && instructions[0].id == X86_INS_JMP) {
+
+          string asm_instr;
+          asm_instr += instructions[0].mnemonic;
+          asm_instr += " ";
+          asm_instr += instructions[0].op_str;
+          asm_instr += ";";
+
+          if (!findGadget(asm_instr)) {
+            Microgadgets.push_back(Microgadget(instructions, asm_instr));
+
+            cnt++;
           }
         }
       }
@@ -442,6 +467,19 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["xchg"].push_back(gadget);
       break;
     }
+    case X86_INS_CMOVE: {
+      // cmove REG1, REG2: cmove
+      if (gadget.getOp(0).type == X86_OP_REG &&
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["cmove"].push_back(gadget);
+      break;
+    }
+    case X86_INS_JMP: {
+      // jmp REG1: jmpreg
+      if (gadget.getOp(0).type == X86_OP_REG)
+        GadgetPrimitives["jmp"].push_back(gadget);
+      break;
+    }
     default:
       continue;
     }
@@ -504,12 +542,12 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
                                             << "\t\tavoiding double xchg\n");
           } else {
             auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
-            result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+            result.append(xchgChain1);
           }
         }
 
         auto xchgChain0 = exchangeRegs(getEffectiveReg(op0), gadget_op0);
-        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+        result.append(xchgChain0);
 
         result.emplace_back(ChainElem::fromGadget(&gadget));
         break;
@@ -548,12 +586,8 @@ ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
 }
 
 ROPChain BinaryAutopsy::undoXchgs() {
-  ROPChain result;
-
   XchgPath path = xgraph.reorderRegisters();
-  result = buildXchgChain(path);
-
-  return result;
+  return buildXchgChain(path);
 }
 
 x86_reg BinaryAutopsy::getEffectiveReg(x86_reg reg) {
