@@ -17,13 +17,37 @@
 
 using namespace std;
 
+#include "llvm/Object/ELF.h"
+using llvm::object::ELF32LEFile;
+
+static const bool searchSegmentForGadget = false;
+
 BinaryAutopsy::BinaryAutopsy(string path) {
   BinaryPath = new char[path.length() + 1];
   strncpy(BinaryPath, path.c_str(), path.length() + 1);
 
-  ifstream f(path);
-  assert(f.good() && "Given file doesn't exist or is invalid!");
+  ifstream f(path, std::ios::binary);
+  if (!f.good()) {
+    llvm::dbgs() << "Given file " << BinaryPath
+                 << " doesn't exist or is invalid!";
+    exit(1);
+  }
   llvm::dbgs() << "USING: " << BinaryPath << "\n";
+
+  f.seekg(0, std::ios::end);
+  size_t size = f.tellg();
+  f.seekg(0, std::ios::beg);
+  elfBytes.resize(size);
+  f.read(&elfBytes[0], size);
+  f.close();
+
+  if (auto elf = ELF32LEFile::create(StringRef(&elfBytes[0], size))) {
+    this->elfFile.reset(new ELF32LEFile(elf.get()));
+  } else {
+    dbgs() << "ELF file error: " << BinaryPath << " : " << elf.takeError()
+           << "\n";
+    exit(1);
+  }
 
   // Initialises LibBFD and opens the binary
   bfd_init();
@@ -39,8 +63,21 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   dissect();
 }
 
+// workaround for LLVM build problem ???
+const std::error_category &llvm::object::object_category() {
+  struct _object_error_category : public std::error_category {
+    const char *name() const noexcept override { return "llvm.object"; }
+    std::string message(int ev) const override {
+      return "ELF object parse error";
+    }
+  };
+  static const _object_error_category instance;
+  return instance;
+}
+
 void BinaryAutopsy::dissect() {
   dumpSections();
+  dumpSegments();
   dumpDynamicSymbols();
   dumpGadgets();
   applyGadgetFilters();
@@ -62,32 +99,43 @@ BinaryAutopsy *BinaryAutopsy::getInstance() {
   return instance;
 }
 
-void BinaryAutopsy::dumpSections() {
-  int flags;
-  asection *s;
-  uint64_t vma, size;
-  const char *sec_name;
+void BinaryAutopsy::dumpSegments() {
+  if (auto segments = elfFile->program_headers()) {
+    for (auto &seg : *segments) {
+      // PT_LOAD: code segment loaded into memory
+      // PF_X: executable flag of segment
+      static const int PT_LOAD = 1, PF_X = 0x01;
+      if (seg.p_type == PT_LOAD && (seg.p_flags & PF_X)) {
+        Segments.push_back(Section("<unnamed-segment>", seg.p_offset, seg.p_filesz));
+      }
+    }
+  }
+}
 
-  using namespace llvm;
+void BinaryAutopsy::dumpSections() {
   DEBUG_WITH_TYPE(SECTIONS,
-                  dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
+                  llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
   using namespace std;
   // Iterates through all the sections, picking only the ones that contain
   // executable code
-  for (s = BfdHandle->sections; s; s = s->next) {
-    flags = bfd_get_section_flags(BfdHandle, s);
-
-    if (flags & SEC_CODE) {
-      vma = bfd_section_vma(BfdHandle, s);
-      size = bfd_section_size(BfdHandle, s);
-      sec_name = bfd_section_name(BfdHandle, s);
-
-      if (!sec_name)
-        sec_name = "<unnamed>";
-
-      Sections.push_back(Section(sec_name, vma, size));
-      DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
-                                             << sec_name << "\n");
+  if (auto sections = this->elfFile->sections()) {
+    // SHT_PROGBITS: code section loaded into memory
+    // SHF_EXECINSTR: executable flag of section
+    static const int SHT_PROGBITS = 1;
+    static const int SHF_EXECINSTR = 0x4;
+    for (auto &section : *sections) {
+      if (section.sh_type == SHT_PROGBITS &&
+          (section.sh_flags & SHF_EXECINSTR)) {
+        StringRef sectname;
+        if (auto sectname_opt = elfFile->getSectionName(&section)) {
+          sectname = *sectname_opt;
+        } else {
+          sectname = "<unnamed>";
+        }
+        Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+        DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
+                                               << sectname << "\n");
+      }
     }
   }
 }
@@ -224,19 +272,9 @@ void BinaryAutopsy::dumpGadgets() {
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
 
-  ifstream input_file(BinaryPath, ios::binary);
-  assert(input_file.good() && "Unable to open given binary file!");
+  uint8_t *buf = reinterpret_cast<uint8_t *>(&elfBytes[0]);
 
-  // Get input size
-  input_file.seekg(0, ios::end);
-  streamoff input_size = input_file.tellg();
-
-  // Read the whole file
-  input_file.seekg(0, ios::beg);
-  auto *buf = new uint8_t[input_size];
-  input_file.read(reinterpret_cast<char *>(buf), input_size);
-
-  for (auto &s : Sections) {
+  for (auto &s : (searchSegmentForGadget ? Segments : Sections)) {
     int cnt = 0;
 
     // Scan for RET instructions
@@ -303,8 +341,6 @@ void BinaryAutopsy::dumpGadgets() {
     }
     // llvm::dbgs() << cnt << " found!\n";
   }
-  delete[] buf;
-  input_file.close();
 }
 
 Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
@@ -545,7 +581,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
       // check if given op0 and op1 are respectively exchangeable with
       // op0 and op1 of the gadget
       if (areExchangeable(getEffectiveReg(op0), gadget_op0) &&
-          (op1 == X86_REG_INVALID // only if op1 is present
+          ((op1 == X86_REG_INVALID) // only if op1 is present
            ^ areExchangeable(getEffectiveReg(op1), gadget_op1))) {
 
         if (op1 != X86_REG_INVALID) {

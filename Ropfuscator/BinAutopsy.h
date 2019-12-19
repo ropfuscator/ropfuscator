@@ -37,6 +37,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "llvm/Object/ELF.h"
 
 // Max bytes before the RET to be examined (RET included!)
 // see BinaryAutopsy::extractGadgets()
@@ -65,6 +66,7 @@ public:
 
   // Sections - results from dumpSections() are placed here
   std::vector<Section> Sections;
+  std::vector<Section> Segments;
 
   // Microgadgets - results from dumpGadgets() are placed here
   std::vector<Microgadget> Microgadgets;
@@ -77,6 +79,8 @@ public:
   // BfdHandle - an handle to read ELF headers. Used by dumpSections() and
   // dumpDynamicSymbols()
   bfd *BfdHandle;
+  std::vector<char> elfBytes;
+  std::unique_ptr<llvm::object::ELF32LEFile> elfFile;
 
   bool isModuleSymbolAnalysed;
 
@@ -95,6 +99,7 @@ public:
   // sections that contain executable code, from which the symbol and gadget
   // extraction will take place.
   void dumpSections();
+  void dumpSegments();
 
   // dumpDynamicSymbols - extracts symbols from the .dynsym section. It takes
   // into account only function symbols with global scope and used in executable
