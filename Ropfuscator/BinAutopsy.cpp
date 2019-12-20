@@ -18,44 +18,211 @@
 using namespace std;
 
 #include "llvm/Object/ELF.h"
+using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
 static const bool searchSegmentForGadget = false;
 
-BinaryAutopsy::BinaryAutopsy(string path) {
-  BinaryPath = new char[path.length() + 1];
-  strncpy(BinaryPath, path.c_str(), path.length() + 1);
-
-  ifstream f(path, std::ios::binary);
-  if (!f.good()) {
-    llvm::dbgs() << "Given file " << BinaryPath
-                 << " doesn't exist or is invalid!";
-    exit(1);
+class ELFParser {
+public:
+  ELFParser(const std::string &path) {
+    ifstream f(path, std::ios::binary);
+    if (!f.good()) {
+      llvm::dbgs() << "Given file " << path
+                   << " doesn't exist or is invalid!";
+      exit(1);
+    }
+    llvm::dbgs() << "USING: " << path << "\n";
+    f.seekg(0, std::ios::end);
+    size_t size = f.tellg();
+    f.seekg(0, std::ios::beg);
+    buf.resize(size);
+    f.read(&buf[0], size);
+    f.close();
+    if (auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size))) {
+      this->elf.reset(new ELF32LEFile(*elf_opt));
+    } else {
+      dbgs() << "ELF file error: " << path << " : " << elf_opt.takeError()
+             << "\n";
+      exit(1);
+    }
+    parseSections();
+    parseVerdefs();
   }
-  llvm::dbgs() << "USING: " << BinaryPath << "\n";
 
-  f.seekg(0, std::ios::end);
-  size_t size = f.tellg();
-  f.seekg(0, std::ios::beg);
-  elfBytes.resize(size);
-  f.read(&elfBytes[0], size);
-  f.close();
-
-  if (auto elf = ELF32LEFile::create(StringRef(&elfBytes[0], size))) {
-    this->elfFile.reset(new ELF32LEFile(elf.get()));
-  } else {
-    dbgs() << "ELF file error: " << BinaryPath << " : " << elf.takeError()
-           << "\n";
-    exit(1);
+  const uint8_t *base() const {
+    return elf->base();
   }
 
-  // Initialises LibBFD and opens the binary
-  bfd_init();
-  BfdHandle = bfd_openr(BinaryPath, NULL);
-  if (!bfd_check_format(BfdHandle, bfd_object))
-    assert(false &&
-         "Given file does not look like a valid ELF file");
+  std::vector<ELF32LE::Phdr> getCodeSegments() {
+    std::vector<ELF32LE::Phdr> rv;
+    if (auto segments = elf->program_headers()) {
+      // iterate through segments
+      for (auto &seg : *segments) {
+        // check if it is loadable segment and executable
+        if (seg.p_type == ELF_PT_LOAD && (seg.p_flags & ELF_PF_X)) {
+          rv.push_back(seg);
+        }
+      }
+    }
+    return rv;
+  }
 
+  std::vector<ELF32LE::Shdr> getCodeSections() {
+    std::vector<ELF32LE::Shdr> rv;
+    if (auto sections = elf->sections()) {
+      for (auto &section : *sections) {
+        if (section.sh_type == ELF_SHT_PROGBITS &&
+            (section.sh_flags & ELF_SHF_EXECINSTR)) {
+          rv.push_back(section);
+        }
+      }
+    }
+    return rv;
+  }
+
+  std::string getSectionName(const ELF32LE::Shdr &section) {
+    if (auto sectname_opt = elf->getSectionName(&section)) {
+      return sectname_opt->str();
+    } else {
+      return "<unnamed>";
+    }
+  }
+
+  ArrayRef<ELF32LE::Sym> getDynamicSymbols() {
+    auto symbols = elf->symbols(dynsym);
+    if (symbols)
+      return *symbols;
+    else
+      return ArrayRef<ELF32LE::Sym>();
+  }
+
+  Expected<StringRef> getSymbolName(const ELF32LE::Sym &sym) {
+    return sym.getName(dynstrtab);
+  }
+
+  bool isGlobalFunction(const ELF32LE::Sym &sym) {
+    return sym.getType() == ELF_STT_FUNC && sym.getBinding() == ELF_STB_GLOBAL;
+  }
+
+  std::string getSymbolVersion(int symindex) {
+    auto versyms = elf->getSectionContentsAsArray<uint16_t>(versym);
+    if (!versyms)
+      return "";
+    uint16_t value = (*versyms)[symindex];
+    if (value == ELF_VER_NDX_LOCAL || value == ELF_VER_NDX_GLOBAL ||
+        value >= ELF_VER_NDX_LORESERVE)
+      return "";
+    value &= 0x7fff;
+    if (value >= verdefs.size())
+      return "";
+    return verdefs[value];
+  }
+
+private:
+  struct Verdef {
+    uint16_t vd_version;
+    uint16_t vd_flags;
+    uint16_t vd_ndx;
+    uint16_t vd_cnt;
+    uint32_t vd_hash;
+    uint32_t vd_aux;
+    uint32_t vd_next;
+  };
+  struct Verdef_aux {
+    uint32_t vda_name;
+    uint32_t vda_next;
+  };
+
+  // ELF constants
+
+  // SHT_PROGBITS: code section loaded into memory
+  static const int ELF_SHT_PROGBITS = 1;
+  // SHT_DYNSYM: dynamic symbol table
+  static const int ELF_SHT_DYNSYM = 11;
+  // SHT_GNU_verdef: symbol version definition
+  static const int ELF_SHT_GNU_verdef = 0x6ffffffd;
+  // SHT_GNU_versym: symbol version information
+  static const int ELF_SHT_GNU_versym = 0x6fffffff;
+  // SHF_EXECINSTR: executable flag of section
+  static const int ELF_SHF_EXECINSTR = 0x4;
+  // PT_LOAD: code segment loaded into memory
+  static const int ELF_PT_LOAD = 1;
+  // PF_X: executable flag of segment
+  static const int ELF_PF_X = 0x01;
+  // symbol type: function
+  static const int ELF_STT_FUNC = 2;
+  // symbol binding: global
+  static const int ELF_STB_GLOBAL = 1;
+  // version table index: local
+  static const int ELF_VER_NDX_LOCAL = 0;
+  // version table index: global
+  static const int ELF_VER_NDX_GLOBAL = 1;
+  // version table index: max value + 1
+  static const int ELF_VER_NDX_LORESERVE = 0xff00;
+
+  std::unique_ptr<ELF32LEFile> elf;
+  std::vector<char> buf;
+  const ELF32LE::Shdr *dynsym;
+  const ELF32LE::Shdr *verdef;
+  const ELF32LE::Shdr *versym;
+  StringRef dynstrtab;
+  std::vector<std::string> verdefs;
+
+  void parseSections() {
+    // identify dynsym, verdef, versym sections
+    if (auto sections = elf->sections()) {
+      for (auto &section : *sections) {
+        if (section.sh_type == ELF_SHT_DYNSYM) {
+          dynsym = &section;
+        } else if (section.sh_type == ELF_SHT_GNU_verdef) {
+          verdef = &section;
+        } else if (section.sh_type == ELF_SHT_GNU_versym) {
+          versym = &section;
+        }
+      }
+    }
+    if (dynsym) {
+      if (auto dynstr_opt = elf->getStringTableForSymtab(*dynsym)) {
+        dynstrtab = *dynstr_opt;
+      }
+    }
+  }
+
+  void parseVerdefs() {
+    std::map<uint16_t, const char *> verdefmap;
+    if (!verdef)
+      return;
+    auto data_opt = elf->getSectionContents(verdef);
+    if (!data_opt)
+      return;
+    const uint8_t *data = data_opt->data();
+    size_t size = data_opt->size();
+    uint16_t max_index = 0;
+    // iterate over Verdef entries
+    for (unsigned int pos = 0; pos < size;) {
+      const Verdef *entry = reinterpret_cast<const Verdef *>(&data[pos]);
+      if (max_index < entry->vd_ndx)
+        max_index = entry->vd_ndx;
+      if (entry->vd_cnt > 0) {
+        // only take the first Verdef_aux entry
+        const Verdef_aux *aux =
+            reinterpret_cast<const Verdef_aux *>(&data[pos + entry->vd_aux]);
+        if (aux->vda_name < dynstrtab.size())
+          verdefmap.emplace(entry->vd_ndx, &dynstrtab.data()[aux->vda_name]);
+      }
+      if (entry->vd_next == 0)
+        break;
+      pos += entry->vd_next;
+    }
+    verdefs.resize(max_index + 1);
+    for (auto &entry : verdefmap) {
+      verdefs[entry.first] = entry.second;
+    }
+  }
+};
+
+BinaryAutopsy::BinaryAutopsy(string path) : elf(new ELFParser(path)) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
   isModuleSymbolAnalysed = false;
@@ -73,6 +240,9 @@ const std::error_category &llvm::object::object_category() {
   };
   static const _object_error_category instance;
   return instance;
+}
+
+BinaryAutopsy::~BinaryAutopsy() {
 }
 
 void BinaryAutopsy::dissect() {
@@ -100,15 +270,9 @@ BinaryAutopsy *BinaryAutopsy::getInstance() {
 }
 
 void BinaryAutopsy::dumpSegments() {
-  if (auto segments = elfFile->program_headers()) {
-    for (auto &seg : *segments) {
-      // PT_LOAD: code segment loaded into memory
-      // PF_X: executable flag of segment
-      static const int PT_LOAD = 1, PF_X = 0x01;
-      if (seg.p_type == PT_LOAD && (seg.p_flags & PF_X)) {
-        Segments.push_back(Section("<unnamed-segment>", seg.p_offset, seg.p_filesz));
-      }
-    }
+  for (auto &seg : elf->getCodeSegments()) {
+    Segments.push_back(
+        Section("<unnamed-segment>", seg.p_offset, seg.p_filesz));
   }
 }
 
@@ -116,61 +280,45 @@ void BinaryAutopsy::dumpSections() {
   DEBUG_WITH_TYPE(SECTIONS,
                   llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
   using namespace std;
-  // Iterates through all the sections, picking only the ones that contain
-  // executable code
-  if (auto sections = this->elfFile->sections()) {
-    // SHT_PROGBITS: code section loaded into memory
-    // SHF_EXECINSTR: executable flag of section
-    static const int SHT_PROGBITS = 1;
-    static const int SHF_EXECINSTR = 0x4;
-    for (auto &section : *sections) {
-      if (section.sh_type == SHT_PROGBITS &&
-          (section.sh_flags & SHF_EXECINSTR)) {
-        StringRef sectname;
-        if (auto sectname_opt = elfFile->getSectionName(&section)) {
-          sectname = *sectname_opt;
-        } else {
-          sectname = "<unnamed>";
-        }
-        Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
-        DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
-                                               << sectname << "\n");
-      }
-    }
+  // Iterates through only the sections that contain executable code
+  for (auto &section : elf->getCodeSections()) {
+    std::string sectname = elf->getSectionName(section);
+    Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+    DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
+                                           << sectname << "\n");
   }
 }
 
 void BinaryAutopsy::dumpDynamicSymbols() {
-  const char *symbolName;
-  size_t addr, size, nsym;
+  std::string symbolName;
 
   // Dumps sections if it wasn't already done
   if (Sections.empty())
     dumpSections();
 
   // llvm::dbgs() << "[*] Scanning for symbols... \n";
-
-  // Allocate memory and get the symbol table
-  size = bfd_get_dynamic_symtab_upper_bound(BfdHandle);
-  auto **asymtab = (asymbol **)malloc(size);
-  nsym = bfd_canonicalize_dynamic_symtab(BfdHandle, asymtab);
+  auto symbols = elf->getDynamicSymbols();
 
   // Scan for all the symbols
-  for (size_t i = 0; i < nsym; i++) {
-    asymbol *sym = asymtab[i];
+  for (size_t i = 0; i < symbols.size(); i++) {
+    const ELF32LE::Sym &sym = symbols[i];
 
     // Consider only function symbols with global scope
-    if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
-      symbolName = bfd_asymbol_name(sym);
+    if (elf->isGlobalFunction(sym) && sym.isDefined()) {
+      if (auto name_opt = elf->getSymbolName(sym)) {
+        symbolName = name_opt->str();
+      } else {
+        continue;
+      }
 
       // those two symbols are very often subject to aliasing (they can be found
       // in many different libraries loaded in memory), so better avoiding them!
-      if (strcmp(symbolName, "_init") == 0 || strcmp(symbolName, "_fini") == 0)
+      if (symbolName == "_init" || symbolName == "_fini")
         continue;
 
       // functions with name prefixed with "_dl" is possibly created
       // by dynamic linkers, so we aviod them
-      if (strncmp(symbolName, "_dl", 3) == 0)
+      if (symbolName.rfind("_dl", 0) != std::string::npos)
         continue;
 
       // these symbols are also used in libgcc_s.so (often linked), so we avoid
@@ -193,7 +341,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
       bool avoided = false;
       for (const char *avoided_name : LIBGCC_SYMBOLS) {
-        if (strcmp(symbolName, avoided_name) == 0) {
+        if (symbolName == avoided_name) {
           avoided = true;
           break;
         }
@@ -201,24 +349,21 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       if (avoided)
         continue;
 
-      addr = bfd_asymbol_value(sym);
+      uint64_t addr = sym.getValue();
 
       // Get version string to avoid symbol aliasing
-      const char *versionString = nullptr;
-      bfd_boolean hidden = false;
+      std::string versionString = elf->getSymbolVersion(i);
 
-      if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
-        versionString = bfd_get_symbol_version_string(BfdHandle, sym, &hidden);
-
+      // symbols whose version starts with "GCC"
       // may also exist in libgcc_s.so, so avoided
-      if (strncmp(versionString, "GCC", 3) == 0)
+      if (versionString.rfind("GCC", 0) != std::string::npos)
         continue;
 
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
       bool alreadyPresent = false;
       for (auto &s : Symbols) {
-        if (strcmp(s.Label, symbolName) == 0) {
+        if (symbolName == s.Label) {
           alreadyPresent = true;
           break;
         }
@@ -227,11 +372,10 @@ void BinaryAutopsy::dumpDynamicSymbols() {
         Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
-
-  free(asymtab);
-  // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
-
-  assert(!Symbols.empty() && "No symbols found!");
+  if (Symbols.empty()) {
+    dbgs() << "No symbols found!\n";
+    exit(1);
+  }
 }
 
 void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
@@ -272,7 +416,7 @@ void BinaryAutopsy::dumpGadgets() {
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
 
-  uint8_t *buf = reinterpret_cast<uint8_t *>(&elfBytes[0]);
+  const uint8_t *buf = elf->base();
 
   for (auto &s : (searchSegmentForGadget ? Segments : Sections)) {
     int cnt = 0;
@@ -282,7 +426,7 @@ void BinaryAutopsy::dumpGadgets() {
 
       if (buf[i] == *ret) {
         size_t offset = i + 1;
-        uint8_t *cur_pos = buf + offset;
+        const uint8_t *cur_pos = buf + offset;
 
         // Iteratively try to decode starting from (MAXDEPTH to 0)
         // instructions before the actual RET
