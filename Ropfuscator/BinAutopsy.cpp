@@ -21,7 +21,7 @@ using namespace std;
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
-static const bool searchSegmentForGadget = false;
+static const bool searchSegmentForGadget = true;
 
 class ELFParser {
 public:
