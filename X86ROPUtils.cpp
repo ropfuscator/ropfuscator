@@ -273,7 +273,7 @@ ROPChainStatus ROPEngine::handleXor32RR(MachineInstr *MI,
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src1 = convertToCapstoneReg(MI->getOperand(1).getReg());
-  x86_reg src2 = convertToCapstoneReg(MI->getOperand(1).getReg());
+  x86_reg src2 = convertToCapstoneReg(MI->getOperand(2).getReg());
 
   // only handle xor eax, eax which is widely used and gadgets are often found
   if (dst != src1 || dst != src2)
