@@ -31,17 +31,17 @@
 #include "Section.h"
 #include "Symbol.h"
 #include "XchgGraph.h"
-#include <bfd.h>
 #include <capstone/capstone.h>
 #include <capstone/x86.h>
 #include <map>
 #include <string>
 #include <vector>
-#include "llvm/Object/ELF.h"
 
 // Max bytes before the RET to be examined (RET included!)
 // see BinaryAutopsy::extractGadgets()
 #define MAXDEPTH 4
+
+class ELFParser;
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.
 // It provides also methods to look for specific gadgets and performs
@@ -53,9 +53,10 @@ class BinaryAutopsy {
 private:
   // Singleton
   static BinaryAutopsy *instance;
-  BinaryAutopsy(std::string path);
+  explicit BinaryAutopsy(std::string path);
   BinaryAutopsy() = delete;
   BinaryAutopsy(const BinaryAutopsy &) = delete;
+  ~BinaryAutopsy();
 
 public:
   // XchgGraph instance
@@ -66,6 +67,7 @@ public:
 
   // Sections - results from dumpSections() are placed here
   std::vector<Section> Sections;
+  // Segments - results from dumpSegments() are placed here
   std::vector<Section> Segments;
 
   // Microgadgets - results from dumpGadgets() are placed here
@@ -73,14 +75,9 @@ public:
 
   std::map<std::string, std::vector<Microgadget>> GadgetPrimitives;
 
-  // BinaryPath - path of the binary file that is being analysed
-  char *BinaryPath;
-
-  // BfdHandle - an handle to read ELF headers. Used by dumpSections() and
+  // elf - an handle to analyse ELF file. Used by dumpSections() and
   // dumpDynamicSymbols()
-  bfd *BfdHandle;
-  std::vector<char> elfBytes;
-  std::unique_ptr<llvm::object::ELF32LEFile> elfFile;
+  std::unique_ptr<ELFParser> elf;
 
   bool isModuleSymbolAnalysed;
 
