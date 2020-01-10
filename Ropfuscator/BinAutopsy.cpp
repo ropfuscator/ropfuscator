@@ -428,9 +428,16 @@ void BinaryAutopsy::dumpGadgets() {
         size_t offset = i + 1;
         const uint8_t *cur_pos = buf + offset;
 
-        // Iteratively try to decode starting from (MAXDEPTH to 0)
-        // instructions before the actual RET
-        for (int depth = MAXDEPTH; depth >= 0; depth--) {
+        // Iteratively try to decode starting from MAXDEPTH to 1
+        // bytes before the actual RET
+        for (int depth = MAXDEPTH; depth > 0; depth--) {
+
+          // Capstone sometimes ignores repeat prefix (0xF2, 0xF3)
+          // in disassembled output. We do not need gadget prefixed
+          // with repeat, so we avoid them
+          uint8_t firstbyte = *(cur_pos - depth);
+          if (firstbyte == 0xf2 || firstbyte == 0xf3)
+            continue;
 
           size_t count = cs_disasm(handle, cur_pos - depth, depth,
                                    offset - depth, 2, &instructions);
