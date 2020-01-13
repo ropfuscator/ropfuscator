@@ -615,15 +615,23 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
     case X86_INS_ADD: {
       // add REG1, REG2: add
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG)
-        GadgetPrimitives["add"].push_back(gadget);
+      cs_x86_op op0 = gadget.getOp(0);
+      cs_x86_op op1 = gadget.getOp(1);
+      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
+        // Register-register
+        if (op0.reg != op1.reg)
+          GadgetPrimitives["add"].push_back(gadget);
+        else
+          GadgetPrimitives["add_1"].push_back(gadget);
+      }
       break;
     }
     case X86_INS_SUB: {
       // sub REG1, REG2: sub
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG)
+      cs_x86_op op0 = gadget.getOp(0);
+      cs_x86_op op1 = gadget.getOp(1);
+      if (op0.type == X86_OP_REG && // Register-register
+          op1.type == X86_OP_REG && op0.reg != op1.reg)
         GadgetPrimitives["sub"].push_back(gadget);
       break;
     }

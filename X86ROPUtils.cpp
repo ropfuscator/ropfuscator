@@ -234,17 +234,6 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
 
   const char *gadget_type;
 
-  switch (opcode) {
-  case X86::ADD32rr:
-    gadget_type = "add";
-    break;
-  case X86::SUB32rr:
-    gadget_type = "sub";
-    break;
-  default:
-    return ROPChainStatus::ERR_UNSUPPORTED;
-  }
-
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src1 = convertToCapstoneReg(MI->getOperand(1).getReg());
@@ -252,6 +241,17 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
 
   if (dst != src1)
     return ROPChainStatus::ERR_UNSUPPORTED;
+
+  switch (opcode) {
+  case X86::ADD32rr:
+    gadget_type = (src1 == src2) ? "add_1" : "add";
+    break;
+  case X86::SUB32rr:
+    gadget_type = (src1 == src2) ? "sub_1" : "sub";
+    break;
+  default:
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
 
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain addsub, reorder;
