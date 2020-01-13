@@ -303,7 +303,12 @@ bool X86ROPfuscator::runOnMachineFunction(MachineFunction &MF) {
 
   if (TII == nullptr) {
     // description of the target ISA (used to generate new instructions, below)
-    TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
+    const X86Subtarget &target = MF.getSubtarget<X86Subtarget>();
+    if (target.is64Bit()) {
+      llvm::dbgs() << "Error: currently ROPfuscator only works for 32bit.\n";
+      exit(1);
+    }
+    TII = target.getInstrInfo();
   }
 
   // stats
