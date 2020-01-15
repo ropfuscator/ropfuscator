@@ -34,11 +34,33 @@
 
 typedef std::vector<std::pair<int, int>> XchgPath;
 
+class XchgState {
+
+  XchgPath xchgStack;
+
+  // PhysReg - maps the location logical registers to physical registers.
+  // E.g.: if PhysReg[X86_REG_EAX] = X86_REG_EDX, it means that, due to an
+  // exchange, the logical register EAX is held in the physical register EDX.
+  short int PhysReg[N_REGS];
+
+  friend class XchgGraph;
+
+public:
+  // constructor
+  XchgState();
+
+  // searchLogicalReg - performs a recursive search to find the physical
+  // register that holds the given logical register.
+  int searchLogicalReg(int LogReg, int PhysReg) const;
+
+  int searchLogicalReg(int LReg) const;
+
+  void printAll() const;
+};
+
 class XchgGraph {
   // adj[] - adjacency list
   std::vector<int> adj[N_REGS];
-
-  XchgPath xchgStack;
 
   // fixPath - given a straight path between the two registers to exchange, this
   // function elaborates the full path in order to avoid having other
@@ -51,23 +73,9 @@ class XchgGraph {
   //        ECX   <-->   EDX   <-->   EAX
   // Here, we must exchange ECX and EDX again, to finally obtain:
   //        EDX   <-->   ECX   <-->   EAX
-  XchgPath fixPath(XchgPath path);
+  XchgPath fixPath(XchgState &state, XchgPath path) const;
 
 public:
-  // constructor
-  XchgGraph();
-
-  // PhysReg - maps the location logical registers to physical registers.
-  // E.g.: if PhysReg[X86_REG_EAX] = X86_REG_EDX, it means that, due to an
-  // exchange, the logical register EAX is held in the physical register EDX.
-  short int PhysReg[N_REGS];
-
-  // searchLogicalReg - performs a recursive search to find the physical
-  // register that holds the given logical register.
-  int searchLogicalReg(int LogReg, int PhysReg);
-
-  int searchLogicalReg(int LReg);
-
   // addEdge - adds a new edge between Op0 and Op1.
   void addEdge(int reg1, int reg2);
 
@@ -75,21 +83,17 @@ public:
   // returns tells whether two nodes are mutually reachable. If the two optional
   // output parameters are given, it is possible to compute the actual path
   // (this is done by getPath()).
-  bool checkPath(int src, int dest, int pred[], int dist[], bool visited[]);
+  bool checkPath(int src, int dest, int pred[], int dist[], bool visited[]) const;
 
   // getPath - returns the entire path from src to dest, edge by edge. The path
   // is specified as a vector of pairs, which one of them contains source and
   // destination of each edge.
-  XchgPath getPath(int src, int dest);
+  XchgPath getPath(XchgState &state, int src, int dest) const;
 
   // reorderRegisters - exchanges back all the logical registers, so that each
   // of them is in the correct physical register (e.g., PhysReg[X86_REG_EAX] =
   // X86_REG_EAX). Returns the proper exchange path.
-  XchgPath reorderRegisters();
-
-  void printAll();
-
-  short int *bindLogicalReg(int LReg);
+  XchgPath reorderRegisters(XchgState &state) const;
 };
 
 #endif

@@ -89,10 +89,11 @@ public:
   //  ANALYSES
   // -----------------------------------------------------------------------------
 
+private:
   // dissect - dumps all the data and performs every analysis.
   void dissect();
 
-  // dumpSections - parses the ELF header using LibBFD to obtain a list of
+  // dumpSections - parses the ELF header to obtain a list of
   // sections that contain executable code, from which the symbol and gadget
   // extraction will take place.
   void dumpSections();
@@ -116,6 +117,7 @@ public:
   // ones, basing on the defined filters.
   void applyGadgetFilters();
 
+public:
   // analyseUsedSymbols - traverse the module and register the symbol names
   // with forbidden list
   void analyseUsedSymbols(const llvm::Module *module);
@@ -127,35 +129,36 @@ public:
   // getRandomSymbol - returns a random symbol. This is used to reference each
   // gadget in the ROP chain as sum of a random symbol address and the gadget
   // offset from it.
-  Symbol *getRandomSymbol();
+  const Symbol *getRandomSymbol() const;
 
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
-  Microgadget *findGadget(std::string asmInstr);
-  Microgadget *findGadget(x86_insn insn, x86_reg op0,
-                          x86_reg op1 = X86_REG_INVALID);
+  const Microgadget *findGadget(std::string asmInstr) const;
+  const Microgadget *findGadget(x86_insn insn, x86_reg op0,
+                          x86_reg op1 = X86_REG_INVALID) const;
 
-  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
-                                            x86_op_type op1 = x86_op_type());
-  std::vector<Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
-                                            x86_reg op1 = X86_REG_INVALID);
-  std::vector<Microgadget *> findAllGadgets(GadgetClass_t Class);
+  std::vector<const Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
+                                            x86_op_type op1 = x86_op_type()) const;
+  std::vector<const Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
+                                            x86_reg op1 = X86_REG_INVALID) const;
+  std::vector<const Microgadget *> findAllGadgets(GadgetClass_t Class) const;
 
-  ROPChain findGadgetPrimitive(std::string type, x86_reg op0,
-                               x86_reg op1 = X86_REG_INVALID);
+  ROPChain findGadgetPrimitive(XchgState &state, std::string type, x86_reg op0,
+                               x86_reg op1 = X86_REG_INVALID) const;
   // areExchangeable - uses XChgGraph to check whether two (or more
   // registers) can be mutually exchanged.
-  bool areExchangeable(x86_reg a, x86_reg b);
+  bool areExchangeable(x86_reg a, x86_reg b) const;
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
-  ROPChain exchangeRegs(x86_reg reg0, x86_reg reg1);
-  ROPChain undoXchgs();
-  x86_reg getEffectiveReg(x86_reg reg);
+  ROPChain exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const;
+  ROPChain undoXchgs(XchgState &state) const;
+  x86_reg getEffectiveReg(const XchgState &state, x86_reg reg) const;
 
+private:
   // Takes a path from the XchgGraph and build a ROP Chains with the right
   // Xchg microgadgets
-  ROPChain buildXchgChain(XchgPath const &path);
+  ROPChain buildXchgChain(XchgPath const &path) const;
 };
 
 #endif

@@ -203,7 +203,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       }
 
       // Get a random symbol to reference this gadget in memory
-      Symbol *sym = BA->getRandomSymbol();
+      const Symbol *sym = BA->getRandomSymbol();
       uint64_t relativeAddr = elem->microgadget->getAddress() - sym->Address;
 
       // .symver directive: necessary to prevent aliasing when more
