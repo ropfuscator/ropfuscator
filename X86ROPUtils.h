@@ -12,6 +12,7 @@
 #include "Ropfuscator/BinAutopsy.h"
 #include "Ropfuscator/ChainElem.h"
 #include "Ropfuscator/LivenessAnalysis.h"
+#include "Ropfuscator/XchgGraph.h"
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86TargetMachine.h"
@@ -109,6 +110,7 @@ bool getLibraryPath(std::string &libraryPath);
 // afterwards.
 class ROPEngine {
   ROPChain chain;
+  XchgState state;
 
   ROPChainStatus handleAddSubIncDecRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleAddSubRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);

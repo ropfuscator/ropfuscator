@@ -31,7 +31,7 @@ struct ChainElem {
   int64_t value;
 
   // Factory method (type: GADGET)
-  static ChainElem fromGadget(Microgadget *gadget) {
+  static ChainElem fromGadget(const Microgadget *gadget) {
     ChainElem e;
     e.type = Type::GADGET;
     e.microgadget = gadget;

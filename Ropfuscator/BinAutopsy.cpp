@@ -396,7 +396,7 @@ void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
   }
 }
 
-Symbol *BinaryAutopsy::getRandomSymbol() {
+const Symbol *BinaryAutopsy::getRandomSymbol() const {
   unsigned long i = rand() % Symbols.size();
   return &(Symbols.at(i));
 }
@@ -494,7 +494,7 @@ void BinaryAutopsy::dumpGadgets() {
   }
 }
 
-Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
+const Microgadget *BinaryAutopsy::findGadget(string asmInstr) const {
   // Legacy: lookup by asm_instr string
   if (Microgadgets.empty()) {
     return nullptr;
@@ -508,8 +508,8 @@ Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
   return nullptr;
 }
 
-Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
-                                       x86_reg op1) {
+const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
+                                       x86_reg op1) const {
   for (auto &gadget : Microgadgets) {
     if (gadget.getID() == insn &&               // same instruction opcode
         gadget.getOp(0).type == X86_OP_REG &&   // operand 0: register
@@ -523,9 +523,9 @@ Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
   return nullptr;
 }
 
-std::vector<Microgadget *>
-BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
-  std::vector<Microgadget *> res;
+std::vector<const Microgadget *>
+BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) const {
+  std::vector<const Microgadget *> res;
 
   if (Microgadgets.empty()) {
     return res;
@@ -702,25 +702,30 @@ void BinaryAutopsy::applyGadgetFilters() {
                                               << "\n");
 }
 
-bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) {
+bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
-                                            x86_reg op1) {
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_reg op0,
+                                            x86_reg op1) const {
   // Note: everytime we need to operate on op0 and op1, we need to check which
   // is the actual register that holds that operand.
   ROPChain result;
-  Microgadget *found = nullptr;
+  const Microgadget *found = nullptr;
+
+  auto it_gadgets = GadgetPrimitives.find(type);
+  if (it_gadgets == GadgetPrimitives.end())
+    return result;
+  const auto &gadgets = it_gadgets->second;
 
   // Attempt #1: find a primitive gadget having the same operands
-  for (auto &gadget : GadgetPrimitives[type]) {
-    if (extractReg(gadget.getOp(0)) == getEffectiveReg(op0) &&
+  for (auto &gadget : gadgets) {
+    if (extractReg(gadget.getOp(0)) == getEffectiveReg(state, op0) &&
         (op1 == X86_REG_INVALID ||
-         extractReg(gadget.getOp(1)) == getEffectiveReg(op1))) {
+         extractReg(gadget.getOp(1)) == getEffectiveReg(state, op1))) {
       found = &gadget;
       break;
     }
@@ -733,32 +738,32 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
     // exchangeable with the ones required. A proper xchg chain will be
     // generated.
     x86_reg gadget_op0, gadget_op1;
-    for (auto &gadget : GadgetPrimitives[type]) {
+    for (auto &gadget : gadgets) {
       gadget_op0 = extractReg(gadget.getOp(0));
       gadget_op1 = extractReg(gadget.getOp(1));
 
       // check if given op0 and op1 are respectively exchangeable with
       // op0 and op1 of the gadget
-      if (areExchangeable(getEffectiveReg(op0), gadget_op0) &&
+      if (areExchangeable(getEffectiveReg(state, op0), gadget_op0) &&
           ((op1 == X86_REG_INVALID) // only if op1 is present
-           ^ areExchangeable(getEffectiveReg(op1), gadget_op1))) {
+           ^ areExchangeable(getEffectiveReg(state, op1), gadget_op1))) {
 
         if (op1 != X86_REG_INVALID) {
-          if ((getEffectiveReg(op0) == gadget_op1 &&
-               getEffectiveReg(op1) == gadget_op0) ||
-              (getEffectiveReg(op0) == gadget_op0 &&
-               getEffectiveReg(op1) == gadget_op1) ||
-              (getEffectiveReg(op0) == getEffectiveReg(op1) &&
+          if ((getEffectiveReg(state, op0) == gadget_op1 &&
+               getEffectiveReg(state, op1) == gadget_op0) ||
+              (getEffectiveReg(state, op0) == gadget_op0 &&
+               getEffectiveReg(state, op1) == gadget_op1) ||
+              (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
                gadget_op0 == gadget_op1)) {
             DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                             << "\t\tavoiding double xchg\n");
           } else {
-            auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
+            auto xchgChain1 = exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
             result.append(xchgChain1);
           }
         }
 
-        auto xchgChain0 = exchangeRegs(getEffectiveReg(op0), gadget_op0);
+        auto xchgChain0 = exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
         result.append(xchgChain0);
 
         result.emplace_back(ChainElem::fromGadget(&gadget));
@@ -769,7 +774,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
   return result;
 }
 
-ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
+ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   ROPChain result;
 
   for (auto &edge : path) {
@@ -786,22 +791,22 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
+ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const {
   ROPChain result;
 
   if (reg0 != reg1) {
-    XchgPath path = xgraph.getPath(reg0, reg1);
+    XchgPath path = xgraph.getPath(state, reg0, reg1);
     result = buildXchgChain(path);
   }
 
   return result;
 }
 
-ROPChain BinaryAutopsy::undoXchgs() {
-  XchgPath path = xgraph.reorderRegisters();
+ROPChain BinaryAutopsy::undoXchgs(XchgState &state) const {
+  XchgPath path = xgraph.reorderRegisters(state);
   return buildXchgChain(path);
 }
 
-x86_reg BinaryAutopsy::getEffectiveReg(x86_reg reg) {
-  return (x86_reg)xgraph.searchLogicalReg(reg);
+x86_reg BinaryAutopsy::getEffectiveReg(const XchgState &state, x86_reg reg) const {
+  return (x86_reg)state.searchLogicalReg(reg);
 }

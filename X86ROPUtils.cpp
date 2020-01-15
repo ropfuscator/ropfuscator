@@ -158,12 +158,12 @@ ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
   ROPChain init, addsub, reorder;
 
   for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive("init", scratchReg);
-    addsub = BA->findGadgetPrimitive(isSub ? "sub" : "add", reg, scratchReg);
-    reorder = BA->undoXchgs();
+    init = BA->findGadgetPrimitive(state, "init", scratchReg);
+    addsub = BA->findGadgetPrimitive(state, isSub ? "sub" : "add", reg, scratchReg);
+    reorder = BA->undoXchgs(state);
 
     if (!init.valid() || !addsub.valid()) {
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      BA->xgraph.reorderRegisters(state); // xchg graph rollback
       continue;
     }
     init.emplace_back(ChainElem::fromImmediate(immediate));
@@ -256,8 +256,8 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain addsub, reorder;
 
-  addsub = BA->findGadgetPrimitive(gadget_type, dst, src2);
-  reorder = BA->undoXchgs();
+  addsub = BA->findGadgetPrimitive(state, gadget_type, dst, src2);
+  reorder = BA->undoXchgs(state);
 
   if (!addsub.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
@@ -282,8 +282,8 @@ ROPChainStatus ROPEngine::handleXor32RR(MachineInstr *MI,
   BinaryAutopsy *BA = BinaryAutopsy::getInstance();
   ROPChain xor1, reorder;
 
-  xor1 = BA->findGadgetPrimitive("xor_1", dst);
-  reorder = BA->undoXchgs();
+  xor1 = BA->findGadgetPrimitive(state, "xor_1", dst);
+  reorder = BA->undoXchgs(state);
 
   if (!xor1.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
@@ -327,7 +327,7 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  init = BA->findGadgetPrimitive("init", dst);
+  init = BA->findGadgetPrimitive(state, "init", dst);
   if (!init.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
@@ -340,8 +340,8 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
     // lea dst, [disp]
     // -> mov dst, disp
 
-    init = BA->findGadgetPrimitive("init", dst);
-    reorder = BA->undoXchgs();
+    init = BA->findGadgetPrimitive(state, "init", dst);
+    reorder = BA->undoXchgs(state);
     if (!init.valid())
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
@@ -358,9 +358,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
     if (src != dst) {
       // -> mov dst, disp; add dst, src
 
-      init = BA->findGadgetPrimitive("init", dst);
-      add = BA->findGadgetPrimitive("add", dst, src);
-      reorder = BA->undoXchgs();
+      init = BA->findGadgetPrimitive(state, "init", dst);
+      add = BA->findGadgetPrimitive(state, "add", dst, src);
+      reorder = BA->undoXchgs(state);
       if (!init.valid() || !add.valid())
         return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 
@@ -376,9 +376,9 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
       if (scratchRegs.size() < 1)
         return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
       for (auto &scratchReg : scratchRegs) {
-        init = BA->findGadgetPrimitive("init", scratchReg);
-        add = BA->findGadgetPrimitive("add", dst, scratchReg);
-        reorder = BA->undoXchgs();
+        init = BA->findGadgetPrimitive(state, "init", scratchReg);
+        add = BA->findGadgetPrimitive(state, "add", dst, scratchReg);
+        reorder = BA->undoXchgs(state);
         if (!init.valid() || !add.valid())
           continue;
 
@@ -429,17 +429,17 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
   }
 
   for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive("init", scratchReg);
-    add = BA->findGadgetPrimitive("add", scratchReg, src);
-    load = BA->findGadgetPrimitive("load_1", scratchReg, scratchReg);
+    init = BA->findGadgetPrimitive(state, "init", scratchReg);
+    add = BA->findGadgetPrimitive(state, "add", scratchReg, src);
+    load = BA->findGadgetPrimitive(state, "load_1", scratchReg, scratchReg);
 
-    reorder = BA->undoXchgs();
-    xchg = BA->exchangeRegs(dst, scratchReg);
-    BA->xgraph.reorderRegisters(); // otherwise the last xchg would be undone by
+    reorder = BA->undoXchgs(state);
+    xchg = BA->exchangeRegs(state, dst, scratchReg);
+    BA->xgraph.reorderRegisters(state); // otherwise the last xchg would be undone by
                                    // the next obfuscated instruction
 
     if (!init.valid() || !add.valid() || !load.valid() || !xchg.valid()) {
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      BA->xgraph.reorderRegisters(state); // xchg graph rollback
       continue;
     }
 
@@ -485,14 +485,14 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive("init", scratchReg);
-    add = BA->findGadgetPrimitive("add", scratchReg, dst);
-    store = BA->findGadgetPrimitive("store", scratchReg, src);
+    init = BA->findGadgetPrimitive(state, "init", scratchReg);
+    add = BA->findGadgetPrimitive(state, "add", scratchReg, dst);
+    store = BA->findGadgetPrimitive(state, "store", scratchReg, src);
 
-    reorder = BA->undoXchgs();
+    reorder = BA->undoXchgs(state);
 
     if (!init.valid() || !add.valid() || !store.valid()) {
-      BA->xgraph.reorderRegisters(); // xchg graph rollback
+      BA->xgraph.reorderRegisters(state); // xchg graph rollback
       continue;
     }
 
@@ -540,15 +540,15 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
     for (auto &scratchReg2 : scratchRegs) {
       if (scratchReg1 == scratchReg2)
         continue;
-      initImm = BA->findGadgetPrimitive("init", scratchReg2);
-      initOfs = BA->findGadgetPrimitive("init", scratchReg1);
-      add = BA->findGadgetPrimitive("add", scratchReg1, dst);
-      store = BA->findGadgetPrimitive("store", scratchReg1, scratchReg2);
+      initImm = BA->findGadgetPrimitive(state, "init", scratchReg2);
+      initOfs = BA->findGadgetPrimitive(state, "init", scratchReg1);
+      add = BA->findGadgetPrimitive(state, "add", scratchReg1, dst);
+      store = BA->findGadgetPrimitive(state, "store", scratchReg1, scratchReg2);
 
-      reorder = BA->undoXchgs();
+      reorder = BA->undoXchgs(state);
 
       if (!initImm.valid() || !initOfs.valid() || !add.valid() || !store.valid()) {
-        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        BA->xgraph.reorderRegisters(state); // xchg graph rollback
         continue;
       }
 
@@ -576,8 +576,8 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
-  store = BA->findGadgetPrimitive("copy", dst, src);
-  reorder = BA->undoXchgs();
+  store = BA->findGadgetPrimitive(state, "copy", dst, src);
+  reorder = BA->undoXchgs(state);
 
   if (!store.valid())
     return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
@@ -620,16 +620,16 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
     for (auto &scratchReg2 : scratchRegs) {
       if (scratchReg1 == scratchReg2)
         continue;
-      initImm = BA->findGadgetPrimitive("init", scratchReg2);
-      initOfs = BA->findGadgetPrimitive("init", scratchReg1);
-      add = BA->findGadgetPrimitive("add", scratchReg1, dst);
-      load = BA->findGadgetPrimitive("load_1", scratchReg1);
-      sub = BA->findGadgetPrimitive("sub", scratchReg1, scratchReg2);
+      initImm = BA->findGadgetPrimitive(state, "init", scratchReg2);
+      initOfs = BA->findGadgetPrimitive(state, "init", scratchReg1);
+      add = BA->findGadgetPrimitive(state, "add", scratchReg1, dst);
+      load = BA->findGadgetPrimitive(state, "load_1", scratchReg1);
+      sub = BA->findGadgetPrimitive(state, "sub", scratchReg1, scratchReg2);
 
-      reorder = BA->undoXchgs();
+      reorder = BA->undoXchgs(state);
 
       if (!initImm.valid() || !initOfs.valid() || !add.valid() || !load.valid() || !sub.valid()) {
-        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        BA->xgraph.reorderRegisters(state); // xchg graph rollback
         continue;
       }
 
@@ -665,14 +665,14 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
     for (auto &scratchReg2 : scratchRegs) {
       if (scratchReg1 == scratchReg2)
         continue;
-      init = BA->findGadgetPrimitive("init", scratchReg2);
-      copy = BA->findGadgetPrimitive("copy", scratchReg1, reg);
-      sub = BA->findGadgetPrimitive("sub", scratchReg1, scratchReg2);
+      init = BA->findGadgetPrimitive(state, "init", scratchReg2);
+      copy = BA->findGadgetPrimitive(state, "copy", scratchReg1, reg);
+      sub = BA->findGadgetPrimitive(state, "sub", scratchReg1, scratchReg2);
 
-      reorder = BA->undoXchgs();
+      reorder = BA->undoXchgs(state);
 
       if (!init.valid() || !copy.valid() || !sub.valid()) {
-        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        BA->xgraph.reorderRegisters(state); // xchg graph rollback
         continue;
       }
 
@@ -736,19 +736,19 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
     for (auto &scratchReg2 : scratchRegs) {
       if (scratchReg1 == scratchReg2)
         continue;
-      jmpreg = BA->findGadgetPrimitive("jmp", scratchReg1);
+      jmpreg = BA->findGadgetPrimitive(state, "jmp", scratchReg1);
       if (!jmpreg.valid() || jmpreg.size() > 1) {
         // xchg is not allowed here
-        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        BA->xgraph.reorderRegisters(state); // xchg graph rollback
         continue;
       }
-      init1 = BA->findGadgetPrimitive("init", scratchReg1);
-      init2 = BA->findGadgetPrimitive("init", scratchReg2);
-      cmov = BA->findGadgetPrimitive(cmov_type, scratchReg1, scratchReg2);
-      reorder = BA->undoXchgs();
+      init1 = BA->findGadgetPrimitive(state, "init", scratchReg1);
+      init2 = BA->findGadgetPrimitive(state, "init", scratchReg2);
+      cmov = BA->findGadgetPrimitive(state, cmov_type, scratchReg1, scratchReg2);
+      reorder = BA->undoXchgs(state);
 
       if (!init1.valid() || !init2.valid() || !cmov.valid()) {
-        BA->xgraph.reorderRegisters(); // xchg graph rollback
+        BA->xgraph.reorderRegisters(state); // xchg graph rollback
         continue;
       }
 

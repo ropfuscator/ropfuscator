@@ -5,7 +5,7 @@
 
 using namespace std;
 
-XchgGraph::XchgGraph() {
+XchgState::XchgState() {
   // sets up each logical register in the proper physical register.
   for (int i = 0; i < N_REGS; i++) {
     PhysReg[i] = i;
@@ -18,7 +18,7 @@ void XchgGraph::addEdge(int reg1, int reg2) {
 }
 
 bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
-                          bool visited[]) {
+                          bool visited[]) const {
   list<int> queue;
 
   for (int i = 0; i < N_REGS; i++) {
@@ -55,7 +55,7 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
   return false;
 }
 
-XchgPath XchgGraph::getPath(int src, int dest) {
+XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
 
   XchgPath result;
   vector<int> path;
@@ -83,67 +83,65 @@ XchgPath XchgGraph::getPath(int src, int dest) {
   }
 
   // update the internal state
-  short int tmp = PhysReg[src];
-  PhysReg[src] = PhysReg[dest];
-  PhysReg[dest] = tmp;
+  short int tmp = state.PhysReg[src];
+  state.PhysReg[src] = state.PhysReg[dest];
+  state.PhysReg[dest] = tmp;
 
-  return fixPath(result);
+  return fixPath(state, result);
 }
 
-int XchgGraph::searchLogicalReg(int LReg, int PReg) {
+int XchgState::searchLogicalReg(int LReg, int PReg) const {
   // llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
   if (PhysReg[LReg] == PReg)
     return LReg;
   return searchLogicalReg(PhysReg[LReg], PReg);
 }
 
-int XchgGraph::searchLogicalReg(int LReg) {
+int XchgState::searchLogicalReg(int LReg) const {
   return searchLogicalReg(LReg, LReg);
   // return PhysReg[LReg];
 }
 
-XchgPath XchgGraph::fixPath(XchgPath path) {
+XchgPath XchgGraph::fixPath(XchgState &state, XchgPath path) const {
   XchgPath result;
 
   result.insert(result.begin(), path.begin(), path.end());
   if (path.size() > 1)
     result.insert(result.end(), path.rbegin() + 1, path.rend());
 
-  xchgStack.insert(xchgStack.end(), result.begin(), result.end());
+  state.xchgStack.insert(state.xchgStack.end(), result.begin(), result.end());
   return result;
 }
 
-XchgPath XchgGraph::reorderRegisters() {
+XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
   XchgPath result;
-  result.insert(result.end(), xchgStack.rbegin(), xchgStack.rend()); //, tmp;
+  result.insert(result.end(), state.xchgStack.rbegin(), state.xchgStack.rend()); //, tmp;
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << "Exchanging back...\n");
 
   for (int i = 0; i < N_REGS; i++) {
-    if (PhysReg[i] != i) {
+    if (state.PhysReg[i] != i) {
       // // finds the real location of the two registers
       // src = searchLogicalReg(src, src);
       // dest = searchLogicalReg(dest, dest);
 
-      short int PReg = searchLogicalReg(i, i);
+      short int PReg = state.searchLogicalReg(i, i);
       DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                       << "Xchanging logical register " << i
                                       << " with " << PReg << " !\n");
-      getPath(PReg, i);
+      getPath(state, PReg, i);
       // result.insert(result.end(), tmp.begin(), tmp.end());
       // printAll();
     }
   }
-  xchgStack.clear();
+  state.xchgStack.clear();
 
   return result;
 }
 
-void XchgGraph::printAll() {
+void XchgState::printAll() const {
   for (int i = 19; i < 30; i++) {
 
     llvm::dbgs() << "\t[" << i << "]: " << PhysReg[i] << "\n";
   }
 }
-
-short int *XchgGraph::bindLogicalReg(int LReg) { return &PhysReg[LReg]; }
