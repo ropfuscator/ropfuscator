@@ -79,6 +79,26 @@ struct ChainElem {
     else
       return (A.value == B.value);
   }
+
+  void debugPrint() const {
+    switch (type) {
+    case Type::GADGET:
+      llvm::dbgs() << "GADGET    : " << microgadget->asmInstr << "\n";
+      break;
+    case Type::IMM_VALUE:
+      llvm::dbgs() << "IMM_VALUE : " << value << "\n";
+      break;
+    case Type::IMM_GLOBAL:
+      llvm::dbgs() << "IMM_GLOBAL: " << *global << " + " << value << "\n";
+      break;
+    case Type::JMP_BLOCK:
+      llvm::dbgs() << "JMP_BLOCK : " << jmptarget->getNumber() << "\n";
+      break;
+    case Type::JMP_FALLTHROUGH:
+      llvm::dbgs() << "JMP_FALLTHROUGH\n";
+      break;
+    }
+  }
 };
 
 #endif
