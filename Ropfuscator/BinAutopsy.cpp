@@ -680,6 +680,13 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["cmove"].push_back(gadget);
       break;
     }
+    case X86_INS_CMOVB: {
+      // cmovb REG1, REG2: cmovb
+      if (gadget.getOp(0).type == X86_OP_REG &&
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["cmovb"].push_back(gadget);
+      break;
+    }
     case X86_INS_PUSH: {
       // push REG1; ret: jmp
       if (gadget.getOp(0).type == X86_OP_REG)

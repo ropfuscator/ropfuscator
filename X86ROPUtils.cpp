@@ -493,19 +493,19 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
   if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  if (!MI->getOperand(5).isImm())
+  ChainElem imm_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(5), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
-  unsigned int imm = (unsigned int)MI->getOperand(5).getImm();
 
   ChainElem disp_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   ROPChainBuilder builder(scratchRegs);
-  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("init", SCRATCH_2).append(imm_elem);
   builder.append("init", SCRATCH_1).append(disp_elem);
   builder.append("add", SCRATCH_1, dst);
   builder.append("store", SCRATCH_1, SCRATCH_2);
@@ -533,10 +533,6 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
 
 ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-
-  if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
-    return ROPChainStatus::ERR_UNSUPPORTED;
-
   // skip scaled-index addressing mode since we cannot handle them
   //      cmp     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
   if ((MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
@@ -544,15 +540,19 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
+  if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
+    return ROPChainStatus::ERR_UNSUPPORTED;
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
-  unsigned int imm = (unsigned int)MI->getOperand(5).getImm();
+  ChainElem imm_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(5), imm_elem))
+    return ROPChainStatus::ERR_UNSUPPORTED;
 
   ChainElem disp_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   ROPChainBuilder builder(scratchRegs);
-  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("init", SCRATCH_2).append(imm_elem);
   builder.append("init", SCRATCH_1).append(disp_elem);
   builder.append("add", SCRATCH_1, dst);
   builder.append("load_1", SCRATCH_1);
@@ -564,16 +564,17 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
 
 ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-
-  if (MI->getOperand(0).getReg() == 0 || !MI->getOperand(1).isImm())
+  // extract operands
+  if (MI->getOperand(0).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
+  
+  ChainElem imm_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(1), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  // extract operands
-  x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
-  unsigned int imm = (unsigned int)MI->getOperand(1).getImm();
-
   ROPChainBuilder builder(scratchRegs);
-  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("init", SCRATCH_2).append(imm_elem);
   builder.append("copy", SCRATCH_1, reg);
   builder.append("sub", SCRATCH_1, SCRATCH_2);
   builder.reorder();
@@ -615,6 +616,14 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
     break;
   case X86::JNE_1:
     cmov_type = "cmove";
+    reverse = true;
+    break;
+  case X86::JB_1:
+    cmov_type = "cmovb";
+    reverse = false;
+    break;
+  case X86::JAE_1:
+    cmov_type = "cmovb";
     reverse = true;
     break;
   default:
@@ -710,6 +719,8 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     break;
   case X86::JE_1:
   case X86::JNE_1:
+  case X86::JB_1:
+  case X86::JAE_1:
     status = handleJcc1(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
