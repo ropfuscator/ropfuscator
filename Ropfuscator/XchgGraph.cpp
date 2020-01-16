@@ -2,6 +2,7 @@
 #include "Debug.h"
 #include <limits.h>
 #include <list>
+#include <algorithm>
 
 using namespace std;
 
@@ -10,6 +11,10 @@ XchgState::XchgState() {
   for (int i = 0; i < N_REGS; i++) {
     PhysReg[i] = i;
   }
+}
+
+void XchgState::exchange(int reg1, int reg2) {
+  std::swap(PhysReg[reg1], PhysReg[reg2]);
 }
 
 void XchgGraph::addEdge(int reg1, int reg2) {
@@ -83,23 +88,21 @@ XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
   }
 
   // update the internal state
-  short int tmp = state.PhysReg[src];
-  state.PhysReg[src] = state.PhysReg[dest];
-  state.PhysReg[dest] = tmp;
+  state.exchange(src, dest);
 
   return fixPath(state, result);
 }
 
 int XchgState::searchLogicalReg(int LReg, int PReg) const {
   // llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
-  if (PhysReg[LReg] == PReg)
-    return LReg;
-  return searchLogicalReg(PhysReg[LReg], PReg);
+  int r;
+  for (r = LReg; PhysReg[r] != PReg; r = PhysReg[r])
+    ;
+  return r;
 }
 
 int XchgState::searchLogicalReg(int LReg) const {
   return searchLogicalReg(LReg, LReg);
-  // return PhysReg[LReg];
 }
 
 XchgPath XchgGraph::fixPath(XchgState &state, XchgPath path) const {

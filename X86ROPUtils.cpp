@@ -7,6 +7,118 @@
 
 using namespace llvm;
 
+class ROPChainBuilder {
+  struct ReorderTag {};
+  struct VirtualInstr {
+    const char *type;
+    x86_reg reg1;
+    x86_reg reg2;
+    ChainElem immediate;
+    VirtualInstr(const char *type, x86_reg reg1, x86_reg reg2)
+        : type(type), reg1(reg1), reg2(reg2) {}
+    VirtualInstr(const ChainElem &immediate)
+        : type(nullptr), immediate(immediate) {}
+    VirtualInstr(ReorderTag) : type("#reorder") {}
+    bool isReorder() const { return type && strcmp(type, "#reorder") == 0; }
+  };
+  const BinaryAutopsy *BA;
+  const std::vector<x86_reg> &scratchRegs;
+  std::vector<VirtualInstr> vchain;
+  size_t numScratchRegs;
+
+public:
+  bool normalInstrFlag;
+  bool jumpInstrFlag;
+  bool conditionalJumpInstrFlag;
+  ROPChainBuilder &append(const char *type, x86_reg reg1,
+                          x86_reg reg2 = X86_REG_INVALID) {
+    vchain.emplace_back(type, reg1, reg2);
+    numScratchRegs = std::max((int)numScratchRegs, -reg1);
+    numScratchRegs = std::max((int)numScratchRegs, -reg2);
+    return *this;
+  }
+  ROPChainBuilder &append(const ChainElem &immediate) {
+    vchain.emplace_back(immediate);
+    return *this;
+  }
+  ROPChainBuilder &reorder() {
+    vchain.emplace_back(ReorderTag());
+    return *this;
+  }
+  explicit ROPChainBuilder(const std::vector<x86_reg> &scratchRegs)
+      : BA(BinaryAutopsy::getInstance()), scratchRegs(scratchRegs), vchain(),
+        numScratchRegs(0), normalInstrFlag(false), jumpInstrFlag(false),
+        conditionalJumpInstrFlag(false) {}
+
+  ROPChainStatus build(XchgState &state, ROPChain &result) const {
+    if (numScratchRegs > scratchRegs.size())
+      return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
+    std::vector<x86_reg> regList;
+    regList.reserve(numScratchRegs);
+    return buildAux(state, result, regList);
+  }
+
+private:
+  ROPChainStatus buildAux(XchgState &state, ROPChain &result,
+                          std::vector<x86_reg> &regList) const {
+    if (regList.size() < numScratchRegs) {
+      for (x86_reg r : scratchRegs) {
+        if (std::find(regList.begin(), regList.end(), r) == regList.end()) {
+          regList.push_back(r);
+          ROPChainStatus status = buildAux(state, result, regList);
+          regList.pop_back();
+          if (status == ROPChainStatus::OK) {
+            return status;
+          }
+        }
+      }
+      return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+    } else {
+      std::vector<ROPChain> chains;
+      XchgState state0(state);
+      for (const VirtualInstr &vi : vchain) {
+        if (vi.isReorder()) {
+          ROPChain chain = BA->undoXchgs(state0);
+          chains.push_back(chain);
+        } else if (vi.type) {
+          x86_reg reg1 = vi.reg1 >= 0 ? vi.reg1 : regList[-vi.reg1 - 1];
+          x86_reg reg2 = vi.reg2 >= 0 ? vi.reg2 : regList[-vi.reg2 - 1];
+          if (!isNoop(vi.type, reg1, reg2)) {
+            ROPChain chain =
+                BA->findGadgetPrimitive(state0, vi.type, reg1, reg2);
+            if (!chain.valid())
+              return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+            chains.push_back(chain);
+          }
+        } else {
+          if (chains.empty())
+            chains.emplace_back();
+          chains.back().emplace_back(vi.immediate);
+        }
+      }
+      for (const ROPChain &chain : chains) {
+        result.append(chain);
+      }
+      state = state0;
+      if (normalInstrFlag)
+        result.hasNormalInstr = true;
+      if (jumpInstrFlag)
+        result.hasUnconditionalJump = true;
+      if (conditionalJumpInstrFlag)
+        result.hasConditionalJump = true;
+      return ROPChainStatus::OK;
+    }
+  }
+  static bool isNoop(const char *type, x86_reg reg1, x86_reg reg2) {
+    if (strcmp(type, "copy") == 0 && reg1 == reg2)
+      return true;
+    return false;
+  }
+};
+
+static const x86_reg SCRATCH_1 = (x86_reg)-1;
+static const x86_reg SCRATCH_2 = (x86_reg)-2;
+
 static cl::opt<std::string> CustomLibraryPath(
     "use-custom-lib",
     cl::desc("Specify a custom library which gadget must be extracted from"),
@@ -96,7 +208,6 @@ bool getLibraryPath(std::string &libraryPath) {
 bool ROPChain::canMerge(const ROPChain &other) {
   if (!valid())
     return true;
-    return false;
   // unconditional jump will terminate rop chain
   if (hasUnconditionalJump)
     return false;
@@ -151,36 +262,23 @@ void ROPChain::merge(const ROPChain &other) {
 
 ROPEngine::ROPEngine() {}
 
-ROPChainStatus ROPEngine::addSubImmToReg(MachineInstr *MI, x86_reg reg,
-                               bool isSub, int immediate,
-                               std::vector<x86_reg> const &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, addsub, reorder;
-
-  for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive(state, "init", scratchReg);
-    addsub = BA->findGadgetPrimitive(state, isSub ? "sub" : "add", reg, scratchReg);
-    reorder = BA->undoXchgs(state);
-
-    if (!init.valid() || !addsub.valid()) {
-      BA->xgraph.reorderRegisters(state); // xchg graph rollback
-      continue;
-    }
-    init.emplace_back(ChainElem::fromImmediate(immediate));
-    chain.append(init).append(addsub).append(reorder);
-    chain.hasNormalInstr = true;
-
-    return ROPChainStatus::OK;
+bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand, ChainElem &result) {
+  if (operand.isImm()) {
+    result = ChainElem::fromImmediate(operand.getImm());
+    return true;
+  } else if (operand.isGlobal()) {
+    result = ChainElem::fromGlobal(operand.getGlobal(), operand.getOffset());
+    return true;
+  } else {
+    return false;
   }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
 }
 
 ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
-  bool isSub;
+  const char *addsub;
   int imm;
   x86_reg dest_reg;
 
@@ -193,29 +291,25 @@ ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
   case X86::ADD32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-
-    isSub = false;
+    addsub = "add";
     imm = MI->getOperand(2).getImm();
-
     break;
   }
   case X86::SUB32ri8:
   case X86::SUB32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-
-    isSub = true;
+    addsub = "sub";
     imm = MI->getOperand(2).getImm();
-
     break;
   }
   case X86::INC32r: {
-    isSub = false;
+    addsub = "add";
     imm = 1;
     break;
   }
   case X86::DEC32r: {
-    isSub = true;
+    addsub = "sub";
     imm = 1;
     break;
   }
@@ -225,7 +319,12 @@ ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
 
   dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
 
-  return addSubImmToReg(MI, dest_reg, isSub, imm, scratchRegs);
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(ChainElem::fromImmediate(imm));
+  builder.append(addsub, dest_reg, SCRATCH_1);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
@@ -253,19 +352,11 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain addsub, reorder;
-
-  addsub = BA->findGadgetPrimitive(state, gadget_type, dst, src2);
-  reorder = BA->undoXchgs(state);
-
-  if (!addsub.valid())
-    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-  chain.append(addsub).append(reorder);
-  chain.hasNormalInstr = true;
-
-  return ROPChainStatus::OK;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append(gadget_type, dst, src2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleXor32RR(MachineInstr *MI,
@@ -279,26 +370,15 @@ ROPChainStatus ROPEngine::handleXor32RR(MachineInstr *MI,
   if (dst != src1 || dst != src2)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain xor1, reorder;
-
-  xor1 = BA->findGadgetPrimitive(state, "xor_1", dst);
-  reorder = BA->undoXchgs(state);
-
-  if (!xor1.valid())
-    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-  chain.append(xor1).append(reorder);
-  chain.hasNormalInstr = true;
-
-  return ROPChainStatus::OK;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("xor_1", dst);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, add, reorder;
-
   unsigned int op_dst = MI->getOperand(0).getReg();
   unsigned int op_reg1 = MI->getOperand(1).getReg();
   // int64_t op_scale = MI->getOperand(2).getImm();
@@ -316,93 +396,35 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   x86_reg dst = convertToCapstoneReg(op_dst);
-  unsigned displacement;
-  const llvm::GlobalValue *disp_global = nullptr;
-  if (op_disp.isImm()) {
-    displacement = op_disp.getImm();
-  } else if (op_disp.isGlobal()) {
-    disp_global = op_disp.getGlobal();
-    displacement = op_disp.getOffset();
-  } else {
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(op_disp, disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
-  }
 
-  init = BA->findGadgetPrimitive(state, "init", dst);
-  if (!init.valid())
-    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-  if (disp_global)
-    init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
-  else
-    init.emplace_back(ChainElem::fromImmediate(displacement));
-
+  ROPChainBuilder builder(scratchRegs);
   if (op_reg1 == 0) {
     // lea dst, [disp]
     // -> mov dst, disp
-
-    init = BA->findGadgetPrimitive(state, "init", dst);
-    reorder = BA->undoXchgs(state);
-    if (!init.valid())
-      return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-    if (disp_global)
-      init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
-    else
-      init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.append(init).append(reorder);
-    chain.hasNormalInstr = true;
-    return ROPChainStatus::OK;
+    builder.append("init", dst).append(disp_elem);
   } else {
     // lea dst, [src + disp]
     x86_reg src = convertToCapstoneReg(op_reg1);
     if (src != dst) {
       // -> mov dst, disp; add dst, src
-
-      init = BA->findGadgetPrimitive(state, "init", dst);
-      add = BA->findGadgetPrimitive(state, "add", dst, src);
-      reorder = BA->undoXchgs(state);
-      if (!init.valid() || !add.valid())
-        return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-      if (disp_global)
-        init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
-      else
-        init.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.append(init).append(add).append(reorder);
-      chain.hasNormalInstr = true;
-      return ROPChainStatus::OK;
+      builder.append("init", dst).append(disp_elem);
+      builder.append("add", dst, src);
     } else {
       // -> mov scratch, disp; add dst, scratch
-      if (scratchRegs.size() < 1)
-        return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
-      for (auto &scratchReg : scratchRegs) {
-        init = BA->findGadgetPrimitive(state, "init", scratchReg);
-        add = BA->findGadgetPrimitive(state, "add", dst, scratchReg);
-        reorder = BA->undoXchgs(state);
-        if (!init.valid() || !add.valid())
-          continue;
-
-        if (disp_global)
-          init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
-        else
-          init.emplace_back(ChainElem::fromImmediate(displacement));
-        chain.append(init).append(add).append(reorder);
-        chain.hasNormalInstr = true;
-        return ROPChainStatus::OK;
-      }
-      return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+      builder.append("init", SCRATCH_1).append(disp_elem);
+      builder.append("add", dst, SCRATCH_1);
     }
   }
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, add, load, xchg, reorder;
-
-  // Preliminary checks
-  if (scratchRegs.size() < 1) // there isn't at least 1 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
        || MI->getOperand(1).getReg() == 0)
@@ -417,53 +439,22 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
-  unsigned displacement;
-  const llvm::GlobalValue *disp_global = nullptr;
-  if (MI->getOperand(4).isImm()) {
-    displacement = MI->getOperand(4).getImm();
-  } else if (MI->getOperand(4).isGlobal()) {
-    disp_global = MI->getOperand(4).getGlobal();
-    displacement = MI->getOperand(4).getOffset();
-  } else {
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
-  }
 
-  for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive(state, "init", scratchReg);
-    add = BA->findGadgetPrimitive(state, "add", scratchReg, src);
-    load = BA->findGadgetPrimitive(state, "load_1", scratchReg, scratchReg);
-
-    reorder = BA->undoXchgs(state);
-    xchg = BA->exchangeRegs(state, dst, scratchReg);
-    BA->xgraph.reorderRegisters(state); // otherwise the last xchg would be undone by
-                                   // the next obfuscated instruction
-
-    if (!init.valid() || !add.valid() || !load.valid() || !xchg.valid()) {
-      BA->xgraph.reorderRegisters(state); // xchg graph rollback
-      continue;
-    }
-
-    if (disp_global)
-      init.emplace_back(ChainElem::fromGlobal(disp_global, displacement));
-    else
-      init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.append(init).append(add).append(load).append(reorder).append(xchg);
-    chain.hasNormalInstr = true;
-
-    return ROPChainStatus::OK;
-  }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, src);
+  builder.append("load_1", SCRATCH_1);
+  builder.append("copy", dst, SCRATCH_1);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, add, store, reorder;
-
-  // Preliminary checks
-  if (scratchRegs.size() < 1) // there isn't at least 1 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
        || MI->getOperand(5).getReg() == 0)
@@ -478,42 +469,21 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(5).getReg());
 
-  unsigned displacement;
-  if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
-    displacement = MI->getOperand(3).getImm();
-  else
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  for (auto &scratchReg : scratchRegs) {
-    init = BA->findGadgetPrimitive(state, "init", scratchReg);
-    add = BA->findGadgetPrimitive(state, "add", scratchReg, dst);
-    store = BA->findGadgetPrimitive(state, "store", scratchReg, src);
-
-    reorder = BA->undoXchgs(state);
-
-    if (!init.valid() || !add.valid() || !store.valid()) {
-      BA->xgraph.reorderRegisters(state); // xchg graph rollback
-      continue;
-    }
-
-    init.emplace_back(ChainElem::fromImmediate(displacement));
-    chain.append(init).append(add).append(store).append(reorder);
-    chain.hasNormalInstr = true;
-
-    return ROPChainStatus::OK;
-  }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, dst);
+  builder.append("store", SCRATCH_1, src);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain initImm, initOfs, add, store, reorder;
-
-  // Preliminary checks
-  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -530,44 +500,22 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   unsigned int imm = (unsigned int)MI->getOperand(5).getImm();
 
-  unsigned displacement;
-  if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
-    displacement = MI->getOperand(3).getImm();
-  else
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  for (auto &scratchReg1 : scratchRegs) {
-    for (auto &scratchReg2 : scratchRegs) {
-      if (scratchReg1 == scratchReg2)
-        continue;
-      initImm = BA->findGadgetPrimitive(state, "init", scratchReg2);
-      initOfs = BA->findGadgetPrimitive(state, "init", scratchReg1);
-      add = BA->findGadgetPrimitive(state, "add", scratchReg1, dst);
-      store = BA->findGadgetPrimitive(state, "store", scratchReg1, scratchReg2);
-
-      reorder = BA->undoXchgs(state);
-
-      if (!initImm.valid() || !initOfs.valid() || !add.valid() || !store.valid()) {
-        BA->xgraph.reorderRegisters(state); // xchg graph rollback
-        continue;
-      }
-
-      initImm.emplace_back(ChainElem::fromImmediate(imm));
-      initOfs.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.append(initImm).append(initOfs).append(add).append(store).append(reorder);
-      chain.hasNormalInstr = true;
-
-      return ROPChainStatus::OK;
-    }
-  }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, dst);
+  builder.append("store", SCRATCH_1, SCRATCH_2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain store, reorder;
 
   if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -576,26 +524,15 @@ ROPChainStatus ROPEngine::handleMov32rr(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
 
-  store = BA->findGadgetPrimitive(state, "copy", dst, src);
-  reorder = BA->undoXchgs(state);
-
-  if (!store.valid())
-    return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-  chain.append(store).append(reorder);
-  chain.hasNormalInstr = true;
-
-  return ROPChainStatus::OK;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("copy", dst, src);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain initImm, initOfs, add, load, sub, reorder;
-
-  // Preliminary checks
-  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -610,49 +547,23 @@ ROPChainStatus ROPEngine::handleCmp32mi(MachineInstr *MI,
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   unsigned int imm = (unsigned int)MI->getOperand(5).getImm();
 
-  unsigned displacement;
-  if (MI->getOperand(3).isImm()) // is an immediate and not a symbol
-    displacement = MI->getOperand(3).getImm();
-  else
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  for (auto &scratchReg1 : scratchRegs) {
-    for (auto &scratchReg2 : scratchRegs) {
-      if (scratchReg1 == scratchReg2)
-        continue;
-      initImm = BA->findGadgetPrimitive(state, "init", scratchReg2);
-      initOfs = BA->findGadgetPrimitive(state, "init", scratchReg1);
-      add = BA->findGadgetPrimitive(state, "add", scratchReg1, dst);
-      load = BA->findGadgetPrimitive(state, "load_1", scratchReg1);
-      sub = BA->findGadgetPrimitive(state, "sub", scratchReg1, scratchReg2);
-
-      reorder = BA->undoXchgs(state);
-
-      if (!initImm.valid() || !initOfs.valid() || !add.valid() || !load.valid() || !sub.valid()) {
-        BA->xgraph.reorderRegisters(state); // xchg graph rollback
-        continue;
-      }
-
-      initImm.emplace_back(ChainElem::fromImmediate(imm));
-      initOfs.emplace_back(ChainElem::fromImmediate(displacement));
-      chain.append(initImm).append(initOfs).append(add).append(load).append(sub).append(reorder);
-      chain.hasNormalInstr = true;
-
-      return ROPChainStatus::OK;
-    }
-  }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, dst);
+  builder.append("load_1", SCRATCH_1);
+  builder.append("sub", SCRATCH_1, SCRATCH_2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
                               std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init, copy, sub, reorder;
-
-  // Preliminary checks
-  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
 
   if (MI->getOperand(0).getReg() == 0 || !MI->getOperand(1).isImm())
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -661,30 +572,13 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
   x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
   unsigned int imm = (unsigned int)MI->getOperand(1).getImm();
 
-  for (auto &scratchReg1 : scratchRegs) {
-    for (auto &scratchReg2 : scratchRegs) {
-      if (scratchReg1 == scratchReg2)
-        continue;
-      init = BA->findGadgetPrimitive(state, "init", scratchReg2);
-      copy = BA->findGadgetPrimitive(state, "copy", scratchReg1, reg);
-      sub = BA->findGadgetPrimitive(state, "sub", scratchReg1, scratchReg2);
-
-      reorder = BA->undoXchgs(state);
-
-      if (!init.valid() || !copy.valid() || !sub.valid()) {
-        BA->xgraph.reorderRegisters(state); // xchg graph rollback
-        continue;
-      }
-
-      init.emplace_back(ChainElem::fromImmediate(imm));
-      chain.append(init).append(copy).append(sub).append(reorder);
-      chain.hasNormalInstr = true;
-
-      return ROPChainStatus::OK;
-    }
-  }
-
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_2).append(ChainElem::fromImmediate(imm));
+  builder.append("copy", SCRATCH_1, reg);
+  builder.append("sub", SCRATCH_1, SCRATCH_2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::handleJmp1(MachineInstr *MI,
@@ -700,8 +594,6 @@ ROPChainStatus ROPEngine::handleJmp1(MachineInstr *MI,
 
 ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
                                      std::vector<x86_reg> &scratchRegs) {
-  BinaryAutopsy *BA = BinaryAutopsy::getInstance();
-  ROPChain init1, init2, cmov, reorder, jmpreg;
   // Jcc1 ROPification strategy:
   //   pop reg1
   //   ...target1...
@@ -729,45 +621,16 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  if (scratchRegs.size() < 2) // there isn't at least 2 scratch register
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
-
-  for (auto &scratchReg1 : scratchRegs) {
-    for (auto &scratchReg2 : scratchRegs) {
-      if (scratchReg1 == scratchReg2)
-        continue;
-      jmpreg = BA->findGadgetPrimitive(state, "jmp", scratchReg1);
-      if (!jmpreg.valid() || jmpreg.size() > 1) {
-        // xchg is not allowed here
-        BA->xgraph.reorderRegisters(state); // xchg graph rollback
-        continue;
-      }
-      init1 = BA->findGadgetPrimitive(state, "init", scratchReg1);
-      init2 = BA->findGadgetPrimitive(state, "init", scratchReg2);
-      cmov = BA->findGadgetPrimitive(state, cmov_type, scratchReg1, scratchReg2);
-      reorder = BA->undoXchgs(state);
-
-      if (!init1.valid() || !init2.valid() || !cmov.valid()) {
-        BA->xgraph.reorderRegisters(state); // xchg graph rollback
-        continue;
-      }
-
-      if (reverse) {
-        init1.emplace_back(
-            ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
-        init2.emplace_back(ChainElem::createJmpFallthrough());
-      } else {
-        init1.emplace_back(ChainElem::createJmpFallthrough());
-        init2.emplace_back(
-            ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
-      }
-      chain.append(init1).append(init2).append(cmov).append(reorder).append(jmpreg);
-      chain.hasConditionalJump = true;
-
-      return ROPChainStatus::OK;
-    }
-  }
-  return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", reverse ? SCRATCH_1 : SCRATCH_2)
+      .append(ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
+  builder.append("init", reverse ? SCRATCH_2 : SCRATCH_1)
+      .append(ChainElem::createJmpFallthrough());
+  builder.append(cmov_type, SCRATCH_1, SCRATCH_2);
+  builder.reorder();
+  builder.append("jmp", SCRATCH_1);
+  builder.conditionalJumpInstrFlag = true;
+  return builder.build(state, chain);
 }
 
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI,

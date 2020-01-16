@@ -55,6 +55,8 @@ public:
 
   int searchLogicalReg(int LReg) const;
 
+  void exchange(int reg1, int reg2);
+
   void printAll() const;
 };
 

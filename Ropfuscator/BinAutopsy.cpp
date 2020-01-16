@@ -737,6 +737,10 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_r
     // Attempt #2: find a primitive gadget that has at least operands
     // exchangeable with the ones required. A proper xchg chain will be
     // generated.
+    if (type == "jmp") {
+      // we cannot exchange registers in jmp gadget; just fail
+      return result;
+    }
     x86_reg gadget_op0, gadget_op1;
     for (auto &gadget : gadgets) {
       gadget_op0 = extractReg(gadget.getOp(0));
