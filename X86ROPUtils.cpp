@@ -568,7 +568,7 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
   if (MI->getOperand(0).getReg() == 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
   x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
-  
+
   ChainElem imm_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(1), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -642,13 +642,41 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
   return builder.build(state, chain);
 }
 
+ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
+                                     std::vector<x86_reg> &scratchRegs) {
+  // Jcc1 ROPification strategy:
+  //   pop reg1
+  //   [callee]
+  //   jmp reg1
+  //   [return addr]
+
+  // obfuscating noreturn functions such as exit()
+  // will eventually cause AsmPrinter to abort, so we do not handle them
+  if (MI->getNumOperands() != 5)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  ChainElem callee_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(0), callee_elem))
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(callee_elem);
+  builder.reorder();
+  builder.append("jmp", SCRATCH_1);
+  builder.append(ChainElem::createJmpFallthrough());
+  builder.jumpInstrFlag = true;
+  return builder.build(state, chain);
+}
+
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
                                  std::vector<x86_reg> &scratchRegs,
                                  bool shouldFlagSaved, ROPChain &resultChain) {
-  // if ESP is one of the operands of MI -> abort
-  for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
-    if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
-      return ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER;
+  if (MI.getOpcode() != X86::CALLpcrel32) {
+    // if ESP is one of the operands of MI -> abort
+    for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
+      if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
+        return ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER;
+    }
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
@@ -722,6 +750,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   case X86::JB_1:
   case X86::JAE_1:
     status = handleJcc1(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
+  case X86::CALLpcrel32:
+    status = handleCall(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   default:

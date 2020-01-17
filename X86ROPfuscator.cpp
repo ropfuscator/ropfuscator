@@ -48,15 +48,29 @@ struct ROPChainStatEntry {
     memset(data, 0, sizeof(data));
   }
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ROPChainStatEntry &entry) {
-    os << "stat:ropfuscated " << entry[ROPChainStatus::OK]
-       << " / total " << entry.total() << " ["
+    entry.debugPrint(os);
+    return os;
+  }
+  template <class StreamT> void debugPrint(StreamT &os) const {
+    const ROPChainStatEntry &entry = *this;
+    os << "stat:ropfuscated " << entry[ROPChainStatus::OK] << " / total "
+       << entry.total() << " ["
        << " not-implemented: " << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED]
        << " no-register: " << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE]
        << " no-gadget: " << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE]
        << " unsupported: " << entry[ROPChainStatus::ERR_UNSUPPORTED]
-       << " unsupported-esp: " << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER]
-       << " ]";
-    return os;
+       << " unsupported-esp: "
+       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " ]";
+  }
+  template <class StreamT> void debugPrintSimple(StreamT &os) const {
+    const ROPChainStatEntry &entry = *this;
+    os << entry[ROPChainStatus::OK] << " "
+       << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED] << " "
+       << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE] << " "
+       << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE] << " "
+       << entry[ROPChainStatus::ERR_UNSUPPORTED] << " "
+       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " "
+       << entry.total();
   }
 };
 #endif
@@ -117,6 +131,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
                       MBB.getParent()->getName(), chainID);
 
   bool isLastInstrInBlock = MI.getNextNode() == nullptr;
+  bool resumeLabelRequired = false;
 
   if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
     // If the obfuscated instruction will modify flags,
@@ -165,6 +180,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
     // jmp resume_funcName_chain_X
     BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
         .addExternalSymbol(resumeLabel);
+    resumeLabelRequired = true;
   }
   // funcName_chain_X:
   BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
@@ -251,6 +267,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       } else {
         BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(resumeLabel);
+        resumeLabelRequired = true;
       }
       break;
     }
@@ -273,8 +290,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
   // ret
   BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
   // resume_funcName_chain_X:
-  if (!(chain.hasUnconditionalJump ||
-        (chain.hasConditionalJump && isLastInstrInBlock))) {
+  if (resumeLabelRequired) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
     BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
