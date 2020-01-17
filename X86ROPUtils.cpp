@@ -276,22 +276,15 @@ bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand, Chai
 
 ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
-  unsigned opcode = MI->getOpcode();
-
-  const char *type;
+  const char *gadget_type;
   int imm;
-  x86_reg dest_reg;
 
-  // no scratch registers are available -> abort.
-  if (scratchRegs.empty())
-    return ROPChainStatus::ERR_NO_REGISTER_AVAILABLE;
-
-  switch (opcode) {
+  switch (MI->getOpcode()) {
   case X86::ADD32ri8:
   case X86::ADD32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-    type = "add";
+    gadget_type = "add";
     imm = MI->getOperand(2).getImm();
     break;
   }
@@ -299,7 +292,7 @@ ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
   case X86::SUB32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-    type = "sub";
+    gadget_type = "sub";
     imm = MI->getOperand(2).getImm();
     break;
   }
@@ -307,17 +300,17 @@ ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
   case X86::AND32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-    type = "and";
+    gadget_type = "and";
     imm = MI->getOperand(2).getImm();
     break;
   }
   case X86::INC32r: {
-    type = "add";
+    gadget_type = "add";
     imm = 1;
     break;
   }
   case X86::DEC32r: {
-    type = "sub";
+    gadget_type = "sub";
     imm = 1;
     break;
   }
@@ -325,11 +318,11 @@ ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg dest_reg = convertToCapstoneReg(MI->getOperand(0).getReg());
 
   ROPChainBuilder builder(scratchRegs);
   builder.append("init", SCRATCH_1).append(ChainElem::fromImmediate(imm));
-  builder.append(type, dest_reg, SCRATCH_1);
+  builder.append(gadget_type, dest_reg, SCRATCH_1);
   builder.reorder();
   builder.normalInstrFlag = true;
   return builder.build(state, chain);
@@ -337,10 +330,6 @@ ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
 
 ROPChainStatus ROPEngine::handleArithmeticRR(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
-  unsigned opcode = MI->getOpcode();
-
-  const char *gadget_type;
-
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src1 = convertToCapstoneReg(MI->getOperand(1).getReg());
@@ -349,7 +338,8 @@ ROPChainStatus ROPEngine::handleArithmeticRR(MachineInstr *MI,
   if (dst != src1)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  switch (opcode) {
+  const char *gadget_type;
+  switch (MI->getOpcode()) {
   case X86::ADD32rr:
     gadget_type = (src1 == src2) ? "add_1" : "add";
     break;
@@ -365,6 +355,49 @@ ROPChainStatus ROPEngine::handleArithmeticRR(MachineInstr *MI,
 
   ROPChainBuilder builder(scratchRegs);
   builder.append(gadget_type, dst, src2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
+}
+
+ROPChainStatus ROPEngine::handleArithmeticRM(MachineInstr *MI,
+                                   std::vector<x86_reg> &scratchRegs) {
+  const char *gadget_type;
+  switch (MI->getOpcode()) {
+  case X86::ADD32rm:
+    gadget_type = "add";
+    break;
+  case X86::SUB32rm:
+    gadget_type = "sub";
+    break;
+  case X86::AND32rm:
+    gadget_type = "and";
+    break;
+  default:
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+
+  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(2).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // skip scaled-index addressing mode since we cannot handle them
+  //      xxx     orig_0/1, [orig_2 + scale_3 * orig_4 + disp_5]
+  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(2).getReg());
+
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(5), disp_elem))
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, src);
+  builder.append("load_1", SCRATCH_1);
+  builder.append(gadget_type, dst, SCRATCH_1);
   builder.reorder();
   builder.normalInstrFlag = true;
   return builder.build(state, chain);
@@ -629,6 +662,36 @@ ROPChainStatus ROPEngine::handleCmp32ri(MachineInstr *MI,
   return builder.build(state, chain);
 }
 
+ROPChainStatus ROPEngine::handleCmp32rm(MachineInstr *MI,
+                                   std::vector<x86_reg> &scratchRegs) {
+  if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
+       || MI->getOperand(1).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // skip scaled-index addressing mode since we cannot handle them
+  //      xxx     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
+  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
+  x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
+
+  ChainElem disp_elem;
+  if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("init", SCRATCH_1).append(disp_elem);
+  builder.append("add", SCRATCH_1, src);
+  builder.append("load_1", SCRATCH_1);
+  builder.append("copy", SCRATCH_2, dst);
+  builder.append("sub", SCRATCH_2, SCRATCH_1);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+  return builder.build(state, chain);
+}
+
 ROPChainStatus ROPEngine::handleJmp1(MachineInstr *MI,
                                      std::vector<x86_reg> &scratchRegs) {
   if (!MI->getOperand(0).isMBB()) {
@@ -772,6 +835,12 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     status = handleArithmeticRR(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
+  case X86::ADD32rm:
+  case X86::SUB32rm:
+  case X86::AND32rm:
+    status = handleArithmeticRM(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
   case X86::XOR32rr:
     status = handleXor32RR(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
@@ -784,6 +853,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   case X86::CMP32ri:
   case X86::CMP32ri8:
     status = handleCmp32ri(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
+  case X86::CMP32rm:
+    status = handleCmp32rm(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::LEA32r:
