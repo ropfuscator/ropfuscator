@@ -114,6 +114,7 @@ class ROPEngine {
 
   ROPChainStatus handleArithmeticRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleArithmeticRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRM(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleXor32RR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleLea32r(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
@@ -122,6 +123,7 @@ class ROPEngine {
   ROPChainStatus handleMov32rr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCmp32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCmp32ri(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCall(MachineInstr *, std::vector<x86_reg> &scratchRegs);
