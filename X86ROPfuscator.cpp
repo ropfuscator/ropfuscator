@@ -265,9 +265,16 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
             break;
           }
         }
-        assert(targetMBB && "conditional jump at the end of function");
-        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addMBB(targetMBB);
+        if (!targetMBB) {
+          // call or conditional jump at the end of function:
+          // probably calling "no-return" functions like exit()
+          // so we just put dummy return address here
+          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+            .addImm(0);
+        } else {
+          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+            .addMBB(targetMBB);
+        }
       } else {
         BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
           .addExternalSymbol(resumeLabel);

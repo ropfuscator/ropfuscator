@@ -521,7 +521,7 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   if (dst == X86_REG_ESP) {
-    if (disp_elem.type != ChainElem::Type::IMM_VALUE)
+    if (disp_elem.type != ChainElem::Type::IMM_VALUE || disp_elem.value < 0)
       return ROPChainStatus::ERR_UNSUPPORTED;
 
     ROPChainBuilder builder(scratchRegs);
@@ -568,7 +568,7 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   if (dst == X86_REG_ESP) {
-    if (disp_elem.type != ChainElem::Type::IMM_VALUE)
+    if (disp_elem.type != ChainElem::Type::IMM_VALUE || disp_elem.value < 0)
       return ROPChainStatus::ERR_UNSUPPORTED;
 
     ROPChainBuilder builder(scratchRegs);
@@ -758,11 +758,6 @@ ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
   //   [callee]
   //   jmp reg1
   //   [return addr]
-
-  // obfuscating noreturn functions such as exit()
-  // will eventually cause AsmPrinter to abort, so we do not handle them
-  if (MI->getNumOperands() != 5)
-    return ROPChainStatus::ERR_UNSUPPORTED;
 
   ChainElem callee_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(0), callee_elem))
