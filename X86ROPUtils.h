@@ -124,6 +124,7 @@ class ROPEngine {
   ROPChainStatus handleCmp32ri(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCall(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool convertOperandToChainPushImm(const MachineOperand &operand, ChainElem &result);
 
 public:
