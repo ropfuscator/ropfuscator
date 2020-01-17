@@ -112,8 +112,8 @@ class ROPEngine {
   ROPChain chain;
   XchgState state;
 
-  ROPChainStatus handleAddSubIncDecRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleAddSubRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleXor32RR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleLea32r(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
@@ -125,6 +125,7 @@ class ROPEngine {
   ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCall(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCallReg(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   bool convertOperandToChainPushImm(const MachineOperand &operand, ChainElem &result);
 
 public:

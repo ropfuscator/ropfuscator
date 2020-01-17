@@ -274,11 +274,11 @@ bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand, Chai
   }
 }
 
-ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleArithmeticRI(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
-  const char *addsub;
+  const char *type;
   int imm;
   x86_reg dest_reg;
 
@@ -291,7 +291,7 @@ ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
   case X86::ADD32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-    addsub = "add";
+    type = "add";
     imm = MI->getOperand(2).getImm();
     break;
   }
@@ -299,17 +299,25 @@ ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
   case X86::SUB32ri: {
     if (!MI->getOperand(2).isImm())
       return ROPChainStatus::ERR_UNSUPPORTED;
-    addsub = "sub";
+    type = "sub";
+    imm = MI->getOperand(2).getImm();
+    break;
+  }
+  case X86::AND32ri8:
+  case X86::AND32ri: {
+    if (!MI->getOperand(2).isImm())
+      return ROPChainStatus::ERR_UNSUPPORTED;
+    type = "and";
     imm = MI->getOperand(2).getImm();
     break;
   }
   case X86::INC32r: {
-    addsub = "add";
+    type = "add";
     imm = 1;
     break;
   }
   case X86::DEC32r: {
-    addsub = "sub";
+    type = "sub";
     imm = 1;
     break;
   }
@@ -321,13 +329,13 @@ ROPChainStatus ROPEngine::handleAddSubIncDecRI(MachineInstr *MI,
 
   ROPChainBuilder builder(scratchRegs);
   builder.append("init", SCRATCH_1).append(ChainElem::fromImmediate(imm));
-  builder.append(addsub, dest_reg, SCRATCH_1);
+  builder.append(type, dest_reg, SCRATCH_1);
   builder.reorder();
   builder.normalInstrFlag = true;
   return builder.build(state, chain);
 }
 
-ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
+ROPChainStatus ROPEngine::handleArithmeticRR(MachineInstr *MI,
                                    std::vector<x86_reg> &scratchRegs) {
   unsigned opcode = MI->getOpcode();
 
@@ -347,6 +355,9 @@ ROPChainStatus ROPEngine::handleAddSubRR(MachineInstr *MI,
     break;
   case X86::SUB32rr:
     gadget_type = (src1 == src2) ? "sub_1" : "sub";
+    break;
+  case X86::AND32rr:
+    gadget_type = (src1 == src2) ? "and_1" : "and";
     break;
   default:
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -680,7 +691,6 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
 
 ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
                                      std::vector<x86_reg> &scratchRegs) {
-  // Jcc1 ROPification strategy:
   //   pop reg1
   //   [callee]
   //   jmp reg1
@@ -704,10 +714,26 @@ ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
   return builder.build(state, chain);
 }
 
+ROPChainStatus ROPEngine::handleCallReg(MachineInstr *MI,
+                                     std::vector<x86_reg> &scratchRegs) {
+  //   jmp reg
+  //   [return addr]
+
+  if (!MI->getOperand(0).isReg() || MI->getOperand(0).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  x86_reg reg = convertToCapstoneReg(MI->getOperand(0).getReg());
+
+  ROPChainBuilder builder(scratchRegs);
+  builder.append("jmp", reg);
+  builder.append(ChainElem::createJmpFallthrough());
+  builder.jumpInstrFlag = true;
+  return builder.build(state, chain);
+}
+
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
                                  std::vector<x86_reg> &scratchRegs,
                                  bool shouldFlagSaved, ROPChain &resultChain) {
-  if (MI.getOpcode() != X86::CALLpcrel32 && MI.getOpcode() != X86::MOV32mr &&
+  if (MI.getOpcode() != X86::CALLpcrel32 && MI.getOpcode() != X86::CALL32r && MI.getOpcode() != X86::MOV32mr &&
       MI.getOpcode() != X86::MOV32mi) {
     // if ESP is one of the operands of MI -> abort
     for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
@@ -732,15 +758,18 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   case X86::ADD32ri:
   case X86::SUB32ri8:
   case X86::SUB32ri:
+  case X86::AND32ri8:
+  case X86::AND32ri:
   case X86::INC32r:
   case X86::DEC32r: {
-    status = handleAddSubIncDecRI(&MI, scratchRegs);
+    status = handleArithmeticRI(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   }
   case X86::ADD32rr:
   case X86::SUB32rr:
-    status = handleAddSubRR(&MI, scratchRegs);
+  case X86::AND32rr:
+    status = handleArithmeticRR(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   case X86::XOR32rr:
@@ -792,6 +821,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     break;
   case X86::CALLpcrel32:
     status = handleCall(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
+  case X86::CALL32r:
+    status = handleCallReg(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
   default:
