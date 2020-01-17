@@ -473,6 +473,25 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
+  if (src == X86_REG_ESP)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  if (dst == X86_REG_ESP) {
+    if (disp_elem.type != ChainElem::Type::IMM_VALUE)
+      return ROPChainStatus::ERR_UNSUPPORTED;
+
+    ROPChainBuilder builder(scratchRegs);
+    ChainElem esp_elem = ChainElem::createStackPointerPush();
+    disp_elem = ChainElem::createStackPointerOffset(disp_elem.value, esp_elem.esp_id);
+    builder.append("init", SCRATCH_1).append(disp_elem);
+    builder.append("init", SCRATCH_2).append(esp_elem);
+    builder.append("add", SCRATCH_1, SCRATCH_2);
+    builder.append("store", SCRATCH_1, src);
+    builder.reorder();
+    builder.normalInstrFlag = true;
+    return builder.build(state, chain);
+  }
+
   ROPChainBuilder builder(scratchRegs);
   builder.append("init", SCRATCH_1).append(disp_elem);
   builder.append("add", SCRATCH_1, dst);
@@ -503,6 +522,23 @@ ROPChainStatus ROPEngine::handleMov32mi(MachineInstr *MI,
   ChainElem disp_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
+
+  if (dst == X86_REG_ESP) {
+    if (disp_elem.type != ChainElem::Type::IMM_VALUE)
+      return ROPChainStatus::ERR_UNSUPPORTED;
+
+    ROPChainBuilder builder(scratchRegs);
+    ChainElem esp_elem = ChainElem::createStackPointerPush();
+    disp_elem = ChainElem::createStackPointerOffset(disp_elem.value, esp_elem.esp_id);
+    builder.append("init", SCRATCH_1).append(disp_elem);
+    builder.append("init", SCRATCH_2).append(esp_elem);
+    builder.append("add", SCRATCH_1, SCRATCH_2);
+    builder.append("init", SCRATCH_2).append(imm_elem);
+    builder.append("store", SCRATCH_1, SCRATCH_2);
+    builder.reorder();
+    builder.normalInstrFlag = true;
+    return builder.build(state, chain);
+  }
 
   ROPChainBuilder builder(scratchRegs);
   builder.append("init", SCRATCH_2).append(imm_elem);
@@ -671,7 +707,8 @@ ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
 ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
                                  std::vector<x86_reg> &scratchRegs,
                                  bool shouldFlagSaved, ROPChain &resultChain) {
-  if (MI.getOpcode() != X86::CALLpcrel32) {
+  if (MI.getOpcode() != X86::CALLpcrel32 && MI.getOpcode() != X86::MOV32mr &&
+      MI.getOpcode() != X86::MOV32mi) {
     // if ESP is one of the operands of MI -> abort
     for (unsigned int i = 0; i < MI.getNumOperands(); i++) {
       if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == X86::ESP)
@@ -681,11 +718,12 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
                   dbgs() << "[LivenessAnalysis] avail. scratch registers:\t");
-
+#ifndef NDEBUG
   for (auto &a : scratchRegs) {
     DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
+#endif
 
   ROPChainStatus status;
   FlagSaveMode flagSave;

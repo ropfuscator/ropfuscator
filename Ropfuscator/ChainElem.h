@@ -12,7 +12,7 @@
 // Generic element to be put in the chain.
 struct ChainElem {
 
-  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK, JMP_FALLTHROUGH };
+  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK, JMP_FALLTHROUGH, ESP_PUSH, ESP_OFFSET };
 
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
   // type because we will use different strategies during the creation of
@@ -26,6 +26,8 @@ struct ChainElem {
     const Microgadget *microgadget;
     // jump target MBB
     llvm::MachineBasicBlock *jmptarget;
+    // id for ESP_PUSH and ESP_OFFSET
+    int esp_id;
   };
   // value - immediate value
   int64_t value;
@@ -70,6 +72,24 @@ struct ChainElem {
     return e;
   }
 
+  // Factory method (type: ESP_PUSH)
+  static ChainElem createStackPointerPush() {
+    static int esp_id = 0;
+    ChainElem e;
+    e.type = Type::ESP_PUSH;
+    e.esp_id = ++esp_id;
+    return e;
+  }
+
+  // Factory method (type: ESP_OFFSET)
+  static ChainElem createStackPointerOffset(int64_t value, int esp_id) {
+    ChainElem e;
+    e.type = Type::ESP_OFFSET;
+    e.value = value;
+    e.esp_id = esp_id;
+    return e;
+  }
+
   friend bool operator==(ChainElem const &A, ChainElem const &B) {
     if (A.type != B.type)
       return false;
@@ -96,6 +116,12 @@ struct ChainElem {
       break;
     case Type::JMP_FALLTHROUGH:
       llvm::dbgs() << "JMP_FALLTHROUGH\n";
+      break;
+    case Type::ESP_PUSH:
+      llvm::dbgs() << "ESP_PUSH  : id=" << esp_id << "\n";
+      break;
+    case Type::ESP_OFFSET:
+      llvm::dbgs() << "ESP_OFFSET: " << value << ", id=" << esp_id << "\n";
       break;
     }
   }
