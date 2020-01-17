@@ -132,6 +132,8 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
 
   bool isLastInstrInBlock = MI.getNextNode() == nullptr;
   bool resumeLabelRequired = false;
+  std::map<int, int> espOffsetMap;
+  int espoffset = 0;
 
   if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
     // If the obfuscated instruction will modify flags,
@@ -169,6 +171,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
     // flag is saved at the bottom of the stack
     // pushf (EFLAGS register backup)
     BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+    espoffset -= 4;
   }
   if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
     // jmp funcName_chain_X
@@ -181,6 +184,7 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
     BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
         .addExternalSymbol(resumeLabel);
     resumeLabelRequired = true;
+    espoffset -= 4;
   }
   // funcName_chain_X:
   BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
@@ -271,7 +275,28 @@ void X86ROPfuscator::insertROPChain(const ROPChain &chain,
       }
       break;
     }
+
+    case ChainElem::Type::ESP_PUSH: {
+      // push esp
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSH32r)).addReg(X86::ESP);
+
+      espOffsetMap[elem->esp_id] = espoffset;
+      break;
     }
+
+    case ChainElem::Type::ESP_OFFSET: {
+      // push $(imm - espoffset)
+      auto it = espOffsetMap.find(elem->esp_id);
+      if (it == espOffsetMap.end()) {
+        dbgs() << "Internal error: ESP_OFFSET should precede corresponding ESP_PUSH\n";
+        exit(1);
+      }
+      int64_t value = elem->value - it->second;
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32)).addImm(value);
+      break;
+    }
+    }
+    espoffset -= 4;
   }
 
   // EMIT EPILOGUE
