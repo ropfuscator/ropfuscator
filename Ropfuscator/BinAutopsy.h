@@ -25,7 +25,7 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "../X86ROPUtils.h"
+#include "ROPEngine.h"
 #include "ChainElem.h"
 #include "Microgadget.h"
 #include "Section.h"
@@ -41,6 +41,8 @@
 // see BinaryAutopsy::extractGadgets()
 #define MAXDEPTH 4
 
+// forward declaration
+class ROPChain;
 class ELFParser;
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.

@@ -4,6 +4,7 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
+#include "ROPEngine.h"
 #include "CapstoneLLVMAdpt.h"
 #include "ChainElem.h"
 #include "Debug.h"
