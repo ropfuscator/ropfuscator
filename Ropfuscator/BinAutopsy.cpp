@@ -17,21 +17,212 @@
 
 using namespace std;
 
-BinaryAutopsy::BinaryAutopsy(string path) {
-  BinaryPath = new char[path.length() + 1];
-  strncpy(BinaryPath, path.c_str(), path.length() + 1);
+#include "llvm/Object/ELF.h"
+using llvm::object::ELF32LE;
+using llvm::object::ELF32LEFile;
 
-  ifstream f(path);
-  assert(f.good() && "Given file doesn't exist or is invalid!");
-  llvm::dbgs() << "USING: " << BinaryPath << "\n";
+static const bool searchSegmentForGadget = true;
 
-  // Initialises LibBFD and opens the binary
-  bfd_init();
-  BfdHandle = bfd_openr(BinaryPath, NULL);
-  if (!bfd_check_format(BfdHandle, bfd_object))
-    assert(false &&
-         "Given file does not look like a valid ELF file");
+class ELFParser {
+public:
+  ELFParser(const std::string &path) {
+    ifstream f(path, std::ios::binary);
+    if (!f.good()) {
+      llvm::dbgs() << "Given file " << path
+                   << " doesn't exist or is invalid!";
+      exit(1);
+    }
+    llvm::dbgs() << "USING: " << path << "\n";
+    f.seekg(0, std::ios::end);
+    size_t size = f.tellg();
+    f.seekg(0, std::ios::beg);
+    buf.resize(size);
+    f.read(&buf[0], size);
+    f.close();
+    if (auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size))) {
+      this->elf.reset(new ELF32LEFile(*elf_opt));
+    } else {
+      dbgs() << "ELF file error: " << path << " : " << elf_opt.takeError()
+             << "\n";
+      exit(1);
+    }
+    parseSections();
+    parseVerdefs();
+  }
 
+  const uint8_t *base() const {
+    return elf->base();
+  }
+
+  std::vector<ELF32LE::Phdr> getCodeSegments() {
+    std::vector<ELF32LE::Phdr> rv;
+    if (auto segments = elf->program_headers()) {
+      // iterate through segments
+      for (auto &seg : *segments) {
+        // check if it is loadable segment and executable
+        if (seg.p_type == ELF_PT_LOAD && (seg.p_flags & ELF_PF_X)) {
+          rv.push_back(seg);
+        }
+      }
+    }
+    return rv;
+  }
+
+  std::vector<ELF32LE::Shdr> getCodeSections() {
+    std::vector<ELF32LE::Shdr> rv;
+    if (auto sections = elf->sections()) {
+      for (auto &section : *sections) {
+        if (section.sh_type == ELF_SHT_PROGBITS &&
+            (section.sh_flags & ELF_SHF_EXECINSTR)) {
+          rv.push_back(section);
+        }
+      }
+    }
+    return rv;
+  }
+
+  std::string getSectionName(const ELF32LE::Shdr &section) {
+    if (auto sectname_opt = elf->getSectionName(&section)) {
+      return sectname_opt->str();
+    } else {
+      return "<unnamed>";
+    }
+  }
+
+  ArrayRef<ELF32LE::Sym> getDynamicSymbols() {
+    auto symbols = elf->symbols(dynsym);
+    if (symbols)
+      return *symbols;
+    else
+      return ArrayRef<ELF32LE::Sym>();
+  }
+
+  Expected<StringRef> getSymbolName(const ELF32LE::Sym &sym) {
+    return sym.getName(dynstrtab);
+  }
+
+  bool isGlobalFunction(const ELF32LE::Sym &sym) {
+    return sym.getType() == ELF_STT_FUNC && sym.getBinding() == ELF_STB_GLOBAL;
+  }
+
+  std::string getSymbolVersion(int symindex) {
+    auto versyms = elf->getSectionContentsAsArray<uint16_t>(versym);
+    if (!versyms)
+      return "";
+    uint16_t value = (*versyms)[symindex];
+    if (value == ELF_VER_NDX_LOCAL || value == ELF_VER_NDX_GLOBAL ||
+        value >= ELF_VER_NDX_LORESERVE)
+      return "";
+    value &= 0x7fff;
+    if (value >= verdefs.size())
+      return "";
+    return verdefs[value];
+  }
+
+private:
+  struct Verdef {
+    uint16_t vd_version;
+    uint16_t vd_flags;
+    uint16_t vd_ndx;
+    uint16_t vd_cnt;
+    uint32_t vd_hash;
+    uint32_t vd_aux;
+    uint32_t vd_next;
+  };
+  struct Verdef_aux {
+    uint32_t vda_name;
+    uint32_t vda_next;
+  };
+
+  // ELF constants
+
+  // SHT_PROGBITS: code section loaded into memory
+  static const int ELF_SHT_PROGBITS = 1;
+  // SHT_DYNSYM: dynamic symbol table
+  static const int ELF_SHT_DYNSYM = 11;
+  // SHT_GNU_verdef: symbol version definition
+  static const int ELF_SHT_GNU_verdef = 0x6ffffffd;
+  // SHT_GNU_versym: symbol version information
+  static const int ELF_SHT_GNU_versym = 0x6fffffff;
+  // SHF_EXECINSTR: executable flag of section
+  static const int ELF_SHF_EXECINSTR = 0x4;
+  // PT_LOAD: code segment loaded into memory
+  static const int ELF_PT_LOAD = 1;
+  // PF_X: executable flag of segment
+  static const int ELF_PF_X = 0x01;
+  // symbol type: function
+  static const int ELF_STT_FUNC = 2;
+  // symbol binding: global
+  static const int ELF_STB_GLOBAL = 1;
+  // version table index: local
+  static const int ELF_VER_NDX_LOCAL = 0;
+  // version table index: global
+  static const int ELF_VER_NDX_GLOBAL = 1;
+  // version table index: max value + 1
+  static const int ELF_VER_NDX_LORESERVE = 0xff00;
+
+  std::unique_ptr<ELF32LEFile> elf;
+  std::vector<char> buf;
+  const ELF32LE::Shdr *dynsym;
+  const ELF32LE::Shdr *verdef;
+  const ELF32LE::Shdr *versym;
+  StringRef dynstrtab;
+  std::vector<std::string> verdefs;
+
+  void parseSections() {
+    // identify dynsym, verdef, versym sections
+    if (auto sections = elf->sections()) {
+      for (auto &section : *sections) {
+        if (section.sh_type == ELF_SHT_DYNSYM) {
+          dynsym = &section;
+        } else if (section.sh_type == ELF_SHT_GNU_verdef) {
+          verdef = &section;
+        } else if (section.sh_type == ELF_SHT_GNU_versym) {
+          versym = &section;
+        }
+      }
+    }
+    if (dynsym) {
+      if (auto dynstr_opt = elf->getStringTableForSymtab(*dynsym)) {
+        dynstrtab = *dynstr_opt;
+      }
+    }
+  }
+
+  void parseVerdefs() {
+    std::map<uint16_t, const char *> verdefmap;
+    if (!verdef)
+      return;
+    auto data_opt = elf->getSectionContents(verdef);
+    if (!data_opt)
+      return;
+    const uint8_t *data = data_opt->data();
+    size_t size = data_opt->size();
+    uint16_t max_index = 0;
+    // iterate over Verdef entries
+    for (unsigned int pos = 0; pos < size;) {
+      const Verdef *entry = reinterpret_cast<const Verdef *>(&data[pos]);
+      if (max_index < entry->vd_ndx)
+        max_index = entry->vd_ndx;
+      if (entry->vd_cnt > 0) {
+        // only take the first Verdef_aux entry
+        const Verdef_aux *aux =
+            reinterpret_cast<const Verdef_aux *>(&data[pos + entry->vd_aux]);
+        if (aux->vda_name < dynstrtab.size())
+          verdefmap.emplace(entry->vd_ndx, &dynstrtab.data()[aux->vda_name]);
+      }
+      if (entry->vd_next == 0)
+        break;
+      pos += entry->vd_next;
+    }
+    verdefs.resize(max_index + 1);
+    for (auto &entry : verdefmap) {
+      verdefs[entry.first] = entry.second;
+    }
+  }
+};
+
+BinaryAutopsy::BinaryAutopsy(string path) : elf(new ELFParser(path)) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
   isModuleSymbolAnalysed = false;
@@ -39,8 +230,24 @@ BinaryAutopsy::BinaryAutopsy(string path) {
   dissect();
 }
 
+// workaround for LLVM build problem ???
+const std::error_category &llvm::object::object_category() {
+  struct _object_error_category : public std::error_category {
+    const char *name() const noexcept override { return "llvm.object"; }
+    std::string message(int ev) const override {
+      return "ELF object parse error";
+    }
+  };
+  static const _object_error_category instance;
+  return instance;
+}
+
+BinaryAutopsy::~BinaryAutopsy() {
+}
+
 void BinaryAutopsy::dissect() {
   dumpSections();
+  dumpSegments();
   dumpDynamicSymbols();
   dumpGadgets();
   applyGadgetFilters();
@@ -62,67 +269,56 @@ BinaryAutopsy *BinaryAutopsy::getInstance() {
   return instance;
 }
 
+void BinaryAutopsy::dumpSegments() {
+  for (auto &seg : elf->getCodeSegments()) {
+    Segments.push_back(
+        Section("<unnamed-segment>", seg.p_offset, seg.p_filesz));
+  }
+}
+
 void BinaryAutopsy::dumpSections() {
-  int flags;
-  asection *s;
-  uint64_t vma, size;
-  const char *sec_name;
-
-  using namespace llvm;
   DEBUG_WITH_TYPE(SECTIONS,
-                  dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
+                  llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
   using namespace std;
-  // Iterates through all the sections, picking only the ones that contain
-  // executable code
-  for (s = BfdHandle->sections; s; s = s->next) {
-    flags = bfd_get_section_flags(BfdHandle, s);
-
-    if (flags & SEC_CODE) {
-      vma = bfd_section_vma(BfdHandle, s);
-      size = bfd_section_size(BfdHandle, s);
-      sec_name = bfd_section_name(BfdHandle, s);
-
-      if (!sec_name)
-        sec_name = "<unnamed>";
-
-      Sections.push_back(Section(sec_name, vma, size));
-      DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
-                                             << sec_name << "\n");
-    }
+  // Iterates through only the sections that contain executable code
+  for (auto &section : elf->getCodeSections()) {
+    std::string sectname = elf->getSectionName(section);
+    Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+    DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
+                                           << sectname << "\n");
   }
 }
 
 void BinaryAutopsy::dumpDynamicSymbols() {
-  const char *symbolName;
-  size_t addr, size, nsym;
+  std::string symbolName;
 
   // Dumps sections if it wasn't already done
   if (Sections.empty())
     dumpSections();
 
   // llvm::dbgs() << "[*] Scanning for symbols... \n";
-
-  // Allocate memory and get the symbol table
-  size = bfd_get_dynamic_symtab_upper_bound(BfdHandle);
-  auto **asymtab = (asymbol **)malloc(size);
-  nsym = bfd_canonicalize_dynamic_symtab(BfdHandle, asymtab);
+  auto symbols = elf->getDynamicSymbols();
 
   // Scan for all the symbols
-  for (size_t i = 0; i < nsym; i++) {
-    asymbol *sym = asymtab[i];
+  for (size_t i = 0; i < symbols.size(); i++) {
+    const ELF32LE::Sym &sym = symbols[i];
 
     // Consider only function symbols with global scope
-    if ((sym->flags & BSF_FUNCTION) && (sym->flags & BSF_GLOBAL)) {
-      symbolName = bfd_asymbol_name(sym);
+    if (elf->isGlobalFunction(sym) && sym.isDefined()) {
+      if (auto name_opt = elf->getSymbolName(sym)) {
+        symbolName = name_opt->str();
+      } else {
+        continue;
+      }
 
       // those two symbols are very often subject to aliasing (they can be found
       // in many different libraries loaded in memory), so better avoiding them!
-      if (strcmp(symbolName, "_init") == 0 || strcmp(symbolName, "_fini") == 0)
+      if (symbolName == "_init" || symbolName == "_fini")
         continue;
 
       // functions with name prefixed with "_dl" is possibly created
       // by dynamic linkers, so we aviod them
-      if (strncmp(symbolName, "_dl", 3) == 0)
+      if (symbolName.rfind("_dl", 0) != std::string::npos)
         continue;
 
       // these symbols are also used in libgcc_s.so (often linked), so we avoid
@@ -145,7 +341,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
       bool avoided = false;
       for (const char *avoided_name : LIBGCC_SYMBOLS) {
-        if (strcmp(symbolName, avoided_name) == 0) {
+        if (symbolName == avoided_name) {
           avoided = true;
           break;
         }
@@ -153,24 +349,21 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       if (avoided)
         continue;
 
-      addr = bfd_asymbol_value(sym);
+      uint64_t addr = sym.getValue();
 
       // Get version string to avoid symbol aliasing
-      const char *versionString = nullptr;
-      bfd_boolean hidden = false;
+      std::string versionString = elf->getSymbolVersion(i);
 
-      if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
-        versionString = bfd_get_symbol_version_string(BfdHandle, sym, &hidden);
-
+      // symbols whose version starts with "GCC"
       // may also exist in libgcc_s.so, so avoided
-      if (strncmp(versionString, "GCC", 3) == 0)
+      if (versionString.rfind("GCC", 0) != std::string::npos)
         continue;
 
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
       bool alreadyPresent = false;
       for (auto &s : Symbols) {
-        if (strcmp(s.Label, symbolName) == 0) {
+        if (symbolName == s.Label) {
           alreadyPresent = true;
           break;
         }
@@ -179,11 +372,10 @@ void BinaryAutopsy::dumpDynamicSymbols() {
         Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
-
-  free(asymtab);
-  // llvm::dbgs() << "[*] Found " << Symbols.size() << " symbols\n";
-
-  assert(!Symbols.empty() && "No symbols found!");
+  if (Symbols.empty()) {
+    dbgs() << "No symbols found!\n";
+    exit(1);
+  }
 }
 
 void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
@@ -204,7 +396,7 @@ void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
   }
 }
 
-Symbol *BinaryAutopsy::getRandomSymbol() {
+const Symbol *BinaryAutopsy::getRandomSymbol() const {
   unsigned long i = rand() % Symbols.size();
   return &(Symbols.at(i));
 }
@@ -224,19 +416,9 @@ void BinaryAutopsy::dumpGadgets() {
   cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
 
-  ifstream input_file(BinaryPath, ios::binary);
-  assert(input_file.good() && "Unable to open given binary file!");
+  const uint8_t *buf = elf->base();
 
-  // Get input size
-  input_file.seekg(0, ios::end);
-  streamoff input_size = input_file.tellg();
-
-  // Read the whole file
-  input_file.seekg(0, ios::beg);
-  auto *buf = new uint8_t[input_size];
-  input_file.read(reinterpret_cast<char *>(buf), input_size);
-
-  for (auto &s : Sections) {
+  for (auto &s : (searchSegmentForGadget ? Segments : Sections)) {
     int cnt = 0;
 
     // Scan for RET instructions
@@ -244,18 +426,25 @@ void BinaryAutopsy::dumpGadgets() {
 
       if (buf[i] == *ret) {
         size_t offset = i + 1;
-        uint8_t *cur_pos = buf + offset;
+        const uint8_t *cur_pos = buf + offset;
 
-        // Iteratively try to decode starting from (MAXDEPTH to 0)
-        // instructions before the actual RET
-        for (int depth = MAXDEPTH; depth >= 0; depth--) {
+        // Iteratively try to decode starting from MAXDEPTH to 1
+        // bytes before the actual RET
+        for (int depth = MAXDEPTH; depth > 0; depth--) {
+
+          // Capstone sometimes ignores repeat prefix (0xF2, 0xF3)
+          // in disassembled output. We do not need gadget prefixed
+          // with repeat, so we avoid them
+          uint8_t firstbyte = *(cur_pos - depth);
+          if (firstbyte == 0xf2 || firstbyte == 0xf3)
+            continue;
 
           size_t count = cs_disasm(handle, cur_pos - depth, depth,
-                                   offset - depth, depth, &instructions);
+                                   offset - depth, 2, &instructions);
 
           // Valid gadgets must have two instructions, and the
           // last one must be a RET
-          if (count == 2 && instructions[count - 1].id == X86_INS_RET) {
+          if (count == 2 && instructions[1].id == X86_INS_RET) {
 
             // Each gadget is identified with its mnemonic
             // and operators (ugly but straightforward :P)
@@ -276,13 +465,36 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
+    // scan for indirect jmp instructions
+    for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length) - 1;
+         i++) {
+
+      if (buf[i] == 0xff && buf[i + 1] >= 0xe0 && buf[i + 1] < 0xe8) {
+        size_t count = cs_disasm(handle, &buf[i], 2, i, 1, &instructions);
+
+        // Valid gadgets must have two instructions, and the
+        // last one must be a RET
+        if (count == 1 && instructions[0].id == X86_INS_JMP) {
+
+          string asm_instr;
+          asm_instr += instructions[0].mnemonic;
+          asm_instr += " ";
+          asm_instr += instructions[0].op_str;
+          asm_instr += ";";
+
+          if (!findGadget(asm_instr)) {
+            Microgadgets.push_back(Microgadget(instructions, asm_instr));
+
+            cnt++;
+          }
+        }
+      }
+    }
     // llvm::dbgs() << cnt << " found!\n";
   }
-  delete[] buf;
-  input_file.close();
 }
 
-Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
+const Microgadget *BinaryAutopsy::findGadget(string asmInstr) const {
   // Legacy: lookup by asm_instr string
   if (Microgadgets.empty()) {
     return nullptr;
@@ -296,8 +508,8 @@ Microgadget *BinaryAutopsy::findGadget(string asmInstr) {
   return nullptr;
 }
 
-Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
-                                       x86_reg op1) {
+const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
+                                       x86_reg op1) const {
   for (auto &gadget : Microgadgets) {
     if (gadget.getID() == insn &&               // same instruction opcode
         gadget.getOp(0).type == X86_OP_REG &&   // operand 0: register
@@ -311,9 +523,9 @@ Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
   return nullptr;
 }
 
-std::vector<Microgadget *>
-BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) {
-  std::vector<Microgadget *> res;
+std::vector<const Microgadget *>
+BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) const {
+  std::vector<const Microgadget *> res;
 
   if (Microgadgets.empty()) {
     return res;
@@ -403,16 +615,50 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
     case X86_INS_ADD: {
       // add REG1, REG2: add
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG)
-        GadgetPrimitives["add"].push_back(gadget);
+      cs_x86_op op0 = gadget.getOp(0);
+      cs_x86_op op1 = gadget.getOp(1);
+      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
+        // Register-register
+        if (op0.reg != op1.reg)
+          GadgetPrimitives["add"].push_back(gadget);
+        else
+          GadgetPrimitives["add_1"].push_back(gadget);
+      }
       break;
     }
     case X86_INS_SUB: {
       // sub REG1, REG2: sub
+      cs_x86_op op0 = gadget.getOp(0);
+      cs_x86_op op1 = gadget.getOp(1);
+      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
+        if (op0.reg != op1.reg)
+          GadgetPrimitives["sub"].push_back(gadget);
+        else
+          GadgetPrimitives["sub_1"].push_back(gadget);
+      }
+      break;
+    }
+    case X86_INS_AND: {
+      // and REG1, REG2: and
+      cs_x86_op op0 = gadget.getOp(0);
+      cs_x86_op op1 = gadget.getOp(1);
+      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
+        if (op0.reg != op1.reg)
+          GadgetPrimitives["and"].push_back(gadget);
+        else
+          GadgetPrimitives["and_1"].push_back(gadget);
+      }
+      break;
+    }
+    case X86_INS_XOR: {
+      // xor REG1, REG2: xor_1, xor_2
       if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG)
-        GadgetPrimitives["sub"].push_back(gadget);
+          gadget.getOp(1).type == X86_OP_REG) {
+        if (gadget.getOp(0).reg == gadget.getOp(1).reg)
+          GadgetPrimitives["xor_1"].push_back(gadget);
+        else
+          GadgetPrimitives["xor_2"].push_back(gadget);
+      }
       break;
     }
     case X86_INS_MOV: {
@@ -442,6 +688,32 @@ void BinaryAutopsy::applyGadgetFilters() {
         GadgetPrimitives["xchg"].push_back(gadget);
       break;
     }
+    case X86_INS_CMOVE: {
+      // cmove REG1, REG2: cmove
+      if (gadget.getOp(0).type == X86_OP_REG &&
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["cmove"].push_back(gadget);
+      break;
+    }
+    case X86_INS_CMOVB: {
+      // cmovb REG1, REG2: cmovb
+      if (gadget.getOp(0).type == X86_OP_REG &&
+          gadget.getOp(1).type == X86_OP_REG)
+        GadgetPrimitives["cmovb"].push_back(gadget);
+      break;
+    }
+    case X86_INS_PUSH: {
+      // push REG1; ret: jmp
+      if (gadget.getOp(0).type == X86_OP_REG)
+        GadgetPrimitives["jmp"].push_back(gadget);
+      break;
+    }
+    case X86_INS_JMP: {
+      // jmp REG1: jmp
+      if (gadget.getOp(0).type == X86_OP_REG)
+        GadgetPrimitives["jmp"].push_back(gadget);
+      break;
+    }
     default:
       continue;
     }
@@ -452,66 +724,75 @@ void BinaryAutopsy::applyGadgetFilters() {
                                               << "\n");
 }
 
-bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) {
+bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
-                                            x86_reg op1) {
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_reg op0,
+                                            x86_reg op1) const {
   // Note: everytime we need to operate on op0 and op1, we need to check which
   // is the actual register that holds that operand.
   ROPChain result;
-  Microgadget *found = nullptr;
+  const Microgadget *found = nullptr;
+
+  auto it_gadgets = GadgetPrimitives.find(type);
+  if (it_gadgets == GadgetPrimitives.end())
+    return result;
+  const auto &gadgets = it_gadgets->second;
 
   // Attempt #1: find a primitive gadget having the same operands
-  for (auto &gadget : GadgetPrimitives[type]) {
-    if (extractReg(gadget.getOp(0)) == getEffectiveReg(op0) &&
+  for (auto &gadget : gadgets) {
+    if (extractReg(gadget.getOp(0)) == getEffectiveReg(state, op0) &&
         (op1 == X86_REG_INVALID ||
-         extractReg(gadget.getOp(1)) == getEffectiveReg(op1))) {
+         extractReg(gadget.getOp(1)) == getEffectiveReg(state, op1))) {
       found = &gadget;
       break;
     }
   }
 
   if (found) {
-    result.emplace_back(ChainElem(found));
+    result.emplace_back(ChainElem::fromGadget(found));
   } else {
     // Attempt #2: find a primitive gadget that has at least operands
     // exchangeable with the ones required. A proper xchg chain will be
     // generated.
+    if (type == "jmp") {
+      // we cannot exchange registers in jmp gadget; just fail
+      return result;
+    }
     x86_reg gadget_op0, gadget_op1;
-    for (auto &gadget : GadgetPrimitives[type]) {
+    for (auto &gadget : gadgets) {
       gadget_op0 = extractReg(gadget.getOp(0));
       gadget_op1 = extractReg(gadget.getOp(1));
 
       // check if given op0 and op1 are respectively exchangeable with
       // op0 and op1 of the gadget
-      if (areExchangeable(getEffectiveReg(op0), gadget_op0) &&
-          (op1 == X86_REG_INVALID // only if op1 is present
-           ^ areExchangeable(getEffectiveReg(op1), gadget_op1))) {
+      if (areExchangeable(getEffectiveReg(state, op0), gadget_op0) &&
+          ((op1 == X86_REG_INVALID) // only if op1 is present
+           ^ areExchangeable(getEffectiveReg(state, op1), gadget_op1))) {
 
         if (op1 != X86_REG_INVALID) {
-          if ((getEffectiveReg(op0) == gadget_op1 &&
-               getEffectiveReg(op1) == gadget_op0) ||
-              (getEffectiveReg(op0) == gadget_op0 &&
-               getEffectiveReg(op1) == gadget_op1) ||
-              (getEffectiveReg(op0) == getEffectiveReg(op1) &&
+          if ((getEffectiveReg(state, op0) == gadget_op1 &&
+               getEffectiveReg(state, op1) == gadget_op0) ||
+              (getEffectiveReg(state, op0) == gadget_op0 &&
+               getEffectiveReg(state, op1) == gadget_op1) ||
+              (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
                gadget_op0 == gadget_op1)) {
             DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                             << "\t\tavoiding double xchg\n");
           } else {
-            auto xchgChain1 = exchangeRegs(getEffectiveReg(op1), gadget_op1);
-            result.insert(result.end(), xchgChain1.begin(), xchgChain1.end());
+            auto xchgChain1 = exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
+            result.append(xchgChain1);
           }
         }
 
-        auto xchgChain0 = exchangeRegs(getEffectiveReg(op0), gadget_op0);
-        result.insert(result.end(), xchgChain0.begin(), xchgChain0.end());
+        auto xchgChain0 = exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
+        result.append(xchgChain0);
 
-        result.emplace_back(ChainElem(&gadget));
+        result.emplace_back(ChainElem::fromGadget(&gadget));
         break;
       }
     }
@@ -519,7 +800,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(string type, x86_reg op0,
   return result;
 }
 
-ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
+ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   ROPChain result;
 
   for (auto &edge : path) {
@@ -530,32 +811,28 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) {
       found =
           findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
 
-    result.emplace_back(ChainElem(found));
+    result.emplace_back(ChainElem::fromGadget(found));
   }
 
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(x86_reg reg0, x86_reg reg1) {
+ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const {
   ROPChain result;
 
   if (reg0 != reg1) {
-    XchgPath path = xgraph.getPath(reg0, reg1);
+    XchgPath path = xgraph.getPath(state, reg0, reg1);
     result = buildXchgChain(path);
   }
 
   return result;
 }
 
-ROPChain BinaryAutopsy::undoXchgs() {
-  ROPChain result;
-
-  XchgPath path = xgraph.reorderRegisters();
-  result = buildXchgChain(path);
-
-  return result;
+ROPChain BinaryAutopsy::undoXchgs(XchgState &state) const {
+  XchgPath path = xgraph.reorderRegisters(state);
+  return buildXchgChain(path);
 }
 
-x86_reg BinaryAutopsy::getEffectiveReg(x86_reg reg) {
-  return (x86_reg)xgraph.searchLogicalReg(reg);
+x86_reg BinaryAutopsy::getEffectiveReg(const XchgState &state, x86_reg reg) const {
+  return (x86_reg)state.searchLogicalReg(reg);
 }
