@@ -217,5 +217,6 @@ x86_reg convertToCapstoneReg(unsigned int reg) {
     return X86_REG_GS;
   default:
     assert(false && "Tried to translate an unsupported register!");
+    exit(1);
   }
 }
