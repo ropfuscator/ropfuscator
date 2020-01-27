@@ -9,19 +9,20 @@
 // It is also responsible to inject the newly built ROP chain and remove the
 // instructions that have been replaced.
 
-#include "Ropfuscator/BinAutopsy.h"
-#include "Ropfuscator/ChainElem.h"
-#include "Ropfuscator/LivenessAnalysis.h"
-#include "Ropfuscator/XchgGraph.h"
-#include "X86.h"
-#include "X86InstrBuilder.h"
-#include "X86TargetMachine.h"
+#ifndef ROPENGINE_H
+#define ROPENGINE_H
+
+#include "BinAutopsy.h"
+#include "ChainElem.h"
+#include "LivenessAnalysis.h"
+#include "XchgGraph.h"
+#include "../X86.h"
+#include "../X86InstrBuilder.h"
+#include "../X86TargetMachine.h"
+#include <vector>
+#include <string>
 #include <tuple>
-
-#ifndef X86ROPUTILS_H
-#define X86ROPUTILS_H
-
-#define CHAIN_LABEL_LEN 16
+#include <capstone/capstone.h> // x86_reg
 
 #if __GNUC__
 #if __x86_64__ || __ppc64__
@@ -68,9 +69,6 @@ public:
   ROPChain &append(const ROPChain &other) {
     chain.insert(chain.end(), other.begin(), other.end());
     return *this;
-  }
-  void append(std::initializer_list<std::reference_wrapper<const ROPChain>> list) {
-    for (const ROPChain &c : list) append(c);
   }
   bool canMerge(const ROPChain &other);
   void merge(const ROPChain &other);
@@ -136,7 +134,6 @@ public:
 
   ROPChainStatus ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
                         bool shouldFlagSaved, ROPChain &resultChain);
-  ROPChain undoXchgs(MachineInstr *MI);
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 
 };
