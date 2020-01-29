@@ -29,6 +29,7 @@ set(ROPFUSCATOR_SOURCES
         Ropfuscator/XchgGraph.cpp
         Ropfuscator/CapstoneLLVMAdpt.cpp
         Ropfuscator/LivenessAnalysis.cpp
+        Ropfuscator/OpaqueConstruct.cpp
         )
 
 set(sources
