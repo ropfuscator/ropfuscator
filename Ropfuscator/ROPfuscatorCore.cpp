@@ -181,16 +181,6 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     }
 
     case ChainElem::Type::GADGET: {
-      if (opaquePredicateEnabled) {
-        // call $opaquePredicate
-        BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-            .addExternalSymbol("opaquePredicate");
-
-        // je $wrong_target
-        BuildMI(MBB, MI, nullptr, TII->get(X86::JNE_1))
-            .addExternalSymbol(chainLabel);
-      }
-
       // Get a random symbol to reference this gadget in memory
       const Symbol *sym = BA->getRandomSymbol();
       uint64_t relativeAddr = elem->microgadget->getAddress() - sym->Address;
