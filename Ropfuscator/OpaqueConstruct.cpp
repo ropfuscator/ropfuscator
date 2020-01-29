@@ -1,17 +1,16 @@
 #include "OpaqueConstruct.h"
 #include "../X86TargetMachine.h"
-#include "CapstoneLLVMAdpt.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "X86AssembleHelper.h"
 
 using namespace llvm;
 
 OpaqueConstruct::~OpaqueConstruct() {}
 
 #define DECL_REG_LOCATION(R)                                                   \
-  const OpaqueStorage OpaqueStorage::R(OpaqueStorage::Type::REG, X86_REG_##R, 0)
+  const OpaqueStorage OpaqueStorage::R(OpaqueStorage::Type::REG, X86::R, 0)
 #define DECL_STACK_LOCATION(I)                                                 \
   const OpaqueStorage OpaqueStorage::STACK_##I(OpaqueStorage::Type::STACK,     \
-                                               X86_REG_INVALID, I)
+                                               X86::NoRegister, I)
 DECL_REG_LOCATION(EAX);
 DECL_REG_LOCATION(ECX);
 DECL_REG_LOCATION(EDX);
@@ -24,7 +23,7 @@ DECL_STACK_LOCATION(12);
 class OpaqueConstant32 : public OpaqueConstruct {
 public:
   OpaqueState getInput() const override {
-    return OpaqueState(); // empty
+    return {}; // empty
   }
   OpaqueState getOutput() const override {
     OpaqueState state;
@@ -42,31 +41,21 @@ class MovConstant32 : public OpaqueConstant32 {
 public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
-  void compile(MachineBasicBlock &block,
-               MachineBasicBlock::iterator position) const {
-    const auto *TII = block.getParent()->getTarget().getMCInstrInfo();
+  void compile(MachineBasicBlock &block, MachineBasicBlock::iterator position,
+               int stackOffset) const override {
+    auto as = X86AssembleHelper(block, position);
     switch (target.type) {
     case OpaqueStorage::Type::REG:
-      BuildMI(block, position, nullptr, TII->get(X86::MOV32ri))
-          .addReg(convertToLLVMReg(target.reg))
-          .addImm(value);
+      as.mov(as.reg(target.reg), as.imm(value));
       break;
     case OpaqueStorage::Type::STACK:
-      BuildMI(block, position, nullptr, TII->get(X86::MOV32mi))
-          .addReg(X86::ESP)
-          .addImm(1)
-          .addReg(0)
-          .addImm(target.stackOffset)
-          .addReg(0)
-          .addImm(value);
+      as.mov(as.mem(X86::ESP, target.stackOffset + stackOffset), as.imm(value));
       break;
     }
   }
-  OpaqueStorage returnStorage() const { return target; }
-  uint32_t returnValue() const { return value; }
-  std::vector<x86_reg> getClobberedRegs() const {
-    return std::vector<x86_reg>(); // none
-  }
+  OpaqueStorage returnStorage() const override { return target; }
+  uint32_t returnValue() const override { return value; }
+  std::vector<llvm_reg_t> getClobberedRegs() const override { return {}; }
 
 private:
   OpaqueStorage target;

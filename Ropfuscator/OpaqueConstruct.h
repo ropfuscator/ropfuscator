@@ -5,7 +5,8 @@
 #include <memory>
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include <capstone/capstone.h>
+
+typedef unsigned int llvm_reg_t;
 
 /// Represents input/output register (or stack) location of opaque constructs.
 struct OpaqueStorage {
@@ -18,8 +19,8 @@ struct OpaqueStorage {
   };
   const Type type;
   union {
-    /// when type == REG, contains the register (capstone)
-    x86_reg reg;
+    /// when type == REG, contains the register (LLVM)
+    llvm_reg_t reg;
     /// when type == STACK, contains the stack offset
     int stackOffset;
   };
@@ -27,7 +28,7 @@ struct OpaqueStorage {
   static const OpaqueStorage STACK_0, STACK_4, STACK_8, STACK_12;
 
 private:
-  OpaqueStorage(Type type, x86_reg reg, int stackOffset) : type(type) {
+  OpaqueStorage(Type type, llvm_reg_t reg, int stackOffset) : type(type) {
     if (type == Type::REG)
       this->reg = reg;
     else if (type == Type::STACK)
@@ -95,12 +96,14 @@ public:
   virtual OpaqueState getOutput() const = 0;
   /// get clobbered registers, including flag registers.
   /// it is the responsibility of invoker to save the registers.
-  virtual std::vector<x86_reg> getClobberedRegs() const = 0;
+  virtual std::vector<llvm_reg_t> getClobberedRegs() const = 0;
   /// generate x86 code which implements the opaque construct.
   /// @param block the basic block into which the code is generated
   /// @param position the insertion point of the code
+  /// @param stackOffset offset to store/retrieve data into/from stack
   virtual void compile(llvm::MachineBasicBlock &block,
-                       llvm::MachineBasicBlock::iterator position) const = 0;
+                       llvm::MachineBasicBlock::iterator position,
+                       int stackOffset) const = 0;
   /// virtual destructor
   virtual ~OpaqueConstruct();
 };

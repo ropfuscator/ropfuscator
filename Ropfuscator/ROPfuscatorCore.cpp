@@ -90,6 +90,33 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
+static int saveRegs(const TargetInstrInfo *TII, MachineBasicBlock &MBB,
+                    MachineInstr &MI,
+                    const std::vector<llvm_reg_t> &clobberedRegs) {
+  int stackOffset = 0;
+  for (auto i = clobberedRegs.begin(); i != clobberedRegs.end(); ++i) {
+    if (*i == X86_REG_EFLAGS) {
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+    } else {
+      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSH32r)).addReg(*i);
+    }
+    stackOffset += 4;
+  }
+  return stackOffset;
+}
+
+static void restoreRegs(const TargetInstrInfo *TII, MachineBasicBlock &MBB,
+                        MachineInstr &MI,
+                        const std::vector<llvm_reg_t> &clobberedRegs) {
+  for (auto i = clobberedRegs.rbegin(); i != clobberedRegs.rend(); ++i) {
+    if (*i == X86_REG_EFLAGS) {
+      BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+    } else {
+      BuildMI(MBB, MI, nullptr, TII->get(X86::POP32r)).addReg(*i);
+    }
+  }
+}
+
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                     MachineBasicBlock &MBB, MachineInstr &MI,
                                     int chainID) {
@@ -199,9 +226,14 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
         // push 0
         BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
             .addImm(0);
+
         // mov [esp], {opaque_constant}
-        auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(OpaqueStorage::STACK_0, relativeAddr);
-        opaqueConstant->compile(MBB, MI.getIterator());
+        auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+            OpaqueStorage::STACK_0, relativeAddr);
+        auto clobberedRegs = opaqueConstant->getClobberedRegs();
+        int stackOffset = saveRegs(TII, MBB, MI, clobberedRegs);
+        opaqueConstant->compile(MBB, MI.getIterator(), stackOffset);
+        restoreRegs(TII, MBB, MI, clobberedRegs);
 
         // add [esp], $symbol
         addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
