@@ -7,6 +7,20 @@ using namespace llvm;
 
 OpaqueConstruct::~OpaqueConstruct() {}
 
+#define DECL_REG_LOCATION(R)                                                   \
+  const OpaqueStorage OpaqueStorage::R(OpaqueStorage::Type::REG, X86_REG_##R, 0)
+#define DECL_STACK_LOCATION(I)                                                 \
+  const OpaqueStorage OpaqueStorage::STACK_##I(OpaqueStorage::Type::STACK,     \
+                                               X86_REG_INVALID, I)
+DECL_REG_LOCATION(EAX);
+DECL_REG_LOCATION(ECX);
+DECL_REG_LOCATION(EDX);
+DECL_REG_LOCATION(EBX);
+DECL_STACK_LOCATION(0);
+DECL_STACK_LOCATION(4);
+DECL_STACK_LOCATION(8);
+DECL_STACK_LOCATION(12);
+
 class OpaqueConstant32 : public OpaqueConstruct {
 public:
   OpaqueState getInput() const override {

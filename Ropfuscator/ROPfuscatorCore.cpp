@@ -10,6 +10,7 @@
 #include "Debug.h"
 #include "LivenessAnalysis.h"
 #include "ROPEngine.h"
+#include "OpaqueConstruct.h"
 #include "ROPfuscatorCore.h"
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
@@ -204,13 +205,28 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
             .addImm(0);
       }
 
-      // push $symbol
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(sym->Label);
+      if (opaquePredicateEnabled) {
+        // push 0
+        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+            .addImm(0);
+        // mov [esp], {opaque_constant}
+        auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(OpaqueStorage::STACK_0, relativeAddr);
+        opaqueConstant->compile(MBB, MI.getIterator());
 
-      // add [esp], $offset
-      addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)), X86::ESP)
-          .addImm(relativeAddr);
+        // add [esp], $symbol
+        addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
+                     X86::ESP)
+            .addExternalSymbol(sym->Label);
+      } else {
+        // push $symbol
+        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
+            .addExternalSymbol(sym->Label);
+
+        // add [esp], $offset
+        addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
+                     X86::ESP)
+            .addImm(relativeAddr);
+      }
       break;
     }
 

@@ -16,13 +16,23 @@ struct OpaqueStorage {
     /// represents stack location with offset.
     STACK
   };
-  Type type;
+  const Type type;
   union {
     /// when type == REG, contains the register (capstone)
     x86_reg reg;
     /// when type == STACK, contains the stack offset
     int stackOffset;
   };
+  static const OpaqueStorage EAX, ECX, EDX, EBX;
+  static const OpaqueStorage STACK_0, STACK_4, STACK_8, STACK_12;
+
+private:
+  OpaqueStorage(Type type, x86_reg reg, int stackOffset) : type(type) {
+    if (type == Type::REG)
+      this->reg = reg;
+    else if (type == Type::STACK)
+      this->stackOffset = stackOffset;
+  }
 };
 
 // forward declaration
