@@ -10,10 +10,10 @@
 #include "Debug.h"
 #include "LivenessAnalysis.h"
 #include "ROPEngine.h"
+#include "X86AssembleHelper.h"
 #include "OpaqueConstruct.h"
 #include "ROPfuscatorCore.h"
 #include "../X86.h"
-#include "../X86InstrBuilder.h"
 #include "../X86MachineFunctionInfo.h"
 #include "../X86RegisterInfo.h"
 #include "../X86Subtarget.h"
@@ -90,29 +90,27 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
-static int saveRegs(const TargetInstrInfo *TII, MachineBasicBlock &MBB,
-                    MachineInstr &MI,
+static int saveRegs(X86AssembleHelper &as,
                     const std::vector<llvm_reg_t> &clobberedRegs) {
   int stackOffset = 0;
   for (auto i = clobberedRegs.begin(); i != clobberedRegs.end(); ++i) {
     if (*i == X86_REG_EFLAGS) {
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+      as.pushf();
     } else {
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSH32r)).addReg(*i);
+      as.push(as.reg(*i));
     }
     stackOffset += 4;
   }
   return stackOffset;
 }
 
-static void restoreRegs(const TargetInstrInfo *TII, MachineBasicBlock &MBB,
-                        MachineInstr &MI,
-                        const std::vector<llvm_reg_t> &clobberedRegs) {
+static void restoreRegs(X86AssembleHelper &as,
+                    const std::vector<llvm_reg_t> &clobberedRegs) {
   for (auto i = clobberedRegs.rbegin(); i != clobberedRegs.rend(); ++i) {
     if (*i == X86_REG_EFLAGS) {
-      BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+      as.popf();
     } else {
-      BuildMI(MBB, MI, nullptr, TII->get(X86::POP32r)).addReg(*i);
+      as.pop(as.reg(*i));
     }
   }
 }
@@ -122,6 +120,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                     int chainID) {
 
   char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
+  auto as = X86AssembleHelper(MBB, MI.getIterator());
   // EMIT PROLOGUE
   generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
                       MBB.getParent()->getName(), chainID);
@@ -141,22 +140,11 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       flagSavedOffset -= 4;
 
     // lea esp, [esp-4*(N+1)]   # where N = chain size
-    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-        .addReg(X86::ESP)
-        .addImm(1)
-        .addReg(0)
-        .addImm(-flagSavedOffset)
-        .addReg(0);
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -flagSavedOffset));
     // pushf (EFLAGS register backup)
-    BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
-
+    as.pushf();
     // lea esp, [esp+4*(N+2)]   # where N = chain size
-    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-        .addReg(X86::ESP)
-        .addImm(1)
-        .addReg(0)
-        .addImm(flagSavedOffset + 4)
-        .addReg(0);
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, flagSavedOffset + 4));
   }
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
     assert(!chain.hasUnconditionalJump || !chain.hasConditionalJump);
@@ -166,7 +154,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // the flags should be restored after the ROP chain is executed.
     // flag is saved at the bottom of the stack
     // pushf (EFLAGS register backup)
-    BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHF32));
+    as.pushf();
     espoffset -= 4;
   }
   if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
@@ -174,18 +162,14 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // (omitted since it would be redundant)
   } else {
     // call funcName_chain_X
-    BuildMI(MBB, MI, nullptr, TII->get(X86::CALLpcrel32))
-        .addExternalSymbol(chainLabel);
+    as.call(as.label(chainLabel));
     // jmp resume_funcName_chain_X
-    BuildMI(MBB, MI, nullptr, TII->get(X86::JMP_1))
-        .addExternalSymbol(resumeLabel);
+    as.jmp(as.label(resumeLabel));
     resumeLabelRequired = true;
     espoffset -= 4;
   }
   // funcName_chain_X:
-  BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-      .addExternalSymbol(chainLabelC)
-      .addImm(0);
+  as.inlineasm(chainLabelC);
 
   // ROP Chain
   // Pushes each chain element on the stack in reverse order
@@ -195,15 +179,14 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     case ChainElem::Type::IMM_VALUE: {
       // Push the immediate value onto the stack //
       // push $imm
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32)).addImm(elem->value);
+      as.push(as.imm(elem->value));
       break;
     }
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
       // push global_symbol
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addGlobalAddress(elem->global, elem->value);
+      as.push(as.imm(elem->global, elem->value));
       break;
     }
 
@@ -217,37 +200,28 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
       if (strcmp(sym->Version, "Base") != 0) {
-        BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-            .addExternalSymbol(sym->getSymVerDirective())
-            .addImm(0);
+        as.inlineasm(sym->getSymVerDirective());
       }
 
       if (opaquePredicateEnabled) {
         // push 0
-        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-            .addImm(0);
+        as.push(as.imm(0));
 
         // mov [esp], {opaque_constant}
         auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::STACK_0, relativeAddr);
         auto clobberedRegs = opaqueConstant->getClobberedRegs();
-        int stackOffset = saveRegs(TII, MBB, MI, clobberedRegs);
+        int stackOffset = saveRegs(as, clobberedRegs);
         opaqueConstant->compile(MBB, MI.getIterator(), stackOffset);
-        restoreRegs(TII, MBB, MI, clobberedRegs);
+        restoreRegs(as, clobberedRegs);
 
         // add [esp], $symbol
-        addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
-                     X86::ESP)
-            .addExternalSymbol(sym->Label);
+        as.add(as.mem(X86::ESP), as.label(sym->Label));
       } else {
         // push $symbol
-        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-            .addExternalSymbol(sym->Label);
-
+        as.push(as.label(sym->Label));
         // add [esp], $offset
-        addDirectMem(BuildMI(MBB, MI, nullptr, TII->get(X86::ADD32mi)),
-                     X86::ESP)
-            .addImm(relativeAddr);
+        as.add(as.mem(X86::ESP), as.imm(relativeAddr));
       }
       break;
     }
@@ -255,8 +229,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     case ChainElem::Type::JMP_BLOCK: {
       // push label
       MachineBasicBlock *targetMBB = elem->jmptarget;
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addMBB(targetMBB);
+      as.push(as.label(targetMBB));
       MBB.addSuccessorWithoutProb(targetMBB);
       break;
     }
@@ -275,15 +248,12 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
           // call or conditional jump at the end of function:
           // probably calling "no-return" functions like exit()
           // so we just put dummy return address here
-          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-            .addImm(0);
+          as.push(as.imm(0));
         } else {
-          BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-            .addMBB(targetMBB);
+          as.push(as.label(targetMBB));
         }
       } else {
-        BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32))
-          .addExternalSymbol(resumeLabel);
+        as.push(as.label(resumeLabel));
         resumeLabelRequired = true;
       }
       break;
@@ -291,8 +261,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 
     case ChainElem::Type::ESP_PUSH: {
       // push esp
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSH32r)).addReg(X86::ESP);
-
+      as.push(as.reg(X86::ESP));
       espOffsetMap[elem->esp_id] = espoffset;
       break;
     }
@@ -305,7 +274,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
         exit(1);
       }
       int64_t value = elem->value - it->second;
-      BuildMI(MBB, MI, nullptr, TII->get(X86::PUSHi32)).addImm(value);
+      as.push(as.imm(value));
       break;
     }
     }
@@ -316,29 +285,22 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   // restore eflags, if eflags should be restored BEFORE chain execution
   if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
     // lea esp, [esp-4]
-    BuildMI(MBB, MI, nullptr, TII->get(X86::LEA32r), X86::ESP)
-        .addReg(X86::ESP)
-        .addImm(1)
-        .addReg(0)
-        .addImm(-4)
-        .addReg(0);
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -4));
     // popf (EFLAGS register restore)
-    BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+    as.popf();
   }
   // ret
-  BuildMI(MBB, MI, nullptr, TII->get(X86::RETL));
+  as.ret();
   // resume_funcName_chain_X:
   if (resumeLabelRequired) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
-    BuildMI(MBB, MI, nullptr, TII->get(TargetOpcode::INLINEASM))
-        .addExternalSymbol(resumeLabelC)
-        .addImm(0);
+    as.inlineasm(resumeLabelC);
   }
   // restore eflags, if eflags should be restored AFTER chain execution
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
     // popf (EFLAGS register restore)
-    BuildMI(MBB, MI, nullptr, TII->get(X86::POPF32));
+    as.popf();
   }
 }
 

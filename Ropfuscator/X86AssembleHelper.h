@@ -22,6 +22,18 @@ public:
       builder.addGlobalAddress(global, offset);
     }
   };
+  struct ExternalLabel {
+    const char *label;
+    void add(llvm::MachineInstrBuilder &builder) const {
+      builder.addExternalSymbol(label);
+    }
+  };
+  struct BasicBlockRef {
+    llvm::MachineBasicBlock *label;
+    void add(llvm::MachineInstrBuilder &builder) const {
+      builder.addMBB(label);
+    }
+  };
   struct Reg {
     llvm_reg_t reg;
     void add(llvm::MachineInstrBuilder &builder) const { builder.addReg(reg); }
@@ -52,6 +64,8 @@ public:
           int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
+  ExternalLabel label(const char *label) const { return {label}; }
+  BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
   // --- instruction builder ---
   void mov(Reg r, Imm i) const { _instr(llvm::X86::MOV32ri, r, i); }
   void mov(Reg r, ImmGlobal i) const { _instr(llvm::X86::MOV32ri, r, i); }
@@ -61,10 +75,24 @@ public:
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
+  void add(Mem m, ExternalLabel i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
+  void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
+  void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
+  void push(ExternalLabel i) const { _instr(llvm::X86::PUSHi32, i); }
+  void push(BasicBlockRef l) const { _instr(llvm::X86::PUSHi32, l); }
   void pop(Reg r) const { _instr(llvm::X86::POP32r, r); }
   void pushf() const { _instr(llvm::X86::PUSHF32); }
   void popf() const { _instr(llvm::X86::POPF32); }
+  void ret() const { _instr(llvm::X86::RETL); }
+  void call(ExternalLabel l) const { _instr(llvm::X86::CALLpcrel32, l); }
+  void jmp(ExternalLabel l) const { _instr(llvm::X86::JMP_1, l); }
+  void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
+  void lea(Reg r, Mem m) const {
+    auto builder =
+        BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);
+    m.add(builder);
+  }
   void inlineasm(const char *str) const {
     BuildMI(block, position, nullptr, TII->get(llvm::TargetOpcode::INLINEASM))
         .addExternalSymbol(str)
