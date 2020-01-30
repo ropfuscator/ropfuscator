@@ -41,9 +41,7 @@ class MovConstant32 : public OpaqueConstant32 {
 public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
-  void compile(MachineBasicBlock &block, MachineBasicBlock::iterator position,
-               int stackOffset) const override {
-    auto as = X86AssembleHelper(block, position);
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
     switch (target.type) {
     case OpaqueStorage::Type::REG:
       as.mov(as.reg(target.reg), as.imm(value));

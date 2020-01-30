@@ -212,7 +212,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
             OpaqueStorage::STACK_0, relativeAddr);
         auto clobberedRegs = opaqueConstant->getClobberedRegs();
         int stackOffset = saveRegs(as, clobberedRegs);
-        opaqueConstant->compile(MBB, MI.getIterator(), stackOffset);
+        opaqueConstant->compile(as, stackOffset);
         restoreRegs(as, clobberedRegs);
 
         // add [esp], $symbol

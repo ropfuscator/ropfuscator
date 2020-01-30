@@ -3,10 +3,11 @@
 
 #include <cstdint>
 #include <memory>
-
-#include "llvm/CodeGen/MachineBasicBlock.h"
+#include <vector>
+#include <utility>
 
 typedef unsigned int llvm_reg_t;
+class X86AssembleHelper;
 
 /// Represents input/output register (or stack) location of opaque constructs.
 struct OpaqueStorage {
@@ -98,12 +99,9 @@ public:
   /// it is the responsibility of invoker to save the registers.
   virtual std::vector<llvm_reg_t> getClobberedRegs() const = 0;
   /// generate x86 code which implements the opaque construct.
-  /// @param block the basic block into which the code is generated
-  /// @param position the insertion point of the code
+  /// @param as assembler to generate instruction
   /// @param stackOffset offset to store/retrieve data into/from stack
-  virtual void compile(llvm::MachineBasicBlock &block,
-                       llvm::MachineBasicBlock::iterator position,
-                       int stackOffset) const = 0;
+  virtual void compile(X86AssembleHelper &as, int stackOffset) const = 0;
   /// virtual destructor
   virtual ~OpaqueConstruct();
 };
