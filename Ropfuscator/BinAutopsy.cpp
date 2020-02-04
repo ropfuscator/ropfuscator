@@ -311,7 +311,9 @@ void BinaryAutopsy::dumpSections() {
   // Iterates through only the sections that contain executable code
   for (auto &section : elf->getCodeSections()) {
     std::string sectname = elf->getSectionName(section);
+
     Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+
     DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
                                            << sectname << "\n");
   }
@@ -502,6 +504,7 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
+
     // scan for indirect jmp instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length) - 1;
          i++) {
@@ -557,6 +560,7 @@ const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
 
       return &gadget;
   }
+
   return nullptr;
 }
 
@@ -777,8 +781,10 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
   const Microgadget *found = nullptr;
 
   auto it_gadgets = GadgetPrimitives.find(type);
+
   if (it_gadgets == GadgetPrimitives.end())
     return result;
+
   const auto &gadgets = it_gadgets->second;
 
   // Attempt #1: find a primitive gadget having the same operands
@@ -801,7 +807,9 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
       // we cannot exchange registers in jmp gadget; just fail
       return result;
     }
+
     x86_reg gadget_op0, gadget_op1;
+
     for (auto &gadget : gadgets) {
       gadget_op0 = extractReg(gadget.getOp(0));
       gadget_op1 = extractReg(gadget.getOp(1));
@@ -847,6 +855,7 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
     // in XCHG instructions the operands order doesn't matter
     auto found =
         findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+
     if (!found)
       found =
           findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
