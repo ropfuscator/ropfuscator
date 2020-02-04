@@ -25,13 +25,16 @@ public:
   OpaqueState getInput() const override {
     return {}; // empty
   }
+
   OpaqueState getOutput() const override {
     OpaqueState state;
     state.emplace_back(returnStorage(),
                        OpaqueValue::createConstant(returnValue()));
     return state;
   }
+
   virtual OpaqueStorage returnStorage() const = 0;
+
   virtual uint32_t returnValue() const = 0;
 };
 
@@ -41,6 +44,7 @@ class MovConstant32 : public OpaqueConstant32 {
 public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
+
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     switch (target.type) {
     case OpaqueStorage::Type::REG:
@@ -51,8 +55,11 @@ public:
       break;
     }
   }
+
   OpaqueStorage returnStorage() const override { return target; }
+
   uint32_t returnValue() const override { return value; }
+  
   std::vector<llvm_reg_t> getClobberedRegs() const override { return {}; }
 
 private:

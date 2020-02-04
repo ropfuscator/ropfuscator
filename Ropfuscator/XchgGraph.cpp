@@ -1,8 +1,8 @@
 #include "XchgGraph.h"
 #include "Debug.h"
+#include <algorithm>
 #include <limits.h>
 #include <list>
-#include <algorithm>
 
 using namespace std;
 
@@ -61,7 +61,6 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
 }
 
 XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
-
   XchgPath result;
   vector<int> path;
   int pred[N_REGS], dist[N_REGS], crawl;
@@ -79,10 +78,12 @@ XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
 
   crawl = dest;
   path.push_back(crawl);
+
   while (pred[crawl] != -1) {
     path.push_back(pred[crawl]);
     crawl = pred[crawl];
   }
+
   for (int i = path.size() - 1, j = path.size() - 2; j >= 0; i--, j--) {
     result.emplace_back(make_pair(path[i], path[j]));
   }
@@ -96,8 +97,10 @@ XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
 int XchgState::searchLogicalReg(int LReg, int PReg) const {
   // llvm::dbgs() << "** Searching [" << LReg << "] -> " << PReg << "\n";
   int r;
+
   for (r = LReg; PhysReg[r] != PReg; r = PhysReg[r])
     ;
+
   return r;
 }
 
@@ -109,16 +112,20 @@ XchgPath XchgGraph::fixPath(XchgState &state, XchgPath path) const {
   XchgPath result;
 
   result.insert(result.begin(), path.begin(), path.end());
+
   if (path.size() > 1)
     result.insert(result.end(), path.rbegin() + 1, path.rend());
 
   state.xchgStack.insert(state.xchgStack.end(), result.begin(), result.end());
+
   return result;
 }
 
 XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
   XchgPath result;
-  result.insert(result.end(), state.xchgStack.rbegin(), state.xchgStack.rend()); //, tmp;
+
+  result.insert(result.end(), state.xchgStack.rbegin(),
+                state.xchgStack.rend()); //, tmp;
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << "Exchanging back...\n");
 
@@ -129,6 +136,7 @@ XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
       // dest = searchLogicalReg(dest, dest);
 
       short int PReg = state.searchLogicalReg(i, i);
+
       DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                       << "Xchanging logical register " << i
                                       << " with " << PReg << " !\n");
@@ -144,7 +152,6 @@ XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
 
 void XchgState::printAll() const {
   for (int i = 19; i < 30; i++) {
-
     llvm::dbgs() << "\t[" << i << "]: " << PhysReg[i] << "\n";
   }
 }

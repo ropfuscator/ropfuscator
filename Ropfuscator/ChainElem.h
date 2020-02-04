@@ -1,7 +1,7 @@
 #include "Microgadget.h"
 #include "Symbol.h"
-#include "llvm/IR/GlobalValue.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/IR/GlobalValue.h"
 
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
@@ -9,7 +9,15 @@
 // Generic element to be put in the chain.
 struct ChainElem {
 
-  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK, JMP_FALLTHROUGH, ESP_PUSH, ESP_OFFSET };
+  enum class Type {
+    GADGET,
+    IMM_VALUE,
+    IMM_GLOBAL,
+    JMP_BLOCK,
+    JMP_FALLTHROUGH,
+    ESP_PUSH,
+    ESP_OFFSET
+  };
 
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
   // type because we will use different strategies during the creation of
@@ -97,8 +105,7 @@ struct ChainElem {
       return (A.value == B.value);
   }
 
-  template <typename OstreamT>
-  void debugPrint(OstreamT &os) const {
+  template <typename OstreamT> void debugPrint(OstreamT &os) const {
     switch (type) {
     case Type::GADGET:
       os << "GADGET    : " << microgadget->asmInstr << "\n";

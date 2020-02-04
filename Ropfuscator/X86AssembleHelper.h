@@ -11,44 +11,57 @@ class GlobalValue;
 class X86AssembleHelper {
 public:
   typedef unsigned int llvm_reg_t;
+
   struct Imm {
     uint64_t imm;
+
     void add(llvm::MachineInstrBuilder &builder) const { builder.addImm(imm); }
   };
+
   struct ImmGlobal {
     const llvm::GlobalValue *global;
     int64_t offset;
+
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addGlobalAddress(global, offset);
     }
   };
+
   struct ExternalLabel {
     const char *label;
+
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addExternalSymbol(label);
     }
   };
+
   struct BasicBlockRef {
     llvm::MachineBasicBlock *label;
+
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addMBB(label);
     }
   };
+
   struct Reg {
     llvm_reg_t reg;
+
     void add(llvm::MachineInstrBuilder &builder) const { builder.addReg(reg); }
   };
+
   struct Mem {
     llvm_reg_t reg;
     int scale;
     llvm_reg_t index;
     int offset;
     llvm_reg_t seg;
+
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addReg(reg).addImm(scale).addReg(index).addImm(offset).addReg(
           seg);
     }
   };
+
   X86AssembleHelper(llvm::MachineBasicBlock &block,
                     llvm::MachineBasicBlock::iterator position)
       : block(block), position(position),
@@ -66,6 +79,7 @@ public:
   }
   ExternalLabel label(const char *label) const { return {label}; }
   BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
+
   // --- instruction builder ---
   void mov(Reg r, Imm i) const { _instr(llvm::X86::MOV32ri, r, i); }
   void mov(Reg r, ImmGlobal i) const { _instr(llvm::X86::MOV32ri, r, i); }
@@ -100,22 +114,25 @@ public:
   }
 
 private:
+  llvm::MachineBasicBlock &block;
+  llvm::MachineBasicBlock::iterator position;
+  const llvm::MCInstrInfo *TII;
+  
   void _instr(unsigned int opcode) const {
     BuildMI(block, position, nullptr, TII->get(opcode));
   }
+
   template <typename T1> void _instr(unsigned int opcode, T1 operand1) const {
     auto builder = BuildMI(block, position, nullptr, TII->get(opcode));
     operand1.add(builder);
   }
+
   template <typename T1, typename T2>
   void _instr(unsigned int opcode, T1 operand1, T2 operand2) const {
     auto builder = BuildMI(block, position, nullptr, TII->get(opcode));
     operand1.add(builder);
     operand2.add(builder);
   }
-  llvm::MachineBasicBlock &block;
-  llvm::MachineBasicBlock::iterator position;
-  const llvm::MCInstrInfo *TII;
 };
 
 #endif

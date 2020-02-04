@@ -1,7 +1,7 @@
 #include "CapstoneLLVMAdpt.h"
 #include "../X86TargetMachine.h"
-#include <assert.h>
 #include <array>
+#include <assert.h>
 
 bool areEqualOps(const cs_x86_op &op0, const cs_x86_op &op1) {
   if (op0.type != op1.type)
@@ -69,9 +69,11 @@ struct RegMap {
     unsigned int llvmreg;
     x86_reg capstonereg;
   };
+
   std::array<unsigned int, X86_REG_ENDING> capstone_to_llvm;
   std::array<x86_reg, llvm::X86::NUM_TARGET_REGS> llvm_to_capstone;
   static const Entry mappingTable[233];
+
   RegMap() {
     capstone_to_llvm.fill(llvm::X86::NoRegister);
     llvm_to_capstone.fill(X86_REG_INVALID);
@@ -80,7 +82,9 @@ struct RegMap {
       llvm_to_capstone[entry.llvmreg] = entry.capstonereg;
     }
   }
+  
 } static const regmap;
+
 #define R(N)                                                                   \
   { llvm::X86::N, X86_REG_##N }
 #define R_0_to_7(N)                                                            \
@@ -91,6 +95,7 @@ struct RegMap {
   R(N##16), R(N##17), R(N##18), R(N##19), R(N##20), R(N##21), R(N##22), R(N##23)
 #define R_24_to_31(N)                                                          \
   R(N##24), R(N##25), R(N##26), R(N##27), R(N##28), R(N##29), R(N##30), R(N##31)
+
 const RegMap::Entry RegMap::mappingTable[] = {
     // 8bit general purpose
     R(AL), R(AH), R(CL), R(CH), R(DL), R(DH), R(BL), R(BH), R(SPL), R(BPL),
@@ -127,9 +132,11 @@ const RegMap::Entry RegMap::mappingTable[] = {
 } // namespace
 
 x86_reg convertToCapstoneReg(unsigned int reg) {
-  return reg < regmap.llvm_to_capstone.size() ? regmap.llvm_to_capstone[reg] : X86_REG_INVALID;
+  return reg < regmap.llvm_to_capstone.size() ? regmap.llvm_to_capstone[reg]
+                                              : X86_REG_INVALID;
 }
 
 unsigned int convertToLLVMReg(x86_reg reg) {
-  return reg < regmap.capstone_to_llvm.size() ? regmap.capstone_to_llvm[reg] : llvm::X86::NoRegister;
+  return reg < regmap.capstone_to_llvm.size() ? regmap.capstone_to_llvm[reg]
+                                              : llvm::X86::NoRegister;
 }
