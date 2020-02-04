@@ -212,7 +212,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // symbols have the same name. We do this exclusively when the
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
-      if (strcmp(sym->Version, "Base") != 0) {
+      if (sym->Version != "Base") {
         as.inlineasm(sym->getSymVerDirective());
       }
 
@@ -435,7 +435,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         obfuscated++;
       }
     }
-    
+
     if (chain0.valid()) {
       insertROPChain(chain0, MBB, *prevMI, chainID++);
       chain0.clear();

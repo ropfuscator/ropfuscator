@@ -28,10 +28,12 @@ public:
   };
 
   struct ExternalLabel {
-    const char *label;
+    const std::string label;
 
     void add(llvm::MachineInstrBuilder &builder) const {
-      builder.addExternalSymbol(label);
+      auto external_symbol = builder.getInstr()->getMF()->createExternalSymbolName(label);
+      
+      builder.addExternalSymbol(external_symbol);
     }
   };
 
@@ -77,7 +79,7 @@ public:
           int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
-  ExternalLabel label(const char *label) const { return {label}; }
+  ExternalLabel label(const std::string label) const { return {label}; }
   BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
 
   // --- instruction builder ---
@@ -117,7 +119,7 @@ private:
   llvm::MachineBasicBlock &block;
   llvm::MachineBasicBlock::iterator position;
   const llvm::MCInstrInfo *TII;
-  
+
   void _instr(unsigned int opcode) const {
     BuildMI(block, position, nullptr, TII->get(opcode));
   }

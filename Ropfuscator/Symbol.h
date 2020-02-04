@@ -9,12 +9,12 @@
 // to locate the needed gadgets.
 struct Symbol {
   // Label - symbol name.
-  char *Label;
+  std::string Label;
 
   // Version - this is mostly useful when dealing with libc, because within it
   // there are lots of symbols with the same label. GNU LIBC uses versioning to
   // ensure compatibility with binaries using old ABI versions.
-  char *Version;
+  std::string Version;
 
   // SymVerDirective - it is just an inline asm directive we need to place to
   // force the static linker to pick the right symbol version during the
@@ -27,14 +27,8 @@ struct Symbol {
 
   // Constructor
   Symbol(std::string label, std::string version, uint64_t address)
-      : Address(address) {
-    Label = new char[label.length() + 1];
-    Version = new char[version.length() + 1];
+      : Label(label), Version(version), Address(address) {
     SymVerDirective = nullptr;
-
-    // TODO: set size!
-    strcpy(Label, label.c_str());
-    strcpy(Version, version.c_str());
   }
 
   // getSymVerDirective - returns a pointer to the SymVerDirective string.
