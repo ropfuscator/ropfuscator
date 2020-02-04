@@ -37,10 +37,12 @@ public:
 private:
   BinaryAutopsy *BA;
   const llvm::X86InstrInfo *TII;
+
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
   std::map<unsigned, ROPChainStatEntry> instr_stat;
 #endif
+  
   void insertROPChain(const ROPChain &chain, llvm::MachineBasicBlock &MBB,
                       llvm::MachineInstr &MI, int chainID);
 };

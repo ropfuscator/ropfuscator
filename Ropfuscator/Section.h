@@ -14,8 +14,7 @@ struct Section {
 
   // Constructor
   Section(std::string label, uint64_t address, uint64_t length)
-    : Label(label), Address(address), Length(length) {}
+      : Label(label), Address(address), Length(length) {}
 };
-
 
 #endif

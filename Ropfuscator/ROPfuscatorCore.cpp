@@ -6,18 +6,18 @@
 // It also provides statics about the processed functions.
 //
 
-#include "BinAutopsy.h"
-#include "Debug.h"
-#include "LivenessAnalysis.h"
-#include "ROPEngine.h"
-#include "X86AssembleHelper.h"
-#include "OpaqueConstruct.h"
 #include "ROPfuscatorCore.h"
 #include "../X86.h"
 #include "../X86MachineFunctionInfo.h"
 #include "../X86RegisterInfo.h"
 #include "../X86Subtarget.h"
 #include "../X86TargetMachine.h"
+#include "BinAutopsy.h"
+#include "Debug.h"
+#include "LivenessAnalysis.h"
+#include "OpaqueConstruct.h"
+#include "ROPEngine.h"
+#include "X86AssembleHelper.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
@@ -34,24 +34,28 @@ using namespace llvm;
 struct ROPfuscatorCore::ROPChainStatEntry {
   static const int entry_size = static_cast<int>(ROPChainStatus::COUNT);
   int data[entry_size];
+
   int &operator[](ROPChainStatus status) {
     return data[static_cast<int>(status)];
   }
+
   int operator[](ROPChainStatus status) const {
     return data[static_cast<int>(status)];
   }
-  int total() const {
-    return std::accumulate(&data[0], &data[entry_size], 0);
-  }
-  ROPChainStatEntry() {
-    memset(data, 0, sizeof(data));
-  }
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ROPChainStatEntry &entry) {
+
+  int total() const { return std::accumulate(&data[0], &data[entry_size], 0); }
+
+  ROPChainStatEntry() { memset(data, 0, sizeof(data)); }
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                       const ROPChainStatEntry &entry) {
     entry.debugPrint(os);
     return os;
   }
+
   template <class StreamT> void debugPrint(StreamT &os) const {
     const ROPChainStatEntry &entry = *this;
+
     os << "stat:ropfuscated " << entry[ROPChainStatus::OK] << " / total "
        << entry.total() << " ["
        << " not-implemented: " << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED]
@@ -61,8 +65,10 @@ struct ROPfuscatorCore::ROPChainStatEntry {
        << " unsupported-esp: "
        << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " ]";
   }
+
   template <class StreamT> void debugPrintSimple(StreamT &os) const {
     const ROPChainStatEntry &entry = *this;
+
     os << entry[ROPChainStatus::OK] << " "
        << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED] << " "
        << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE] << " "
@@ -93,19 +99,22 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 static int saveRegs(X86AssembleHelper &as,
                     const std::vector<llvm_reg_t> &clobberedRegs) {
   int stackOffset = 0;
+
   for (auto i = clobberedRegs.begin(); i != clobberedRegs.end(); ++i) {
     if (*i == X86_REG_EFLAGS) {
       as.pushf();
     } else {
       as.push(as.reg(*i));
     }
+
     stackOffset += 4;
   }
+
   return stackOffset;
 }
 
 static void restoreRegs(X86AssembleHelper &as,
-                    const std::vector<llvm_reg_t> &clobberedRegs) {
+                        const std::vector<llvm_reg_t> &clobberedRegs) {
   for (auto i = clobberedRegs.rbegin(); i != clobberedRegs.rend(); ++i) {
     if (*i == X86_REG_EFLAGS) {
       as.popf();
@@ -116,11 +125,11 @@ static void restoreRegs(X86AssembleHelper &as,
 }
 
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
-                                    MachineBasicBlock &MBB, MachineInstr &MI,
-                                    int chainID) {
-
+                                     MachineBasicBlock &MBB, MachineInstr &MI,
+                                     int chainID) {
   char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
+
   // EMIT PROLOGUE
   generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
                       MBB.getParent()->getName(), chainID);
@@ -136,6 +145,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // and just before the ROP chain is executed.
     // flag is saved at the top of the stack
     int flagSavedOffset = 4 * (chain.size() + 1);
+
     if (chain.hasUnconditionalJump || chain.hasConditionalJump)
       flagSavedOffset -= 4;
 
@@ -146,6 +156,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // lea esp, [esp+4*(N+2)]   # where N = chain size
     as.lea(as.reg(X86::ESP), as.mem(X86::ESP, flagSavedOffset + 4));
   }
+
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
     assert(!chain.hasUnconditionalJump || !chain.hasConditionalJump);
 
@@ -157,6 +168,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     as.pushf();
     espoffset -= 4;
   }
+
   if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
     // jmp funcName_chain_X
     // (omitted since it would be redundant)
@@ -168,6 +180,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     resumeLabelRequired = true;
     espoffset -= 4;
   }
+
   // funcName_chain_X:
   as.inlineasm(chainLabelC);
 
@@ -270,7 +283,8 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // push $(imm - espoffset)
       auto it = espOffsetMap.find(elem->esp_id);
       if (it == espOffsetMap.end()) {
-        dbgs() << "Internal error: ESP_OFFSET should precede corresponding ESP_PUSH\n";
+        dbgs() << "Internal error: ESP_OFFSET should precede corresponding "
+                  "ESP_PUSH\n";
         exit(1);
       }
       int64_t value = elem->value - it->second;
@@ -278,6 +292,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       break;
     }
     }
+
     espoffset -= 4;
   }
 
@@ -289,14 +304,17 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // popf (EFLAGS register restore)
     as.popf();
   }
+
   // ret
   as.ret();
+
   // resume_funcName_chain_X:
   if (resumeLabelRequired) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
     as.inlineasm(resumeLabelC);
   }
+
   // restore eflags, if eflags should be restored AFTER chain execution
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
     // popf (EFLAGS register restore)
@@ -316,10 +334,12 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   if (TII == nullptr) {
     // description of the target ISA (used to generate new instructions, below)
     const X86Subtarget &target = MF.getSubtarget<X86Subtarget>();
+
     if (target.is64Bit()) {
       llvm::dbgs() << "Error: currently ROPfuscator only works for 32bit.\n";
       exit(1);
     }
+
     TII = target.getInstrInfo();
   }
 
@@ -374,7 +394,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
       bool isJump = result.hasConditionalJump || result.hasUnconditionalJump;
       if (isJump && result.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
-        // when flag should be saved after resume, jmp instruction cannot be ROPified
+        // when flag should be saved after resume, jmp instruction cannot be
+        // ROPified
         status = ROPChainStatus::ERR_UNSUPPORTED;
       }
 
@@ -414,6 +435,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         obfuscated++;
       }
     }
+    
     if (chain0.valid()) {
       insertROPChain(chain0, MBB, *prevMI, chainID++);
       chain0.clear();

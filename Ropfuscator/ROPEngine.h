@@ -12,17 +12,17 @@
 #ifndef ROPENGINE_H
 #define ROPENGINE_H
 
+#include "../X86.h"
+#include "../X86InstrBuilder.h"
+#include "../X86TargetMachine.h"
 #include "BinAutopsy.h"
 #include "ChainElem.h"
 #include "LivenessAnalysis.h"
 #include "XchgGraph.h"
-#include "../X86.h"
-#include "../X86InstrBuilder.h"
-#include "../X86TargetMachine.h"
-#include <vector>
+#include <capstone/capstone.h> // x86_reg
 #include <string>
 #include <tuple>
-#include <capstone/capstone.h> // x86_reg
+#include <vector>
 
 #if __GNUC__
 #if __x86_64__ || __ppc64__
@@ -36,11 +36,7 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 #endif
 #endif
 
-enum class FlagSaveMode {
-  NOT_SAVED,
-  SAVE_BEFORE_EXEC,
-  SAVE_AFTER_EXEC
-};
+enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 
 class ROPChain {
 public:
@@ -52,26 +48,40 @@ public:
   bool hasUnconditionalJump;
 
   std::vector<ChainElem>::iterator begin() { return chain.begin(); }
+
   std::vector<ChainElem>::const_iterator begin() const { return chain.begin(); }
+
   std::vector<ChainElem>::iterator end() { return chain.end(); }
+
   std::vector<ChainElem>::const_iterator end() const { return chain.end(); }
+
   std::vector<ChainElem>::reverse_iterator rbegin() { return chain.rbegin(); }
+
   std::vector<ChainElem>::const_reverse_iterator rbegin() const {
     return chain.rbegin();
   }
+
   std::vector<ChainElem>::reverse_iterator rend() { return chain.rend(); }
+
   std::vector<ChainElem>::const_reverse_iterator rend() const {
     return chain.rend();
   }
+
   size_t size() const { return chain.size(); }
+
   void emplace_back(const ChainElem &elem) { chain.emplace_back(elem); }
+
   bool valid() { return !chain.empty() || successor; }
+
   ROPChain &append(const ROPChain &other) {
     chain.insert(chain.end(), other.begin(), other.end());
     return *this;
   }
+
   bool canMerge(const ROPChain &other);
+
   void merge(const ROPChain &other);
+
   void clear() {
     chain.clear();
     successor = nullptr;
@@ -80,20 +90,23 @@ public:
     hasConditionalJump = false;
     hasUnconditionalJump = false;
   }
+
   // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
   // chain size. Indeed, two consecutive equal xchg gadgets undo each other's
   // effects.
   void removeDuplicates();
+
   ROPChain() { clear(); }
 };
 
 enum class ROPChainStatus {
-  OK = 0, // chain generated without error
-  ERR_NOT_IMPLEMENTED, // unknown instruction
+  OK = 0,                    // chain generated without error
+  ERR_NOT_IMPLEMENTED,       // unknown instruction
   ERR_NO_REGISTER_AVAILABLE, // enough registers are not available
-  ERR_NO_GADGETS_AVAILABLE, // no gadgets are available
+  ERR_NO_GADGETS_AVAILABLE,  // no gadgets are available
   ERR_UNSUPPORTED, // known instruction, but not supported for some reason
-  ERR_UNSUPPORTED_STACKPOINTER, // not supported as it uses/modifies stack pointer
+  ERR_UNSUPPORTED_STACKPOINTER, // not supported as it uses/modifies stack
+                                // pointer
   COUNT
 };
 
@@ -110,32 +123,47 @@ class ROPEngine {
   ROPChain chain;
   XchgState state;
 
-  ROPChainStatus handleArithmeticRI(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleArithmeticRR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleArithmeticRM(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleXor32RR(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleLea32r(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32mr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32rr(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32mi(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32ri(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32rm(MachineInstr *, std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRI(MachineInstr *,
+                                    std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRR(MachineInstr *,
+                                    std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleArithmeticRM(MachineInstr *,
+                                    std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleXor32RR(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleLea32r(MachineInstr *,
+                              std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32rm(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32mr(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32mi(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleMov32rr(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32mi(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32ri(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCmp32rm(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
   ROPChainStatus handleCall(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCallReg(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  bool convertOperandToChainPushImm(const MachineOperand &operand, ChainElem &result);
+  ROPChainStatus handleCallReg(MachineInstr *,
+                               std::vector<x86_reg> &scratchRegs);
+  bool convertOperandToChainPushImm(const MachineOperand &operand,
+                                    ChainElem &result);
 
 public:
   // Constructor
   ROPEngine();
 
-  ROPChainStatus ropify(llvm::MachineInstr &MI, std::vector<x86_reg> &scratchRegs,
-                        bool shouldFlagSaved, ROPChain &resultChain);
-  void mergeChains(ROPChain &chain1, const ROPChain &chain2);
+  ROPChainStatus ropify(llvm::MachineInstr &MI,
+                        std::vector<x86_reg> &scratchRegs, bool shouldFlagSaved,
+                        ROPChain &resultChain);
 
+  void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 };
 
 // Generates inline assembly labels that are used in the prologue and epilogue
@@ -143,5 +171,4 @@ public:
 void generateChainLabels(char **chainLabel, char **chainLabelC,
                          char **resumeLabel, char **resumeLabelC,
                          StringRef funcName, int chainID);
-
 #endif

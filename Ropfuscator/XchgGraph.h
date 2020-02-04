@@ -35,7 +35,6 @@
 typedef std::vector<std::pair<int, int>> XchgPath;
 
 class XchgState {
-
   XchgPath xchgStack;
 
   // PhysReg - maps the location logical registers to physical registers.
@@ -85,7 +84,8 @@ public:
   // returns tells whether two nodes are mutually reachable. If the two optional
   // output parameters are given, it is possible to compute the actual path
   // (this is done by getPath()).
-  bool checkPath(int src, int dest, int pred[], int dist[], bool visited[]) const;
+  bool checkPath(int src, int dest, int pred[], int dist[],
+                 bool visited[]) const;
 
   // getPath - returns the entire path from src to dest, edge by edge. The path
   // is specified as a vector of pairs, which one of them contains source and

@@ -31,6 +31,8 @@ struct Symbol {
     Label = new char[label.length() + 1];
     Version = new char[version.length() + 1];
     SymVerDirective = nullptr;
+
+    // TODO: set size!
     strcpy(Label, label.c_str());
     strcpy(Version, version.c_str());
   }
@@ -39,10 +41,14 @@ struct Symbol {
   const char *getSymVerDirective() const {
     if (SymVerDirective == nullptr) {
       std::stringstream ss;
+
       ss << ".symver " << Label << "," << Label << "@" << Version;
+
       SymVerDirective = new char[ss.str().length() + 1];
+
       strcpy(SymVerDirective, ss.str().c_str());
     }
+
     return SymVerDirective;
   }
 

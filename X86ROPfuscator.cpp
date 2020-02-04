@@ -5,11 +5,11 @@
 // This module is simply the frontend of ROPfuscator for LLVM.
 //
 
-#include "X86.h"
 #include "Ropfuscator/ROPfuscatorCore.h"
+#include "X86.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Support/CommandLine.h"
 #include <memory>
 
@@ -48,16 +48,18 @@ public:
     if (ropfuscator) {
       ropfuscator->obfuscateFunction(MF);
       return true;
-    } else {
-      return false;
     }
+
+    return false;
   }
 
   bool doInitialization(Module &) override {
     if (!ROPfPassDisabled) {
       ropfuscator = new ROPfuscatorCore();
+
       ropfuscator->opaquePredicateEnabled = OpaquePredicatesEnabled;
     }
+
     return true;
   }
 
@@ -66,6 +68,7 @@ public:
       delete ropfuscator;
       ropfuscator = nullptr;
     }
+
     return true;
   }
 
