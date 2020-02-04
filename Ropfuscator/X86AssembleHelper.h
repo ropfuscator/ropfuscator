@@ -109,9 +109,11 @@ public:
         BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);
     m.add(builder);
   }
-  void inlineasm(const char *str) const {
+  void inlineasm(std::string str) const {
+    auto external_symbol = block.getParent()->createExternalSymbolName(str);
+
     BuildMI(block, position, nullptr, TII->get(llvm::TargetOpcode::INLINEASM))
-        .addExternalSymbol(str)
+        .addExternalSymbol(external_symbol)
         .addImm(0);
   }
 

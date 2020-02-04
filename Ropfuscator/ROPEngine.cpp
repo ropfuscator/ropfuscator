@@ -1026,27 +1026,11 @@ void ROPChain::removeDuplicates() {
   } while (duplicates);
 }
 
-void generateChainLabels(char **chainLabel, char **chainLabelC,
-                         char **resumeLabel, char **resumeLabelC,
+void generateChainLabels(string& chainLabel, string& resumeLabel,
                          StringRef funcName, int chainID) {
-  using namespace std;
-  
-  string funcName_s = funcName.str();
-  string chainLabel_s = funcName_s + "_chain_" + to_string(chainID);
-  std::replace(chainLabel_s.begin(), chainLabel_s.end(), '$', '_');
-  string chainLabelC_s = chainLabel_s + ":";
-  string resumeLabel_s = "resume_" + chainLabel_s;
-  string resumeLabelC_s = resumeLabel_s + ":";
+  chainLabel += funcName.str() + "_chain_" + to_string(chainID);
+  resumeLabel += "resume_" + chainLabel;
 
-  // we need to allocate these strings on the heap, since they will be
-  // used by AsmPrinter *after* runOnMachineFunction() has returned!
-  *chainLabel = new char[chainLabel_s.size() + 1];
-  *chainLabelC = new char[chainLabelC_s.size() + 1];
-  *resumeLabel = new char[resumeLabel_s.size() + 1];
-  *resumeLabelC = new char[resumeLabelC_s.size() + 1];
-
-  strcpy(*chainLabel, chainLabel_s.c_str());
-  strcpy(*chainLabelC, chainLabelC_s.c_str());
-  strcpy(*resumeLabel, resumeLabel_s.c_str());
-  strcpy(*resumeLabelC, resumeLabelC_s.c_str());
+  // replacing $ with _
+  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
 }
