@@ -30,6 +30,9 @@
 
 using namespace llvm;
 
+void generateChainLabels(string &chainLabel, string &resumeLabel,
+                         StringRef funcName, int chainID);
+
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
   static const int entry_size = static_cast<int>(ROPChainStatus::COUNT);
@@ -127,12 +130,12 @@ static void restoreRegs(X86AssembleHelper &as,
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                      MachineBasicBlock &MBB, MachineInstr &MI,
                                      int chainID) {
-  char *chainLabel, *chainLabelC, *resumeLabel, *resumeLabelC;
+  string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
   // EMIT PROLOGUE
-  generateChainLabels(&chainLabel, &chainLabelC, &resumeLabel, &resumeLabelC,
-                      MBB.getParent()->getName(), chainID);
+  generateChainLabels(chainLabel, resumeLabel, MBB.getParent()->getName(),
+                      chainID);
 
   bool isLastInstrInBlock = MI.getNextNode() == nullptr;
   bool resumeLabelRequired = false;
@@ -182,7 +185,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   }
 
   // funcName_chain_X:
-  as.inlineasm(chainLabelC);
+  as.inlineasm(chainLabel + ":");
 
   // ROP Chain
   // Pushes each chain element on the stack in reverse order
@@ -312,7 +315,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   if (resumeLabelRequired) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
-    as.inlineasm(resumeLabelC);
+    as.inlineasm(resumeLabel + ":");
   }
 
   // restore eflags, if eflags should be restored AFTER chain execution
