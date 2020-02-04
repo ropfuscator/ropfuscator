@@ -7,6 +7,7 @@ set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -S -emit-llvm -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -m32)
 set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim) #--use-custom-lib /path/to/your/libc.so
+
 IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
     set(ROPF_ASM_FLAGS -march=x86 --disable-fp-elim -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis) #--use-custom-lib /path/to/your/libc.so
 ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
