@@ -1,4 +1,5 @@
 // Symbol - entry of the dynamic symbol table. We use them as references
+#include "fmt/format.h"
 #include <sstream>
 #include <string.h>
 #include <string>
@@ -35,8 +36,9 @@ struct Symbol {
   const char *getSymVerDirective() const {
     if (SymVerDirective == nullptr) {
       std::stringstream ss;
-
-      ss << ".symver " << Label << "," << Label << "@" << Version;
+      std::string msg = fmt::format(".symver {},{}@{}", Label, Label, Version);
+      
+      ss << msg;
 
       SymVerDirective = new char[ss.str().length() + 1];
 

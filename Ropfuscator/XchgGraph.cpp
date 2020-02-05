@@ -137,9 +137,10 @@ XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
 
       short int PReg = state.searchLogicalReg(i, i);
 
-      DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
-                                      << "Xchanging logical register " << i
-                                      << " with " << PReg << " !\n");
+      string msg =
+          fmt::format("Exchanging logical register {} with {}\n", i, PReg);
+      DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs() << msg);
+
       getPath(state, PReg, i);
       // result.insert(result.end(), tmp.begin(), tmp.end());
       // printAll();
@@ -152,6 +153,7 @@ XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
 
 void XchgState::printAll() const {
   for (int i = 19; i < 30; i++) {
-    llvm::dbgs() << "\t[" << i << "]: " << PhysReg[i] << "\n";
+    string msg = fmt::format("\t[{}]: {}\n", i, PhysReg[i]);
+    llvm::dbgs() << msg;
   }
 }
