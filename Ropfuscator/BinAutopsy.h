@@ -85,7 +85,7 @@ public:
 
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
-  
+
   static BinaryAutopsy *getInstance();
 
   // -----------------------------------------------------------------------------

@@ -12,8 +12,7 @@ class ROPChainBuilder {
 
   struct VirtualInstr {
     const char *type;
-    x86_reg reg1;
-    x86_reg reg2;
+    x86_reg reg1, reg2;
     ChainElem immediate;
 
     VirtualInstr(const char *type, x86_reg reg1, x86_reg reg2)
@@ -33,9 +32,7 @@ class ROPChainBuilder {
   size_t numScratchRegs;
 
 public:
-  bool normalInstrFlag;
-  bool jumpInstrFlag;
-  bool conditionalJumpInstrFlag;
+  bool normalInstrFlag, jumpInstrFlag, conditionalJumpInstrFlag;
 
   ROPChainBuilder &append(const char *type, x86_reg reg1,
                           x86_reg reg2 = X86_REG_INVALID) {
@@ -88,53 +85,51 @@ private:
         }
       }
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-    } else {
-      std::vector<ROPChain> chains;
-
-      XchgState state0(state);
-
-      for (const VirtualInstr &vi : vchain) {
-        if (vi.isReorder()) {
-          ROPChain chain = BA->undoXchgs(state0);
-          chains.push_back(chain);
-        } else if (vi.type) {
-          x86_reg reg1 = vi.reg1 >= 0 ? vi.reg1 : regList[-vi.reg1 - 1];
-          x86_reg reg2 = vi.reg2 >= 0 ? vi.reg2 : regList[-vi.reg2 - 1];
-
-          if (!isNoop(vi.type, reg1, reg2)) {
-            ROPChain chain =
-                BA->findGadgetPrimitive(state0, vi.type, reg1, reg2);
-
-            if (!chain.valid())
-              return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-            chains.push_back(chain);
-          }
-        } else {
-          if (chains.empty())
-            chains.emplace_back();
-
-          chains.back().emplace_back(vi.immediate);
-        }
-      }
-
-      for (const ROPChain &chain : chains) {
-        result.append(chain);
-      }
-
-      state = state0;
-
-      if (normalInstrFlag)
-        result.hasNormalInstr = true;
-
-      if (jumpInstrFlag)
-        result.hasUnconditionalJump = true;
-
-      if (conditionalJumpInstrFlag)
-        result.hasConditionalJump = true;
-
-      return ROPChainStatus::OK;
     }
+
+    std::vector<ROPChain> chains;
+    XchgState state0(state);
+
+    for (const VirtualInstr &vi : vchain) {
+      if (vi.isReorder()) {
+        ROPChain chain = BA->undoXchgs(state0);
+        chains.push_back(chain);
+      } else if (vi.type) {
+        x86_reg reg1 = vi.reg1 >= 0 ? vi.reg1 : regList[-vi.reg1 - 1];
+        x86_reg reg2 = vi.reg2 >= 0 ? vi.reg2 : regList[-vi.reg2 - 1];
+
+        if (!isNoop(vi.type, reg1, reg2)) {
+          ROPChain chain = BA->findGadgetPrimitive(state0, vi.type, reg1, reg2);
+
+          if (!chain.valid())
+            return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+          chains.push_back(chain);
+        }
+      } else {
+        if (chains.empty())
+          chains.emplace_back();
+
+        chains.back().emplace_back(vi.immediate);
+      }
+    }
+
+    for (const ROPChain &chain : chains) {
+      result.append(chain);
+    }
+
+    state = state0;
+
+    if (normalInstrFlag)
+      result.hasNormalInstr = true;
+
+    if (jumpInstrFlag)
+      result.hasUnconditionalJump = true;
+
+    if (conditionalJumpInstrFlag)
+      result.hasConditionalJump = true;
+
+    return ROPChainStatus::OK;
   }
 
   static bool isNoop(const char *type, x86_reg reg1, x86_reg reg2) {
@@ -306,9 +301,9 @@ bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand,
   } else if (operand.isGlobal()) {
     result = ChainElem::fromGlobal(operand.getGlobal(), operand.getOffset());
     return true;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
 ROPChainStatus
@@ -537,7 +532,6 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
-
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
@@ -569,7 +563,6 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(5).getReg());
-
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
@@ -890,12 +883,13 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     }
   }
 
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
-                  dbgs() << "[LivenessAnalysis] avail. scratch registers:\t");
+  string msg = fmt::format("[LivenessAnalysis] Available scratch registers:\t");
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << msg);
 
 #ifndef NDEBUG
-  for (auto &a : scratchRegs) {
-    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
+  for (auto &reg : scratchRegs) {
+    string msg = fmt::format("{} ", reg);
+    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << msg);
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 #endif
@@ -1026,7 +1020,7 @@ void ROPChain::removeDuplicates() {
   } while (duplicates);
 }
 
-void generateChainLabels(string& chainLabel, string& resumeLabel,
+void generateChainLabels(string &chainLabel, string &resumeLabel,
                          StringRef funcName, int chainID) {
   chainLabel += funcName.str() + "_chain_" + to_string(chainID);
   resumeLabel += "resume_" + chainLabel;

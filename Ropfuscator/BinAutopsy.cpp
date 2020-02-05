@@ -30,11 +30,13 @@ public:
     ifstream f(path, std::ios::binary);
 
     if (!f.good()) {
-      llvm::dbgs() << "Given file " << path << " doesn't exist or is invalid!";
+      llvm::dbgs() << fmt::format("Given file {} does not exist or is invalid",
+                                  path);
       exit(1);
     }
 
-    llvm::dbgs() << "USING: " << path << "\n";
+    llvm::dbgs() << fmt::format("Using {}\n", path);
+
     f.seekg(0, std::ios::end);
 
     size_t size = f.tellg();
@@ -44,13 +46,15 @@ public:
     f.read(&buf[0], size);
     f.close();
 
-    if (auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size))) {
-      this->elf.reset(new ELF32LEFile(*elf_opt));
-    } else {
-      dbgs() << "ELF file error: " << path << " : " << elf_opt.takeError()
+    auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size));
+
+    if (!elf_opt) {
+      dbgs() << fmt::format("ELF file error: {}", path) << elf_opt.takeError()
              << "\n";
       exit(1);
     }
+
+    this->elf.reset(new ELF32LEFile(*elf_opt));
 
     parseSections();
     parseVerdefs();
@@ -90,9 +94,9 @@ public:
   std::string getSectionName(const ELF32LE::Shdr &section) {
     if (auto sectname_opt = elf->getSectionName(&section)) {
       return sectname_opt->str();
-    } else {
-      return "<unnamed>";
     }
+
+    return "<unnamed>";
   }
 
   ArrayRef<ELF32LE::Sym> getDynamicSymbols() {
@@ -100,8 +104,8 @@ public:
 
     if (symbols)
       return *symbols;
-    else
-      return ArrayRef<ELF32LE::Sym>();
+
+    return ArrayRef<ELF32LE::Sym>();
   }
 
   Expected<StringRef> getSymbolName(const ELF32LE::Sym &sym) {
@@ -314,12 +318,28 @@ void BinaryAutopsy::dumpSections() {
 
     Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
 
-    DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
-                                           << sectname << "\n");
+    string msg = fmt::format("[SECTIONS]\t Found section {}\n", sectname);
+    DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << msg);
   }
 }
 
 void BinaryAutopsy::dumpDynamicSymbols() {
+  // these symbols are also used in libgcc_s.so (often linked), so we avoid
+  // them
+  static const char *LIBGCC_SYMBOLS[] = {"__register_frame",
+                                         "__register_frame_table",
+                                         "__register_frame_info",
+                                         "__register_frame_info_bases",
+                                         "__register_frame_info_table",
+                                         "__register_frame_info_table_bases",
+                                         "__deregister_frame",
+                                         "__deregister_frame_info",
+                                         "__deregister_frame_info_bases",
+                                         "__frame_state_for",
+                                         "__moddi3",
+                                         "__umoddi3",
+                                         "__divdi3",
+                                         "__udivdi3"};
   std::string symbolName;
 
   // Dumps sections if it wasn't already done
@@ -335,11 +355,13 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
     // Consider only function symbols with global scope
     if (elf->isGlobalFunction(sym) && sym.isDefined()) {
-      if (auto name_opt = elf->getSymbolName(sym)) {
-        symbolName = name_opt->str();
-      } else {
+      auto name_opt = elf->getSymbolName(sym);
+
+      if (!name_opt) {
         continue;
       }
+
+      symbolName = name_opt->str();
 
       // those two symbols are very often subject to aliasing (they can be found
       // in many different libraries loaded in memory), so better avoiding them!
@@ -351,26 +373,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       if (symbolName.rfind("_dl", 0) != std::string::npos)
         continue;
 
-      // these symbols are also used in libgcc_s.so (often linked), so we avoid
-      // them
-      static const char *LIBGCC_SYMBOLS[] = {
-          "__register_frame",
-          "__register_frame_table",
-          "__register_frame_info",
-          "__register_frame_info_bases",
-          "__register_frame_info_table",
-          "__register_frame_info_table_bases",
-          "__deregister_frame",
-          "__deregister_frame_info",
-          "__deregister_frame_info_bases",
-          "__frame_state_for",
-          "__moddi3",
-          "__umoddi3",
-          "__divdi3",
-          "__udivdi3"};
-
       bool avoided = false;
-
       for (const char *avoided_name : LIBGCC_SYMBOLS) {
         if (symbolName == avoided_name) {
           avoided = true;
@@ -462,7 +465,6 @@ void BinaryAutopsy::dumpGadgets() {
 
     // Scan for RET instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length); i++) {
-
       if (buf[i] == *ret) {
         size_t offset = i + 1;
         const uint8_t *cur_pos = buf + offset;
@@ -489,10 +491,8 @@ void BinaryAutopsy::dumpGadgets() {
             // and operators (ugly but straightforward :P)
             string asm_instr;
             for (size_t j = 0; j < count - 1; j++) {
-              asm_instr += instructions[j].mnemonic;
-              asm_instr += " ";
-              asm_instr += instructions[j].op_str;
-              asm_instr += ";";
+              asm_instr = fmt::format("{} {};", instructions[j].mnemonic,
+                                      instructions[j].op_str);
             }
 
             if (!findGadget(asm_instr)) {
@@ -515,12 +515,8 @@ void BinaryAutopsy::dumpGadgets() {
         // Valid gadgets must have two instructions, and the
         // last one must be a RET
         if (count == 1 && instructions[0].id == X86_INS_JMP) {
-
-          string asm_instr;
-          asm_instr += instructions[0].mnemonic;
-          asm_instr += " ";
-          asm_instr += instructions[0].op_str;
-          asm_instr += ";";
+          string asm_instr = fmt::format("{} {};", instructions[0].mnemonic,
+                                         instructions[0].op_str);
 
           if (!findGadget(asm_instr)) {
             Microgadgets.push_back(Microgadget(instructions, asm_instr));
@@ -548,16 +544,21 @@ const Microgadget *BinaryAutopsy::findGadget(string asmInstr) const {
   return nullptr;
 }
 
-const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
-                                             x86_reg op1) const {
+const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op_a,
+                                             x86_reg op_b) const {
   for (auto &gadget : Microgadgets) {
-    if (gadget.getID() == insn &&               // same instruction opcode
-        gadget.getOp(0).type == X86_OP_REG &&   // operand 0: register
-        gadget.getOp(0).reg == op0 &&           // operand 0: equal to op0
-        (op1 == X86_REG_INVALID ||              // if operand 1 is present:
-         (gadget.getOp(1).type == X86_OP_REG && //   operand 1: register
-          gadget.getOp(1).reg == op1)))         //   operand 1: equal to op1
+    auto gdt_op_a = gadget.getOp(0);
+    auto gdt_op_b = gadget.getOp(1);
 
+    // same instruction opcode, first operand is a register and equal to op_a
+    bool condition_1 = gadget.getID() == insn && gdt_op_a.type == X86_OP_REG &&
+                       gdt_op_a.reg == op_a;
+
+    // if operand 1 is present and is a register than it has to be equal to op_b
+    bool condition_2 = op_b == X86_REG_INVALID ||
+                       (gdt_op_b.type == X86_OP_REG && gdt_op_b.reg == op_b);
+
+    if (condition_1 && condition_2)
       return &gadget;
   }
 
@@ -583,64 +584,69 @@ BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0,
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  DEBUG_WITH_TYPE("xchg_graph", llvm::dbgs()
-                                    << "[XchgGraph]\t"
-                                    << "Building the eXCHanGe Graph ...\n");
+  string msg = fmt::format("[XchgGraph] Building the exchange graph...\n");
+  DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
+
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
   auto XchgGadgets = findAllGadgets(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
 
   if (XchgGadgets.empty()) {
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
-                                    << "[XchgGraph]\t"
-                                    << "[!] Unable to build the eXCHanGe "
-                                       "Graph: no XCHG gadgets found\n");
+    string msg = fmt::format(
+        "[XchgGraph]\t[!] Unable to build graph: no xchg gadgets found\n");
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
+
     return;
   }
 
   for (auto &g : XchgGadgets) {
-    xgraph.addEdge(g->getOp(0).reg, g->getOp(1).reg);
+    auto edge_a = g->getOp(0).reg;
+    auto edge_b = g->getOp(1).reg;
 
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
-                                    << "[XchgGraph]\t"
-                                    << "Added new edge: " << g->getOp(0).reg
-                                    << ", " << g->getOp(1).reg << "\n");
+    xgraph.addEdge(edge_a, edge_b);
+
+    string msg =
+        fmt::format("[XchgGraph]\tAdded new edge: {}, {}\n", edge_a, edge_b);
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
   }
 }
 
 void BinaryAutopsy::applyGadgetFilters() {
-  int excluded = 0;
+  int excluded_count = 0;
 
   for (auto g = Microgadgets.begin(); g != Microgadgets.end();) {
-    if
-        // gadgets with ESP as operand, since we cannot deal with the
-        // stack pointer using just microgadgets.
-        (((g->getOp(0).type == X86_OP_REG && g->getOp(0).reg == X86_REG_ESP) ||
-          (g->getOp(1).type == X86_OP_REG && g->getOp(1).reg == X86_REG_ESP) ||
-          (g->getOp(0).type == X86_OP_MEM &&
-           g->getOp(0).mem.base == X86_REG_ESP) ||
-          (g->getOp(1).type == X86_OP_MEM &&
-           g->getOp(1).mem.base == X86_REG_ESP)) ||
+    auto op_a = g->getOp(0);
+    auto op_b = g->getOp(1);
 
-         // gadgets with memory operands having index and segment
-         // registers, or invalid base register, or a displacement value
-         ((g->getOp(0).type == X86_OP_MEM &&
-           (g->getOp(0).mem.base == X86_REG_INVALID ||
-            g->getOp(0).mem.index != X86_REG_INVALID ||
-            g->getOp(0).mem.segment != X86_REG_INVALID ||
-            g->getOp(0).mem.disp != 0)) ||
-          (g->getOp(1).type == X86_OP_MEM &&
-           (g->getOp(1).mem.base == X86_REG_INVALID ||
-            g->getOp(1).mem.index != X86_REG_INVALID ||
-            g->getOp(1).mem.segment != X86_REG_INVALID ||
-            g->getOp(1).mem.disp != 0)))) {
+    // gadgets with ESP as operand, since we cannot deal with the
+    // stack pointer using just microgadgets.
+    bool condition_1 =
+        ((op_a.type == X86_OP_REG && op_a.reg == X86_REG_ESP) ||
+         (op_b.type == X86_OP_REG && op_b.reg == X86_REG_ESP) ||
+         (op_a.type == X86_OP_MEM && op_a.mem.base == X86_REG_ESP) ||
+         (op_b.type == X86_OP_MEM && op_b.mem.base == X86_REG_ESP));
 
-      DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs()
-                                         << "[GadgetFilter]\texcluded: "
-                                         << g->asmInstr << "\n");
+    // gadgets with memory operands having index and segment
+    // registers, or invalid base register, or a displacement value
+    bool condition_2 =
+        (op_a.type == X86_OP_MEM &&
+         (op_a.mem.base == X86_REG_INVALID ||
+          op_a.mem.index != X86_REG_INVALID ||
+          op_a.mem.segment != X86_REG_INVALID || op_a.mem.disp != 0));
+
+    bool condition_3 =
+        (op_b.type == X86_OP_MEM &&
+         (op_b.mem.base == X86_REG_INVALID ||
+          op_b.mem.index != X86_REG_INVALID ||
+          op_b.mem.segment != X86_REG_INVALID || op_b.mem.disp != 0));
+
+    if (condition_1 || condition_2 || condition_3) {
+      string msg = fmt::format("[GadgetFilter]\tExcluded: {}\n", g->asmInstr);
+      DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << msg);
+
       g = Microgadgets.erase(g);
-      excluded++;
+      excluded_count++;
     } else {
       ++g;
     }
@@ -648,111 +654,104 @@ void BinaryAutopsy::applyGadgetFilters() {
 
   // Categorise the gadgets in primitives
   for (auto &gadget : Microgadgets) {
+    cs_x86_op op_a = gadget.getOp(0);
+    cs_x86_op op_b = gadget.getOp(1);
+
     switch (gadget.getID()) {
+    // pop REG: init
     case X86_INS_POP: {
-      // pop REG: init
-      if (gadget.getOp(0).type == X86_OP_REG)
+      if (op_a.type == X86_OP_REG)
         GadgetPrimitives["init"].push_back(gadget);
       break;
     }
+    // add REG1, REG2: add
     case X86_INS_ADD: {
-      // add REG1, REG2: add
-      cs_x86_op op0 = gadget.getOp(0);
-      cs_x86_op op1 = gadget.getOp(1);
-      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
         // Register-register
-        if (op0.reg != op1.reg)
+        if (op_a.reg != op_b.reg)
           GadgetPrimitives["add"].push_back(gadget);
         else
           GadgetPrimitives["add_1"].push_back(gadget);
       }
       break;
     }
+    // sub REG1, REG2: sub
     case X86_INS_SUB: {
-      // sub REG1, REG2: sub
-      cs_x86_op op0 = gadget.getOp(0);
-      cs_x86_op op1 = gadget.getOp(1);
-      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
-        if (op0.reg != op1.reg)
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
+        if (op_a.reg != op_b.reg)
           GadgetPrimitives["sub"].push_back(gadget);
         else
           GadgetPrimitives["sub_1"].push_back(gadget);
       }
       break;
     }
+    // and REG1, REG2: and
     case X86_INS_AND: {
-      // and REG1, REG2: and
-      cs_x86_op op0 = gadget.getOp(0);
-      cs_x86_op op1 = gadget.getOp(1);
-      if (op0.type == X86_OP_REG && op1.type == X86_OP_REG) {
-        if (op0.reg != op1.reg)
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
+        if (op_a.reg != op_b.reg)
           GadgetPrimitives["and"].push_back(gadget);
         else
           GadgetPrimitives["and_1"].push_back(gadget);
       }
       break;
     }
+    // xor REG1, REG2: xor_1, xor_2
     case X86_INS_XOR: {
-      // xor REG1, REG2: xor_1, xor_2
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG) {
-        if (gadget.getOp(0).reg == gadget.getOp(1).reg)
+      // Register-register
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
+        if (op_a.reg == op_b.reg)
           GadgetPrimitives["xor_1"].push_back(gadget);
         else
           GadgetPrimitives["xor_2"].push_back(gadget);
       }
       break;
     }
+    // mov REG1, REG2: copy
     case X86_INS_MOV: {
-      // mov REG1, REG2: copy
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register: copy
-          gadget.getOp(1).type == X86_OP_REG)
+      // Register-register: copy
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
         GadgetPrimitives["copy"].push_back(gadget);
-
-      else if (gadget.getOp(0).type == X86_OP_REG && // Register-memory: load
-               gadget.getOp(1).type == X86_OP_MEM) {
-        if (gadget.getOp(0).reg == gadget.getOp(1).mem.base)
+      // Register-memory: load
+      else if (op_a.type == X86_OP_REG && op_b.type == X86_OP_MEM) {
+        if (op_a.reg == op_b.mem.base)
           // data is loaded in the same register of the source
           GadgetPrimitives["load_1"].push_back(gadget);
         else
           // data is loaded onto another register
           GadgetPrimitives["load_2"].push_back(gadget);
-
-      } else if (gadget.getOp(0).type == X86_OP_MEM // Register-memory: store
-                 && gadget.getOp(1).type == X86_OP_REG)
+        // Register-memory: store
+      } else if (op_a.type == X86_OP_MEM && op_b.type == X86_OP_REG)
         GadgetPrimitives["store"].push_back(gadget);
       break;
     }
+    // xchg REG1, REG2: xchg
     case X86_INS_XCHG: {
-      // xchg REG1, REG2: xchg
-      if (gadget.getOp(0).type == X86_OP_REG && // Register-register
-          gadget.getOp(1).type == X86_OP_REG)
+      // Register-register
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
         GadgetPrimitives["xchg"].push_back(gadget);
       break;
     }
+    // cmove REG1, REG2: cmove
     case X86_INS_CMOVE: {
-      // cmove REG1, REG2: cmove
-      if (gadget.getOp(0).type == X86_OP_REG &&
-          gadget.getOp(1).type == X86_OP_REG)
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
         GadgetPrimitives["cmove"].push_back(gadget);
       break;
     }
+    // cmovb REG1, REG2: cmovb
     case X86_INS_CMOVB: {
-      // cmovb REG1, REG2: cmovb
-      if (gadget.getOp(0).type == X86_OP_REG &&
-          gadget.getOp(1).type == X86_OP_REG)
+      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
         GadgetPrimitives["cmovb"].push_back(gadget);
       break;
     }
+    // push REG1; ret: jmp
     case X86_INS_PUSH: {
-      // push REG1; ret: jmp
-      if (gadget.getOp(0).type == X86_OP_REG)
+      if (op_a.type == X86_OP_REG)
         GadgetPrimitives["jmp"].push_back(gadget);
       break;
     }
+    // jmp REG1: jmp
     case X86_INS_JMP: {
-      // jmp REG1: jmp
-      if (gadget.getOp(0).type == X86_OP_REG)
+      if (op_a.type == X86_OP_REG)
         GadgetPrimitives["jmp"].push_back(gadget);
       break;
     }
@@ -761,9 +760,9 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
   }
 
-  DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << "[GadgetFilter]\t" << excluded
-                                              << " gadgets have been excluded!"
-                                              << "\n");
+  string msg = fmt::format("[GadgetFilter]\t{} gadgets have been excluded.\n",
+                           excluded_count);
+  DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << msg);
 }
 
 bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
@@ -797,54 +796,56 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
     }
   }
 
+  // we cannot exchange registers in jmp gadget; just fail
+  if (!found && type == "jmp") {
+    return result;
+  }
+
   if (found) {
     result.emplace_back(ChainElem::fromGadget(found));
-  } else {
-    // Attempt #2: find a primitive gadget that has at least operands
-    // exchangeable with the ones required. A proper xchg chain will be
-    // generated.
-    if (type == "jmp") {
-      // we cannot exchange registers in jmp gadget; just fail
-      return result;
-    }
+    return result;
+  }
 
-    x86_reg gadget_op0, gadget_op1;
+  // Attempt #2: find a primitive gadget that has at least operands
+  // exchangeable with the ones required. A proper xchg chain will be
+  // generated.
+  x86_reg gadget_op0, gadget_op1;
 
-    for (auto &gadget : gadgets) {
-      gadget_op0 = extractReg(gadget.getOp(0));
-      gadget_op1 = extractReg(gadget.getOp(1));
+  for (auto &gadget : gadgets) {
+    gadget_op0 = extractReg(gadget.getOp(0));
+    gadget_op1 = extractReg(gadget.getOp(1));
 
-      // check if given op0 and op1 are respectively exchangeable with
-      // op0 and op1 of the gadget
-      if (areExchangeable(getEffectiveReg(state, op0), gadget_op0) &&
-          ((op1 == X86_REG_INVALID) // only if op1 is present
-           ^ areExchangeable(getEffectiveReg(state, op1), gadget_op1))) {
+    // check if given op0 and op1 are respectively exchangeable with
+    // op0 and op1 of the gadget
+    if (areExchangeable(getEffectiveReg(state, op0), gadget_op0) &&
+        ((op1 == X86_REG_INVALID) // only if op1 is present
+         ^ areExchangeable(getEffectiveReg(state, op1), gadget_op1))) {
 
-        if (op1 != X86_REG_INVALID) {
-          if ((getEffectiveReg(state, op0) == gadget_op1 &&
-               getEffectiveReg(state, op1) == gadget_op0) ||
-              (getEffectiveReg(state, op0) == gadget_op0 &&
-               getEffectiveReg(state, op1) == gadget_op1) ||
-              (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
-               gadget_op0 == gadget_op1)) {
-            DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
-                                            << "\t\tavoiding double xchg\n");
-          } else {
-            auto xchgChain1 =
-                exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
-            result.append(xchgChain1);
-          }
+      if (op1 != X86_REG_INVALID) {
+        if ((getEffectiveReg(state, op0) == gadget_op1 &&
+             getEffectiveReg(state, op1) == gadget_op0) ||
+            (getEffectiveReg(state, op0) == gadget_op0 &&
+             getEffectiveReg(state, op1) == gadget_op1) ||
+            (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
+             gadget_op0 == gadget_op1)) {
+          DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
+                                          << "\t\tavoiding double xchg\n");
+        } else {
+          auto xchgChain1 =
+              exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
+          result.append(xchgChain1);
         }
-
-        auto xchgChain0 =
-            exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
-        result.append(xchgChain0);
-
-        result.emplace_back(ChainElem::fromGadget(&gadget));
-        break;
       }
+
+      auto xchgChain0 =
+          exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
+      result.append(xchgChain0);
+
+      result.emplace_back(ChainElem::fromGadget(&gadget));
+      break;
     }
   }
+
   return result;
 }
 
