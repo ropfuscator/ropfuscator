@@ -7,6 +7,7 @@
 #include "CapstoneLLVMAdpt.h"
 #include "ChainElem.h"
 #include "Debug.h"
+#include "ROPEngine.h"
 
 #include <assert.h>
 #include <fstream>
@@ -27,18 +28,22 @@ class ELFParser {
 public:
   ELFParser(const std::string &path) {
     ifstream f(path, std::ios::binary);
+
     if (!f.good()) {
-      llvm::dbgs() << "Given file " << path
-                   << " doesn't exist or is invalid!";
+      llvm::dbgs() << "Given file " << path << " doesn't exist or is invalid!";
       exit(1);
     }
+
     llvm::dbgs() << "USING: " << path << "\n";
     f.seekg(0, std::ios::end);
+
     size_t size = f.tellg();
+
     f.seekg(0, std::ios::beg);
     buf.resize(size);
     f.read(&buf[0], size);
     f.close();
+
     if (auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size))) {
       this->elf.reset(new ELF32LEFile(*elf_opt));
     } else {
@@ -46,16 +51,16 @@ public:
              << "\n";
       exit(1);
     }
+
     parseSections();
     parseVerdefs();
   }
 
-  const uint8_t *base() const {
-    return elf->base();
-  }
+  const uint8_t *base() const { return elf->base(); }
 
   std::vector<ELF32LE::Phdr> getCodeSegments() {
     std::vector<ELF32LE::Phdr> rv;
+
     if (auto segments = elf->program_headers()) {
       // iterate through segments
       for (auto &seg : *segments) {
@@ -65,6 +70,7 @@ public:
         }
       }
     }
+
     return rv;
   }
 
@@ -91,6 +97,7 @@ public:
 
   ArrayRef<ELF32LE::Sym> getDynamicSymbols() {
     auto symbols = elf->symbols(dynsym);
+
     if (symbols)
       return *symbols;
     else
@@ -107,15 +114,21 @@ public:
 
   std::string getSymbolVersion(int symindex) {
     auto versyms = elf->getSectionContentsAsArray<uint16_t>(versym);
+
     if (!versyms)
       return "";
+
     uint16_t value = (*versyms)[symindex];
+
     if (value == ELF_VER_NDX_LOCAL || value == ELF_VER_NDX_GLOBAL ||
         value >= ELF_VER_NDX_LORESERVE)
       return "";
+
     value &= 0x7fff;
+
     if (value >= verdefs.size())
       return "";
+
     return verdefs[value];
   }
 
@@ -182,6 +195,7 @@ private:
         }
       }
     }
+
     if (dynsym) {
       if (auto dynstr_opt = elf->getStringTableForSymtab(*dynsym)) {
         dynstrtab = *dynstr_opt;
@@ -191,31 +205,43 @@ private:
 
   void parseVerdefs() {
     std::map<uint16_t, const char *> verdefmap;
+
     if (!verdef)
       return;
+
     auto data_opt = elf->getSectionContents(verdef);
+
     if (!data_opt)
       return;
+
     const uint8_t *data = data_opt->data();
     size_t size = data_opt->size();
     uint16_t max_index = 0;
+
     // iterate over Verdef entries
     for (unsigned int pos = 0; pos < size;) {
       const Verdef *entry = reinterpret_cast<const Verdef *>(&data[pos]);
+
       if (max_index < entry->vd_ndx)
         max_index = entry->vd_ndx;
+
       if (entry->vd_cnt > 0) {
         // only take the first Verdef_aux entry
         const Verdef_aux *aux =
             reinterpret_cast<const Verdef_aux *>(&data[pos + entry->vd_aux]);
+
         if (aux->vda_name < dynstrtab.size())
           verdefmap.emplace(entry->vd_ndx, &dynstrtab.data()[aux->vda_name]);
       }
+
       if (entry->vd_next == 0)
         break;
+
       pos += entry->vd_next;
     }
+
     verdefs.resize(max_index + 1);
+
     for (auto &entry : verdefmap) {
       verdefs[entry.first] = entry.second;
     }
@@ -238,12 +264,13 @@ const std::error_category &llvm::object::object_category() {
       return "ELF object parse error";
     }
   };
+
   static const _object_error_category instance;
+
   return instance;
 }
 
-BinaryAutopsy::~BinaryAutopsy() {
-}
+BinaryAutopsy::~BinaryAutopsy() {}
 
 void BinaryAutopsy::dissect() {
   dumpSections();
@@ -277,13 +304,16 @@ void BinaryAutopsy::dumpSegments() {
 }
 
 void BinaryAutopsy::dumpSections() {
-  DEBUG_WITH_TYPE(SECTIONS,
-                  llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
+  DEBUG_WITH_TYPE(
+      SECTIONS, llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
   using namespace std;
+
   // Iterates through only the sections that contain executable code
   for (auto &section : elf->getCodeSections()) {
     std::string sectname = elf->getSectionName(section);
+
     Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+
     DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << "[SECTIONS]\tFound section "
                                            << sectname << "\n");
   }
@@ -340,12 +370,14 @@ void BinaryAutopsy::dumpDynamicSymbols() {
           "__udivdi3"};
 
       bool avoided = false;
+
       for (const char *avoided_name : LIBGCC_SYMBOLS) {
         if (symbolName == avoided_name) {
           avoided = true;
           break;
         }
       }
+
       if (avoided)
         continue;
 
@@ -362,16 +394,19 @@ void BinaryAutopsy::dumpDynamicSymbols() {
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
       bool alreadyPresent = false;
+
       for (auto &s : Symbols) {
         if (symbolName == s.Label) {
           alreadyPresent = true;
           break;
         }
       }
+
       if (!alreadyPresent)
         Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
+
   if (Symbols.empty()) {
     dbgs() << "No symbols found!\n";
     exit(1);
@@ -381,13 +416,16 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
   isModuleSymbolAnalysed = true;
   std::set<std::string> names;
+
   for (const auto &f : module->getFunctionList()) {
     names.insert(f.getName().str());
   }
+
   for (const auto &g : module->getGlobalList()) {
     names.insert(g.getName().str());
   }
-  for (auto it = Symbols.begin(); it != Symbols.end(); ) {
+
+  for (auto it = Symbols.begin(); it != Symbols.end();) {
     if (names.find(it->Label) != names.end()) {
       it = Symbols.erase(it);
     } else {
@@ -398,6 +436,7 @@ void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
 
 const Symbol *BinaryAutopsy::getRandomSymbol() const {
   unsigned long i = rand() % Symbols.size();
+
   return &(Symbols.at(i));
 }
 
@@ -465,6 +504,7 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
+
     // scan for indirect jmp instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length) - 1;
          i++) {
@@ -509,7 +549,7 @@ const Microgadget *BinaryAutopsy::findGadget(string asmInstr) const {
 }
 
 const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
-                                       x86_reg op1) const {
+                                             x86_reg op1) const {
   for (auto &gadget : Microgadgets) {
     if (gadget.getID() == insn &&               // same instruction opcode
         gadget.getOp(0).type == X86_OP_REG &&   // operand 0: register
@@ -520,11 +560,13 @@ const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op0,
 
       return &gadget;
   }
+
   return nullptr;
 }
 
 std::vector<const Microgadget *>
-BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0, x86_op_type op1) const {
+BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0,
+                              x86_op_type op1) const {
   std::vector<const Microgadget *> res;
 
   if (Microgadgets.empty()) {
@@ -731,16 +773,18 @@ bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_reg op0,
-                                            x86_reg op1) const {
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
+                                            x86_reg op0, x86_reg op1) const {
   // Note: everytime we need to operate on op0 and op1, we need to check which
   // is the actual register that holds that operand.
   ROPChain result;
   const Microgadget *found = nullptr;
 
   auto it_gadgets = GadgetPrimitives.find(type);
+
   if (it_gadgets == GadgetPrimitives.end())
     return result;
+
   const auto &gadgets = it_gadgets->second;
 
   // Attempt #1: find a primitive gadget having the same operands
@@ -763,7 +807,9 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_r
       // we cannot exchange registers in jmp gadget; just fail
       return result;
     }
+
     x86_reg gadget_op0, gadget_op1;
+
     for (auto &gadget : gadgets) {
       gadget_op0 = extractReg(gadget.getOp(0));
       gadget_op1 = extractReg(gadget.getOp(1));
@@ -784,12 +830,14 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type, x86_r
             DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
                                             << "\t\tavoiding double xchg\n");
           } else {
-            auto xchgChain1 = exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
+            auto xchgChain1 =
+                exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
             result.append(xchgChain1);
           }
         }
 
-        auto xchgChain0 = exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
+        auto xchgChain0 =
+            exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
         result.append(xchgChain0);
 
         result.emplace_back(ChainElem::fromGadget(&gadget));
@@ -807,6 +855,7 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
     // in XCHG instructions the operands order doesn't matter
     auto found =
         findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+
     if (!found)
       found =
           findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
@@ -817,7 +866,8 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const {
+ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, x86_reg reg0,
+                                     x86_reg reg1) const {
   ROPChain result;
 
   if (reg0 != reg1) {
@@ -833,6 +883,7 @@ ROPChain BinaryAutopsy::undoXchgs(XchgState &state) const {
   return buildXchgChain(path);
 }
 
-x86_reg BinaryAutopsy::getEffectiveReg(const XchgState &state, x86_reg reg) const {
+x86_reg BinaryAutopsy::getEffectiveReg(const XchgState &state,
+                                       x86_reg reg) const {
   return (x86_reg)state.searchLogicalReg(reg);
 }

@@ -17,12 +17,14 @@ using namespace std;
 void addReg(MachineInstr &MI, int reg,
             map<MachineInstr *, vector<x86_reg>> &regs) {
   auto it = regs.find(&MI);
+
   // IMPORTANT: Here the register representation is converted from LLVM to
   // capstone and stored in the map.
   if (it != regs.end()) {
     it->second.push_back(convertToCapstoneReg(reg));
   } else
     assert(false && "No matching MachineInstr found in regs map!");
+    
   return;
 }
 
@@ -46,7 +48,9 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
         addReg(*MI, reg, regs);
       }
     }
+
     SmallVector<pair<unsigned, const MachineOperand *>, 2> Clobbers;
+
     LiveRegs.stepForward(*MI, Clobbers);
   }
 
