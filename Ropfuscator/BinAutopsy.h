@@ -25,9 +25,9 @@
 
 #define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
 
-#include "../X86ROPUtils.h"
 #include "ChainElem.h"
 #include "Microgadget.h"
+#include "ROPEngine.h"
 #include "Section.h"
 #include "Symbol.h"
 #include "XchgGraph.h"
@@ -41,6 +41,8 @@
 // see BinaryAutopsy::extractGadgets()
 #define MAXDEPTH 4
 
+// forward declaration
+class ROPChain;
 class ELFParser;
 
 // BinaryAutopsy - dumps all the data needed by ROPfuscator.
@@ -83,6 +85,7 @@ public:
 
   // getInstance - returns an instance of this singleton class
   static BinaryAutopsy *getInstance(std::string path);
+  
   static BinaryAutopsy *getInstance();
 
   // -----------------------------------------------------------------------------
@@ -97,6 +100,7 @@ private:
   // sections that contain executable code, from which the symbol and gadget
   // extraction will take place.
   void dumpSections();
+
   void dumpSegments();
 
   // dumpDynamicSymbols - extracts symbols from the .dynsym section. It takes
@@ -134,17 +138,23 @@ public:
   // gadgetLookup - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
   const Microgadget *findGadget(std::string asmInstr) const;
-  const Microgadget *findGadget(x86_insn insn, x86_reg op0,
-                          x86_reg op1 = X86_REG_INVALID) const;
 
-  std::vector<const Microgadget *> findAllGadgets(x86_insn insn, x86_op_type op0,
-                                            x86_op_type op1 = x86_op_type()) const;
-  std::vector<const Microgadget *> findAllGadgets(x86_insn insn, x86_reg op0,
-                                            x86_reg op1 = X86_REG_INVALID) const;
+  const Microgadget *findGadget(x86_insn insn, x86_reg op0,
+                                x86_reg op1 = X86_REG_INVALID) const;
+
+  std::vector<const Microgadget *>
+  findAllGadgets(x86_insn insn, x86_op_type op0,
+                 x86_op_type op1 = x86_op_type()) const;
+
+  std::vector<const Microgadget *>
+  findAllGadgets(x86_insn insn, x86_reg op0,
+                 x86_reg op1 = X86_REG_INVALID) const;
+
   std::vector<const Microgadget *> findAllGadgets(GadgetClass_t Class) const;
 
   ROPChain findGadgetPrimitive(XchgState &state, std::string type, x86_reg op0,
                                x86_reg op1 = X86_REG_INVALID) const;
+
   // areExchangeable - uses XChgGraph to check whether two (or more
   // registers) can be mutually exchanged.
   bool areExchangeable(x86_reg a, x86_reg b) const;
@@ -152,7 +162,9 @@ public:
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
   ROPChain exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const;
+
   ROPChain undoXchgs(XchgState &state) const;
+
   x86_reg getEffectiveReg(const XchgState &state, x86_reg reg) const;
 
 private:

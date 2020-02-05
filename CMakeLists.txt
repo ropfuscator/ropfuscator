@@ -1,4 +1,4 @@
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(LLVM_TARGET_DEFINITIONS X86.td)
 
 tablegen(LLVM X86GenAsmMatcher.inc -gen-asm-matcher)
@@ -23,11 +23,13 @@ add_public_tablegen_target(X86CommonTableGen)
 
 set(ROPFUSCATOR_SOURCES
         X86ROPfuscator.cpp
-        X86ROPUtils.cpp
+        Ropfuscator/ROPfuscatorCore.cpp
+        Ropfuscator/ROPEngine.cpp
         Ropfuscator/BinAutopsy.cpp
         Ropfuscator/XchgGraph.cpp
         Ropfuscator/CapstoneLLVMAdpt.cpp
         Ropfuscator/LivenessAnalysis.cpp
+        Ropfuscator/OpaqueConstruct.cpp
         )
 
 set(sources

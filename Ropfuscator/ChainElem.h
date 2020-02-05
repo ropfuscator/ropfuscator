@@ -1,10 +1,7 @@
-//#include "../X86ROPUtils.h"
-#include "BinAutopsy.h"
 #include "Microgadget.h"
 #include "Symbol.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/GlobalValue.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/IR/GlobalValue.h"
 
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
@@ -12,7 +9,15 @@
 // Generic element to be put in the chain.
 struct ChainElem {
 
-  enum class Type { GADGET, IMM_VALUE, IMM_GLOBAL, JMP_BLOCK, JMP_FALLTHROUGH, ESP_PUSH, ESP_OFFSET };
+  enum class Type {
+    GADGET,
+    IMM_VALUE,
+    IMM_GLOBAL,
+    JMP_BLOCK,
+    JMP_FALLTHROUGH,
+    ESP_PUSH,
+    ESP_OFFSET
+  };
 
   // type - it can be a GADGET or an IMMEDIATE value. We need to specify the
   // type because we will use different strategies during the creation of
@@ -100,28 +105,28 @@ struct ChainElem {
       return (A.value == B.value);
   }
 
-  void debugPrint() const {
+  template <typename OstreamT> void debugPrint(OstreamT &os) const {
     switch (type) {
     case Type::GADGET:
-      llvm::dbgs() << "GADGET    : " << microgadget->asmInstr << "\n";
+      os << "GADGET    : " << microgadget->asmInstr << "\n";
       break;
     case Type::IMM_VALUE:
-      llvm::dbgs() << "IMM_VALUE : " << value << "\n";
+      os << "IMM_VALUE : " << value << "\n";
       break;
     case Type::IMM_GLOBAL:
-      llvm::dbgs() << "IMM_GLOBAL: " << *global << " + " << value << "\n";
+      os << "IMM_GLOBAL: " << *global << " + " << value << "\n";
       break;
     case Type::JMP_BLOCK:
-      llvm::dbgs() << "JMP_BLOCK : " << jmptarget->getNumber() << "\n";
+      os << "JMP_BLOCK : " << jmptarget->getNumber() << "\n";
       break;
     case Type::JMP_FALLTHROUGH:
-      llvm::dbgs() << "JMP_FALLTHROUGH\n";
+      os << "JMP_FALLTHROUGH\n";
       break;
     case Type::ESP_PUSH:
-      llvm::dbgs() << "ESP_PUSH  : id=" << esp_id << "\n";
+      os << "ESP_PUSH  : id=" << esp_id << "\n";
       break;
     case Type::ESP_OFFSET:
-      llvm::dbgs() << "ESP_OFFSET: " << value << ", id=" << esp_id << "\n";
+      os << "ESP_OFFSET: " << value << ", id=" << esp_id << "\n";
       break;
     }
   }
