@@ -43,9 +43,7 @@ public:
   std::vector<ChainElem> chain;
   ChainElem *successor; // jump target at the end of chain
   FlagSaveMode flagSave;
-  bool hasNormalInstr;
-  bool hasConditionalJump;
-  bool hasUnconditionalJump;
+  bool hasNormalInstr, hasConditionalJump, hasUnconditionalJump;
 
   std::vector<ChainElem>::iterator begin() { return chain.begin(); }
 

@@ -135,6 +135,7 @@ private:
   static bool isNoop(const char *type, x86_reg reg1, x86_reg reg2) {
     if (strcmp(type, "copy") == 0 && reg1 == reg2)
       return true;
+
     return false;
   }
 };
@@ -187,11 +188,7 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
         strcmp(entry->d_name, "..")) {
 
       // constructing path to dir
-      std::string newpath = std::string();
-
-      newpath += path;
-      newpath += "/";
-      newpath += entry->d_name;
+      std::string newpath = fmt::format("{}/{}", path, entry->d_name);
 
       // llvm::dbgs() << "recursing into: " << newpath << "\n";
 
@@ -208,19 +205,22 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
 bool getLibraryPath(std::string &libraryPath) {
   if (!CustomLibraryPath.empty()) {
     libraryPath = CustomLibraryPath.getValue();
-    dbgs() << "[*] Using custom library path: " << libraryPath << "\n";
+
+    dbgs() << fmt::format("[*] Using custom library path: {}\n", libraryPath);
+
     return true;
   }
 
-  uint maxrecursedepth = 3;
+  uint8_t maxrecursedepth = 3;
   libraryPath.clear();
 
   for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
     if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
-      dbgs() << "[*] Using library path: " << libraryPath << "\n";
+      dbgs() << fmt::format("[*] Using library path: {}\n", libraryPath);
       return true;
     }
   }
+
   return false;
 }
 
@@ -1022,8 +1022,8 @@ void ROPChain::removeDuplicates() {
 
 void generateChainLabels(string &chainLabel, string &resumeLabel,
                          StringRef funcName, int chainID) {
-  chainLabel += funcName.str() + "_chain_" + to_string(chainID);
-  resumeLabel += "resume_" + chainLabel;
+  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
+  resumeLabel = fmt::format("resume_{}", chainLabel);
 
   // replacing $ with _
   std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');

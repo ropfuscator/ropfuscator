@@ -59,26 +59,32 @@ struct ROPfuscatorCore::ROPChainStatEntry {
   template <class StreamT> void debugPrint(StreamT &os) const {
     const ROPChainStatEntry &entry = *this;
 
-    os << "stat:ropfuscated " << entry[ROPChainStatus::OK] << " / total "
-       << entry.total() << " ["
-       << " not-implemented: " << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED]
-       << " no-register: " << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE]
-       << " no-gadget: " << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE]
-       << " unsupported: " << entry[ROPChainStatus::ERR_UNSUPPORTED]
-       << " unsupported-esp: "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " ]";
+    string msg =
+        fmt::format("stat: ropfuscated {} / total {}\n[not-implemented: {} | "
+                    "no-register: {} | no-gadget: {} "
+                    "| unsupported: {} | unsupported-esp: {}]",
+                    entry[ROPChainStatus::OK], entry.total(),
+                    entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
+                    entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
+                    entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
+                    entry[ROPChainStatus::ERR_UNSUPPORTED],
+                    entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER]);
+
+    os << msg;
   }
 
   template <class StreamT> void debugPrintSimple(StreamT &os) const {
     const ROPChainStatEntry &entry = *this;
 
-    os << entry[ROPChainStatus::OK] << " "
-       << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED] << " "
-       << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE] << " "
-       << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE] << " "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED] << " "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " "
-       << entry.total();
+    string msg = fmt::format(
+        "{} {} {} {} {} {} {}", entry[ROPChainStatus::OK],
+        entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
+        entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
+        entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
+        entry[ROPChainStatus::ERR_UNSUPPORTED],
+        entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER], entry.total());
+
+    os << msg;
   }
 };
 #endif
@@ -407,36 +413,34 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 #endif
 
       if (status != ROPChainStatus::OK) {
-        // unable to obfuscate
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
+        string msg = fmt::format("{}\t✗ Unsupported instruction{}\n", COLOR_RED,
+                                 COLOR_RESET);
+        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << msg);
 
         if (chain0.valid()) {
           insertROPChain(chain0, MBB, *prevMI, chainID++);
           chain0.clear();
         }
         continue;
-      } else {
-        // add current instruction in the To-Delete list
-        instrToDelete.push_back(&MI);
-
-        if (chain0.canMerge(result)) {
-          chain0.merge(result);
-        } else {
-          if (chain0.valid()) {
-            insertROPChain(chain0, MBB, *prevMI, chainID++);
-            chain0.clear();
-          }
-          chain0 = std::move(result);
-        }
-        prevMI = &MI;
-
-        // successfully obfuscated
-        DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
-        obfuscated++;
       }
+      // add current instruction in the To-Delete list
+      instrToDelete.push_back(&MI);
+
+      if (chain0.canMerge(result)) {
+        chain0.merge(result);
+      } else {
+        if (chain0.valid()) {
+          insertROPChain(chain0, MBB, *prevMI, chainID++);
+          chain0.clear();
+        }
+        chain0 = std::move(result);
+      }
+      prevMI = &MI;
+
+      string msg = fmt::format("{}\t✓ Replaced{}\n", COLOR_GREEN, COLOR_RESET);
+      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << msg);
+
+      obfuscated++;
     }
 
     if (chain0.valid()) {
@@ -452,9 +456,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     instrToDelete.clear();
   }
 
+  string msg = fmt::format("{}: {}/{} ({}%) instructions obfuscated\n",
+                           MF.getName().str(), obfuscated, processed,
+                           (obfuscated * 100) / processed);
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << MF.getName() << ":  \t"
-                                    << obfuscated << "/" << processed << " ("
-                                    << (obfuscated * 100) / processed
-                                    << "%) instructions obfuscated\n");
+  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << msg);
 }

@@ -31,8 +31,9 @@ public:
     const std::string label;
 
     void add(llvm::MachineInstrBuilder &builder) const {
-      auto external_symbol = builder.getInstr()->getMF()->createExternalSymbolName(label);
-      
+      auto external_symbol =
+          builder.getInstr()->getMF()->createExternalSymbolName(label);
+
       builder.addExternalSymbol(external_symbol);
     }
   };
