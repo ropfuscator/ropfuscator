@@ -20,8 +20,7 @@ struct Symbol {
   // SymVerDirective - it is just an inline asm directive we need to place to
   // force the static linker to pick the right symbol version during the
   // compilation.
-  // TODO: shall we change it to std::string?
-  mutable char *SymVerDirective;
+  std::string SymVerDirective;
 
   // Address - offset relative to the analysed binary file. When we'll reference
   // a gadget in memory we'll use this as base address.
@@ -30,20 +29,7 @@ struct Symbol {
   // Constructor
   Symbol(std::string label, std::string version, uint64_t address)
       : Label(label), Version(version), Address(address) {
-    SymVerDirective = nullptr;
-  }
-
-  // getSymVerDirective - returns a pointer to the SymVerDirective string.
-  const char *getSymVerDirective() const {
-    if (SymVerDirective == nullptr) {
-      std::string msg = fmt::format(".symver {},{}@{}", Label, Label, Version);
-
-      SymVerDirective = new char[msg.length() + 1];
-
-      strcpy(SymVerDirective, msg.c_str());
-    }
-
-    return SymVerDirective;
+    SymVerDirective = fmt::format(".symver {},{}@{}", Label, Label, Version);
   }
 
   // TODO: free heap for Label, Version, SymVerDirective

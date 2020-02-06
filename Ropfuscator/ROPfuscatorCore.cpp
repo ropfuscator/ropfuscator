@@ -222,7 +222,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
       if (sym->Version != "Base") {
-        as.inlineasm(sym->getSymVerDirective());
+        as.inlineasm(sym->SymVerDirective);
       }
 
       if (opaquePredicateEnabled) {
