@@ -24,18 +24,6 @@
 #include <tuple>
 #include <vector>
 
-#if __GNUC__
-#if __x86_64__ || __ppc64__
-#define ARCH_64
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
-                                             "/usr/local/lib32"};
-#else
-#define ARCH_32
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
-                                             "/usr/local/lib"};
-#endif
-#endif
-
 enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 
 class ROPChain {
@@ -43,9 +31,7 @@ public:
   std::vector<ChainElem> chain;
   ChainElem *successor; // jump target at the end of chain
   FlagSaveMode flagSave;
-  bool hasNormalInstr;
-  bool hasConditionalJump;
-  bool hasUnconditionalJump;
+  bool hasNormalInstr, hasConditionalJump, hasUnconditionalJump;
 
   std::vector<ChainElem>::iterator begin() { return chain.begin(); }
 
@@ -110,11 +96,6 @@ enum class ROPChainStatus {
   COUNT
 };
 
-using namespace std;
-using namespace llvm;
-
-bool getLibraryPath(std::string &libraryPath);
-
 // Keeps track of all the instructions to be replaced with the obfuscated
 // ones. Handles the injection of auxiliary machine code to guarantee the
 // correct chain execution and to resume the non-obfuscated code execution
@@ -123,36 +104,39 @@ class ROPEngine {
   ROPChain chain;
   XchgState state;
 
-  ROPChainStatus handleArithmeticRI(MachineInstr *,
+  ROPChainStatus handleArithmeticRI(llvm::MachineInstr *,
                                     std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleArithmeticRR(MachineInstr *,
+  ROPChainStatus handleArithmeticRR(llvm::MachineInstr *,
                                     std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleArithmeticRM(MachineInstr *,
+  ROPChainStatus handleArithmeticRM(llvm::MachineInstr *,
                                     std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleXor32RR(MachineInstr *,
+  ROPChainStatus handleXor32RR(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleLea32r(MachineInstr *,
+  ROPChainStatus handleLea32r(llvm::MachineInstr *,
                               std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32rm(MachineInstr *,
+  ROPChainStatus handleMov32rm(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32mr(MachineInstr *,
+  ROPChainStatus handleMov32mr(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32mi(MachineInstr *,
+  ROPChainStatus handleMov32mi(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleMov32rr(MachineInstr *,
+  ROPChainStatus handleMov32rr(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32mi(MachineInstr *,
+  ROPChainStatus handleCmp32mi(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32ri(MachineInstr *,
+  ROPChainStatus handleCmp32ri(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCmp32rm(MachineInstr *,
+  ROPChainStatus handleCmp32rm(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleJmp1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleJcc1(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCall(MachineInstr *, std::vector<x86_reg> &scratchRegs);
-  ROPChainStatus handleCallReg(MachineInstr *,
+  ROPChainStatus handleJmp1(llvm::MachineInstr *,
+                            std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleJcc1(llvm::MachineInstr *,
+                            std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCall(llvm::MachineInstr *,
+                            std::vector<x86_reg> &scratchRegs);
+  ROPChainStatus handleCallReg(llvm::MachineInstr *,
                                std::vector<x86_reg> &scratchRegs);
-  bool convertOperandToChainPushImm(const MachineOperand &operand,
+  bool convertOperandToChainPushImm(const llvm::MachineOperand &operand,
                                     ChainElem &result);
 
 public:

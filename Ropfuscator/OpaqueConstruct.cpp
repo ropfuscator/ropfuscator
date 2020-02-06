@@ -59,7 +59,7 @@ public:
   OpaqueStorage returnStorage() const override { return target; }
 
   uint32_t returnValue() const override { return value; }
-  
+
   std::vector<llvm_reg_t> getClobberedRegs() const override { return {}; }
 
 private:
@@ -71,7 +71,7 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
     const OpaqueStorage &target, uint32_t value, const std::string &algorithm) {
   if (algorithm == "mov") {
     return std::shared_ptr<OpaqueConstruct>(new MovConstant32(target, value));
-  } else {
-    return std::shared_ptr<OpaqueConstruct>();
   }
+
+  return std::shared_ptr<OpaqueConstruct>();
 }

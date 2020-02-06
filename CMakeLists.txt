@@ -30,6 +30,7 @@ set(ROPFUSCATOR_SOURCES
         Ropfuscator/CapstoneLLVMAdpt.cpp
         Ropfuscator/LivenessAnalysis.cpp
         Ropfuscator/OpaqueConstruct.cpp
+        Ropfuscator/Debug.cpp
         )
 
 set(sources

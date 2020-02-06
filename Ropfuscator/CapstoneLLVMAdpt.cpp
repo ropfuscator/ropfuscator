@@ -33,12 +33,13 @@ bool areEqualOps(const cs_x86_op &op0, const cs_x86_op &op1) {
 x86_reg extractReg(const cs_x86_op op) {
   if (op.type == X86_OP_REG)
     return op.reg;
-  else
-    return (x86_reg)op.mem.base;
+
+  return (x86_reg)op.mem.base;
 }
 
 cs_x86_op opCreate(x86_op_type type, unsigned int value) {
   cs_x86_op op;
+
   op.type = type;
 
   switch (type) {
@@ -52,6 +53,7 @@ cs_x86_op opCreate(x86_op_type type, unsigned int value) {
   }
   case X86_OP_MEM: {
     x86_op_mem mem;
+
     op.mem = mem;
     op.mem.base = (x86_reg)value;
     break;
@@ -77,12 +79,12 @@ struct RegMap {
   RegMap() {
     capstone_to_llvm.fill(llvm::X86::NoRegister);
     llvm_to_capstone.fill(X86_REG_INVALID);
+    
     for (auto &entry : mappingTable) {
       capstone_to_llvm[entry.capstonereg] = entry.llvmreg;
       llvm_to_capstone[entry.llvmreg] = entry.capstonereg;
     }
   }
-  
 } static const regmap;
 
 #define R(N)                                                                   \

@@ -3,8 +3,8 @@
 #include "Debug.h"
 #include "Symbol.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include <dirent.h>
 
+using std::string;
 using namespace llvm;
 
 class ROPChainBuilder {
@@ -12,8 +12,7 @@ class ROPChainBuilder {
 
   struct VirtualInstr {
     const char *type;
-    x86_reg reg1;
-    x86_reg reg2;
+    x86_reg reg1, reg2;
     ChainElem immediate;
 
     VirtualInstr(const char *type, x86_reg reg1, x86_reg reg2)
@@ -33,9 +32,7 @@ class ROPChainBuilder {
   size_t numScratchRegs;
 
 public:
-  bool normalInstrFlag;
-  bool jumpInstrFlag;
-  bool conditionalJumpInstrFlag;
+  bool normalInstrFlag, jumpInstrFlag, conditionalJumpInstrFlag;
 
   ROPChainBuilder &append(const char *type, x86_reg reg1,
                           x86_reg reg2 = X86_REG_INVALID) {
@@ -88,146 +85,63 @@ private:
         }
       }
       return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-    } else {
-      std::vector<ROPChain> chains;
-
-      XchgState state0(state);
-
-      for (const VirtualInstr &vi : vchain) {
-        if (vi.isReorder()) {
-          ROPChain chain = BA->undoXchgs(state0);
-          chains.push_back(chain);
-        } else if (vi.type) {
-          x86_reg reg1 = vi.reg1 >= 0 ? vi.reg1 : regList[-vi.reg1 - 1];
-          x86_reg reg2 = vi.reg2 >= 0 ? vi.reg2 : regList[-vi.reg2 - 1];
-
-          if (!isNoop(vi.type, reg1, reg2)) {
-            ROPChain chain =
-                BA->findGadgetPrimitive(state0, vi.type, reg1, reg2);
-
-            if (!chain.valid())
-              return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
-
-            chains.push_back(chain);
-          }
-        } else {
-          if (chains.empty())
-            chains.emplace_back();
-
-          chains.back().emplace_back(vi.immediate);
-        }
-      }
-
-      for (const ROPChain &chain : chains) {
-        result.append(chain);
-      }
-
-      state = state0;
-
-      if (normalInstrFlag)
-        result.hasNormalInstr = true;
-
-      if (jumpInstrFlag)
-        result.hasUnconditionalJump = true;
-
-      if (conditionalJumpInstrFlag)
-        result.hasConditionalJump = true;
-
-      return ROPChainStatus::OK;
     }
+
+    std::vector<ROPChain> chains;
+    XchgState state0(state);
+
+    for (const VirtualInstr &vi : vchain) {
+      if (vi.isReorder()) {
+        ROPChain chain = BA->undoXchgs(state0);
+        chains.push_back(chain);
+      } else if (vi.type) {
+        x86_reg reg1 = vi.reg1 >= 0 ? vi.reg1 : regList[-vi.reg1 - 1];
+        x86_reg reg2 = vi.reg2 >= 0 ? vi.reg2 : regList[-vi.reg2 - 1];
+
+        if (!isNoop(vi.type, reg1, reg2)) {
+          ROPChain chain = BA->findGadgetPrimitive(state0, vi.type, reg1, reg2);
+
+          if (!chain.valid())
+            return ROPChainStatus::ERR_NO_GADGETS_AVAILABLE;
+
+          chains.push_back(chain);
+        }
+      } else {
+        if (chains.empty())
+          chains.emplace_back();
+
+        chains.back().emplace_back(vi.immediate);
+      }
+    }
+
+    for (const ROPChain &chain : chains) {
+      result.append(chain);
+    }
+
+    state = state0;
+
+    if (normalInstrFlag)
+      result.hasNormalInstr = true;
+
+    if (jumpInstrFlag)
+      result.hasUnconditionalJump = true;
+
+    if (conditionalJumpInstrFlag)
+      result.hasConditionalJump = true;
+
+    return ROPChainStatus::OK;
   }
 
   static bool isNoop(const char *type, x86_reg reg1, x86_reg reg2) {
     if (strcmp(type, "copy") == 0 && reg1 == reg2)
       return true;
+
     return false;
   }
 };
 
 static const x86_reg SCRATCH_1 = (x86_reg)-1;
 static const x86_reg SCRATCH_2 = (x86_reg)-2;
-
-static cl::opt<std::string> CustomLibraryPath(
-    "use-custom-lib",
-    cl::desc("Specify a custom library which gadget must be extracted from"),
-    cl::NotHidden, cl::Optional, cl::ValueRequired);
-
-// TODO: plz improve me
-bool recurseLibcDir(const char *path, std::string &libraryPath,
-                    uint current_depth) {
-  DIR *dir;
-  struct dirent *entry;
-
-  if (!current_depth) {
-    return false;
-  }
-
-  dir = opendir(path);
-
-  if (dir == nullptr)
-    return false;
-
-  // searching for libc in regular files only
-  while ((entry = readdir(dir)) != nullptr) {
-    if (!strcmp(entry->d_name, "libc.so.6")) {
-      libraryPath += path;
-      libraryPath += "/";
-      libraryPath += entry->d_name;
-
-      // llvm::dbgs() << "libc found here: " << libraryPath << "\n";
-
-      return true;
-    }
-  }
-
-  // could not find libc, recursing into directories
-  dir = opendir(path);
-
-  if (dir == nullptr)
-    return false;
-
-  while ((entry = readdir(dir))) {
-    // must be a dir and not "." or ".."
-    if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") &&
-        strcmp(entry->d_name, "..")) {
-
-      // constructing path to dir
-      std::string newpath = std::string();
-
-      newpath += path;
-      newpath += "/";
-      newpath += entry->d_name;
-
-      // llvm::dbgs() << "recursing into: " << newpath << "\n";
-
-      // recurse into dir
-      if (recurseLibcDir(newpath.c_str(), libraryPath, current_depth - 1))
-        return true;
-    }
-  }
-
-  return false;
-}
-
-// TODO: plz improve me
-bool getLibraryPath(std::string &libraryPath) {
-  if (!CustomLibraryPath.empty()) {
-    libraryPath = CustomLibraryPath.getValue();
-    dbgs() << "[*] Using custom library path: " << libraryPath << "\n";
-    return true;
-  }
-
-  uint maxrecursedepth = 3;
-  libraryPath.clear();
-
-  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
-      dbgs() << "[*] Using library path: " << libraryPath << "\n";
-      return true;
-    }
-  }
-  return false;
-}
 
 // ------------------------------------------------------------------------
 // ROP Chain
@@ -306,9 +220,9 @@ bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand,
   } else if (operand.isGlobal()) {
     result = ChainElem::fromGlobal(operand.getGlobal(), operand.getOffset());
     return true;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
 ROPChainStatus
@@ -537,7 +451,6 @@ ROPChainStatus ROPEngine::handleMov32rm(MachineInstr *MI,
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(1).getReg());
-
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
@@ -569,7 +482,6 @@ ROPChainStatus ROPEngine::handleMov32mr(MachineInstr *MI,
   // extract operands
   x86_reg dst = convertToCapstoneReg(MI->getOperand(0).getReg());
   x86_reg src = convertToCapstoneReg(MI->getOperand(5).getReg());
-
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
@@ -891,14 +803,12 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
-                  dbgs() << "[LivenessAnalysis] avail. scratch registers:\t");
-
-#ifndef NDEBUG
-  for (auto &a : scratchRegs) {
-    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << a << " ");
+                  dbg_fmt("[LivenessAnalysis] Available scratch registers:\t"));
+  for (auto &reg : scratchRegs) {
+    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbg_fmt("{} ", reg));
+    (void)reg; // suppress unused warning
   }
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
-#endif
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbg_fmt("\n"));
 
   ROPChainStatus status;
   FlagSaveMode flagSave;
@@ -1024,13 +934,4 @@ void ROPChain::removeDuplicates() {
         break;
     }
   } while (duplicates);
-}
-
-void generateChainLabels(string& chainLabel, string& resumeLabel,
-                         StringRef funcName, int chainID) {
-  chainLabel += funcName.str() + "_chain_" + to_string(chainID);
-  resumeLabel += "resume_" + chainLabel;
-
-  // replacing $ with _
-  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
 }

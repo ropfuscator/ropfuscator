@@ -21,6 +21,8 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cmath>
 #include <map>
@@ -30,8 +32,26 @@
 
 using namespace llvm;
 
-void generateChainLabels(string &chainLabel, string &resumeLabel,
-                         StringRef funcName, int chainID);
+#if __GNUC__
+#if __x86_64__ || __ppc64__
+#define ARCH_64
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
+                                             "/usr/local/lib32"};
+#else
+#define ARCH_32
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
+                                             "/usr/local/lib"};
+#endif
+#endif
+
+void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
+                         StringRef funcName, int chainID) {
+  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
+  resumeLabel = fmt::format("resume_{}", chainLabel);
+
+  // replacing $ with _
+  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
+}
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
@@ -50,38 +70,79 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 
   ROPChainStatEntry() { memset(data, 0, sizeof(data)); }
 
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                       const ROPChainStatEntry &entry) {
-    entry.debugPrint(os);
+  static constexpr const char *DEBUG_FMT_NORMAL =
+      "stat: ropfuscated {0} / total {6}\n[not-implemented: {1} | "
+      "no-register: {2} | no-gadget: {3} "
+      "| unsupported: {4} | unsupported-esp: {5}]";
+  static constexpr const char *DEBUG_FMT_SIMPLE = "{0} {1} {2} {3} {4} {5} {6}";
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const ROPChainStatEntry &entry) {
+    fmt::print(os, DEBUG_FMT_NORMAL, entry[ROPChainStatus::OK],
+               entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
+               entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
+               entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
+               entry[ROPChainStatus::ERR_UNSUPPORTED],
+               entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER],
+               entry.total());
     return os;
-  }
-
-  template <class StreamT> void debugPrint(StreamT &os) const {
-    const ROPChainStatEntry &entry = *this;
-
-    os << "stat:ropfuscated " << entry[ROPChainStatus::OK] << " / total "
-       << entry.total() << " ["
-       << " not-implemented: " << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED]
-       << " no-register: " << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE]
-       << " no-gadget: " << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE]
-       << " unsupported: " << entry[ROPChainStatus::ERR_UNSUPPORTED]
-       << " unsupported-esp: "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " ]";
-  }
-
-  template <class StreamT> void debugPrintSimple(StreamT &os) const {
-    const ROPChainStatEntry &entry = *this;
-
-    os << entry[ROPChainStatus::OK] << " "
-       << entry[ROPChainStatus::ERR_NOT_IMPLEMENTED] << " "
-       << entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE] << " "
-       << entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE] << " "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED] << " "
-       << entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER] << " "
-       << entry.total();
   }
 };
 #endif
+
+static bool findLibcRecursive(const llvm::Twine &path, std::string &libraryPath,
+                              int current_depth) {
+  if (current_depth == 0) {
+    return false;
+  }
+
+  std::error_code ec;
+  auto dir_it = llvm::sys::fs::directory_iterator(path, ec);
+  auto dir_end = llvm::sys::fs::directory_iterator();
+
+  // searching for libc in regular files only
+  while (!ec && dir_it != dir_end) {
+    auto st = dir_it->status();
+    if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
+        llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
+      libraryPath = dir_it->path();
+      // dbg_fmt("libc found here: {}\n", libraryPath);
+
+      return true;
+    }
+    dir_it.increment(ec);
+  }
+
+  // could not find libc, recursing into directories
+  dir_it = llvm::sys::fs::directory_iterator(path, ec);
+
+  while (!ec && dir_it != dir_end) {
+    auto st = dir_it->status();
+    if (st && st->type() == llvm::sys::fs::file_type::directory_file) {
+      // recurse into dir
+      // dbg_fmt("recursing into: {}\n", dir_it->path());
+      if (findLibcRecursive(dir_it->path(), libraryPath, current_depth - 1))
+        return true;
+    }
+    dir_it.increment(ec);
+  }
+
+  return false;
+}
+
+static std::string findLibcPath() {
+  std::string libraryPath;
+  int maxrecursedepth = 3;
+
+  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
+    if (findLibcRecursive(folder, libraryPath, maxrecursedepth)) {
+      dbg_fmt("[*] Using library path: {}\n", libraryPath);
+      return libraryPath;
+    }
+  }
+
+  return "";
+}
 
 // ----------------------------------------------------------------
 
@@ -91,9 +152,8 @@ ROPfuscatorCore::ROPfuscatorCore()
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   for (auto &kv : instr_stat) {
-    DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = "
-                                      << TII->getName(kv.first) << " : "
-                                      << kv.second << "\n");
+    DEBUG_WITH_TYPE(OBF_STATS, dbg_fmt("{} = {} : {}\n", kv.first,
+                                       TII->getName(kv.first), kv.second));
     (void)kv; // suppress unused warnings
   }
 #endif
@@ -130,7 +190,7 @@ static void restoreRegs(X86AssembleHelper &as,
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                      MachineBasicBlock &MBB, MachineInstr &MI,
                                      int chainID) {
-  string chainLabel, resumeLabel;
+  std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
   // EMIT PROLOGUE
@@ -216,7 +276,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
       if (sym->Version != "Base") {
-        as.inlineasm(sym->getSymVerDirective());
+        as.inlineasm(sym->SymVerDirective);
       }
 
       if (opaquePredicateEnabled) {
@@ -286,8 +346,8 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // push $(imm - espoffset)
       auto it = espOffsetMap.find(elem->esp_id);
       if (it == espOffsetMap.end()) {
-        dbgs() << "Internal error: ESP_OFFSET should precede corresponding "
-                  "ESP_PUSH\n";
+        dbg_fmt("Internal error: ESP_OFFSET should precede corresponding "
+                "ESP_PUSH\n");
         exit(1);
       }
       int64_t value = elem->value - it->second;
@@ -328,9 +388,10 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
-    std::string libraryPath;
-    getLibraryPath(libraryPath);
-    BA = BinaryAutopsy::getInstance(libraryPath);
+    if (libcPath.empty()) {
+      libcPath = findLibcPath();
+    }
+    BA = BinaryAutopsy::getInstance(libcPath);
     BA->analyseUsedSymbols(MF.getFunction().getParent());
   }
 
@@ -339,7 +400,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     const X86Subtarget &target = MF.getSubtarget<X86Subtarget>();
 
     if (target.is64Bit()) {
-      llvm::dbgs() << "Error: currently ROPfuscator only works for 32bit.\n";
+      dbg_fmt("Error: currently ROPfuscator only works for 32bit.\n");
       exit(1);
     }
 
@@ -369,7 +430,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       if (MI.isDebugInstr())
         continue;
 
-      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
+      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbg_fmt("    {}", MI));
       processed++;
 
       // get the list of scratch registers available for this instruction
@@ -407,36 +468,34 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 #endif
 
       if (status != ROPChainStatus::OK) {
-        // unable to obfuscate
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << "\033[31;2m    ✗  Unsupported instruction\033[0m\n");
+        DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                        dbg_fmt("{}\t✗ Unsupported instruction{}\n", COLOR_RED,
+                                COLOR_RESET));
 
         if (chain0.valid()) {
           insertROPChain(chain0, MBB, *prevMI, chainID++);
           chain0.clear();
         }
         continue;
-      } else {
-        // add current instruction in the To-Delete list
-        instrToDelete.push_back(&MI);
-
-        if (chain0.canMerge(result)) {
-          chain0.merge(result);
-        } else {
-          if (chain0.valid()) {
-            insertROPChain(chain0, MBB, *prevMI, chainID++);
-            chain0.clear();
-          }
-          chain0 = std::move(result);
-        }
-        prevMI = &MI;
-
-        // successfully obfuscated
-        DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbgs() << "\033[32m    ✓  Replaced\033[0m\n");
-        obfuscated++;
       }
+      // add current instruction in the To-Delete list
+      instrToDelete.push_back(&MI);
+
+      if (chain0.canMerge(result)) {
+        chain0.merge(result);
+      } else {
+        if (chain0.valid()) {
+          insertROPChain(chain0, MBB, *prevMI, chainID++);
+          chain0.clear();
+        }
+        chain0 = std::move(result);
+      }
+      prevMI = &MI;
+
+      DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                      dbg_fmt("{}\t✓ Replaced{}\n", COLOR_GREEN, COLOR_RESET));
+
+      obfuscated++;
     }
 
     if (chain0.valid()) {
@@ -453,8 +512,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   }
 
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << "   " << MF.getName() << ":  \t"
-                                    << obfuscated << "/" << processed << " ("
-                                    << (obfuscated * 100) / processed
-                                    << "%) instructions obfuscated\n");
+  DEBUG_WITH_TYPE(OBF_STATS,
+                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
+                          MF.getName().str(), obfuscated, processed,
+                          (obfuscated * 100) / processed));
 }
