@@ -35,14 +35,11 @@ struct Symbol {
   // getSymVerDirective - returns a pointer to the SymVerDirective string.
   const char *getSymVerDirective() const {
     if (SymVerDirective == nullptr) {
-      std::stringstream ss;
       std::string msg = fmt::format(".symver {},{}@{}", Label, Label, Version);
-      
-      ss << msg;
 
-      SymVerDirective = new char[ss.str().length() + 1];
+      SymVerDirective = new char[msg.length() + 1];
 
-      strcpy(SymVerDirective, ss.str().c_str());
+      strcpy(SymVerDirective, msg.c_str());
     }
 
     return SymVerDirective;
