@@ -318,8 +318,9 @@ void BinaryAutopsy::dumpSections() {
 
     Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
 
-    string msg = fmt::format("[SECTIONS]\t Found section {}\n", sectname);
-    DEBUG_WITH_TYPE(SECTIONS, llvm::dbgs() << msg);
+    DEBUG_WITH_TYPE(SECTIONS,
+                    llvm::dbgs() << string(fmt::format(
+                        "[SECTIONS]\t Found section {}\n", sectname)));
   }
 }
 
@@ -584,8 +585,9 @@ BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0,
 }
 
 void BinaryAutopsy::buildXchgGraph() {
-  string msg = fmt::format("[XchgGraph] Building the exchange graph...\n");
-  DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
+  DEBUG_WITH_TYPE(XCHG_GRAPH,
+                  llvm::dbgs()
+                      << "[XchgGraph] Building the exchange graph...\n");
 
   xgraph = XchgGraph();
 
@@ -593,9 +595,9 @@ void BinaryAutopsy::buildXchgGraph() {
   auto XchgGadgets = findAllGadgets(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
 
   if (XchgGadgets.empty()) {
-    string msg = fmt::format(
-        "[XchgGraph]\t[!] Unable to build graph: no xchg gadgets found\n");
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
+                                    << "[XchgGraph]\t[!] Unable to build "
+                                       "graph: no xchg gadgets found\n");
 
     return;
   }
@@ -606,9 +608,9 @@ void BinaryAutopsy::buildXchgGraph() {
 
     xgraph.addEdge(edge_a, edge_b);
 
-    string msg =
-        fmt::format("[XchgGraph]\tAdded new edge: {}, {}\n", edge_a, edge_b);
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << msg);
+    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << string(fmt::format(
+                                    "[XchgGraph]\tAdded new edge: {}, {}\n",
+                                    edge_a, edge_b)));
   }
 }
 
@@ -642,8 +644,9 @@ void BinaryAutopsy::applyGadgetFilters() {
           op_b.mem.segment != X86_REG_INVALID || op_b.mem.disp != 0));
 
     if (condition_1 || condition_2 || condition_3) {
-      string msg = fmt::format("[GadgetFilter]\tExcluded: {}\n", g->asmInstr);
-      DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << msg);
+      DEBUG_WITH_TYPE(GADGET_FILTER,
+                      llvm::dbgs() << string(fmt::format(
+                          "[GadgetFilter]\tExcluded: {}\n", g->asmInstr)));
 
       g = Microgadgets.erase(g);
       excluded_count++;
@@ -760,9 +763,10 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
   }
 
-  string msg = fmt::format("[GadgetFilter]\t{} gadgets have been excluded.\n",
-                           excluded_count);
-  DEBUG_WITH_TYPE(GADGET_FILTER, llvm::dbgs() << msg);
+  DEBUG_WITH_TYPE(
+      GADGET_FILTER,
+      llvm::dbgs() << string(fmt::format(
+          "[GadgetFilter]\t{} gadgets have been excluded.\n", excluded_count)));
 }
 
 bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {

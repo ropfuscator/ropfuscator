@@ -54,10 +54,11 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
     LiveRegs.stepForward(*MI, Clobbers);
   }
 
-  string msg = fmt::format("[LivenessAnalysis]\tRegister liveness analysis "
-                           "performed on basic block {}\n",
-                           MBB.getNumber());
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << msg);
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
+                  dbgs() << string(fmt::format(
+                      "[LivenessAnalysis]\tRegister liveness analysis "
+                      "performed on basic block {}\n",
+                      MBB.getNumber())));
 
   return regs;
 }
