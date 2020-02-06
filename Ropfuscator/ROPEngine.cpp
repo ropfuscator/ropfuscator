@@ -883,13 +883,14 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     }
   }
 
-  string msg = fmt::format("[LivenessAnalysis] Available scratch registers:\t");
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << msg);
+  DEBUG_WITH_TYPE(
+      LIVENESS_ANALYSIS,
+      dbgs() << "[LivenessAnalysis] Available scratch registers:\t");
 
 #ifndef NDEBUG
   for (auto &reg : scratchRegs) {
-    string msg = fmt::format("{} ", reg);
-    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << msg);
+    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs()
+                                           << string(fmt::format("{} ", reg)));
   }
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
 #endif

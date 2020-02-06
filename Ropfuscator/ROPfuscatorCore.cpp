@@ -413,9 +413,10 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 #endif
 
       if (status != ROPChainStatus::OK) {
-        string msg = fmt::format("{}\t✗ Unsupported instruction{}\n", COLOR_RED,
-                                 COLOR_RESET);
-        DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << msg);
+        DEBUG_WITH_TYPE(
+            PROCESSED_INSTR,
+            dbgs() << string(fmt::format("{}\t✗ Unsupported instruction{}\n",
+                                         COLOR_RED, COLOR_RESET)));
 
         if (chain0.valid()) {
           insertROPChain(chain0, MBB, *prevMI, chainID++);
@@ -437,8 +438,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       }
       prevMI = &MI;
 
-      string msg = fmt::format("{}\t✓ Replaced{}\n", COLOR_GREEN, COLOR_RESET);
-      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << msg);
+      DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                      dbgs() << string(fmt::format("{}\t✓ Replaced{}\n",
+                                                   COLOR_GREEN, COLOR_RESET)));
 
       obfuscated++;
     }
@@ -456,9 +458,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     instrToDelete.clear();
   }
 
-  string msg = fmt::format("{}: {}/{} ({}%) instructions obfuscated\n",
-                           MF.getName().str(), obfuscated, processed,
-                           (obfuscated * 100) / processed);
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << msg);
+  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << string(fmt::format(
+                                 "{}: {}/{} ({}%) instructions obfuscated\n",
+                                 MF.getName().str(), obfuscated, processed,
+                                 (obfuscated * 100) / processed)));
 }
