@@ -33,6 +33,7 @@ public:
   void obfuscateFunction(llvm::MachineFunction &MF);
 
   bool opaquePredicateEnabled;
+  std::string libcPath;
 
 private:
   BinaryAutopsy *BA;

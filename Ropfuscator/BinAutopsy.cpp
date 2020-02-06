@@ -18,6 +18,7 @@
 #include <time.h>
 
 using namespace std;
+using namespace llvm;
 
 #include "llvm/Object/ELF.h"
 using llvm::object::ELF32LE;
