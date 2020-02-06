@@ -3,8 +3,8 @@
 #include "Debug.h"
 #include "Symbol.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include <dirent.h>
 
+using std::string;
 using namespace llvm;
 
 class ROPChainBuilder {
@@ -142,87 +142,6 @@ private:
 
 static const x86_reg SCRATCH_1 = (x86_reg)-1;
 static const x86_reg SCRATCH_2 = (x86_reg)-2;
-
-static cl::opt<std::string> CustomLibraryPath(
-    "use-custom-lib",
-    cl::desc("Specify a custom library which gadget must be extracted from"),
-    cl::NotHidden, cl::Optional, cl::ValueRequired);
-
-// TODO: plz improve me
-bool recurseLibcDir(const char *path, std::string &libraryPath,
-                    uint current_depth) {
-  DIR *dir;
-  struct dirent *entry;
-
-  if (!current_depth) {
-    return false;
-  }
-
-  dir = opendir(path);
-
-  if (dir == nullptr)
-    return false;
-
-  // searching for libc in regular files only
-  while ((entry = readdir(dir)) != nullptr) {
-    if (!strcmp(entry->d_name, "libc.so.6")) {
-      libraryPath += path;
-      libraryPath += "/";
-      libraryPath += entry->d_name;
-
-      // dbg_fmt("libc found here: {}\n", libraryPath);
-
-      return true;
-    }
-  }
-
-  // could not find libc, recursing into directories
-  dir = opendir(path);
-
-  if (dir == nullptr)
-    return false;
-
-  while ((entry = readdir(dir))) {
-    // must be a dir and not "." or ".."
-    if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") &&
-        strcmp(entry->d_name, "..")) {
-
-      // constructing path to dir
-      std::string newpath = fmt::format("{}/{}", path, entry->d_name);
-
-      // dbg_fmt("recursing into: {}\n", newpath);
-
-      // recurse into dir
-      if (recurseLibcDir(newpath.c_str(), libraryPath, current_depth - 1))
-        return true;
-    }
-  }
-
-  return false;
-}
-
-// TODO: plz improve me
-bool getLibraryPath(std::string &libraryPath) {
-  if (!CustomLibraryPath.empty()) {
-    libraryPath = CustomLibraryPath.getValue();
-
-    dbg_fmt("[*] Using custom library path: {}\n", libraryPath);
-
-    return true;
-  }
-
-  uint8_t maxrecursedepth = 3;
-  libraryPath.clear();
-
-  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
-      dbg_fmt("[*] Using library path: {}\n", libraryPath);
-      return true;
-    }
-  }
-
-  return false;
-}
 
 // ------------------------------------------------------------------------
 // ROP Chain

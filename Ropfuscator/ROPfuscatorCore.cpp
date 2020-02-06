@@ -21,6 +21,8 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cmath>
 #include <map>
@@ -30,7 +32,7 @@
 
 using namespace llvm;
 
-void generateChainLabels(string &chainLabel, string &resumeLabel,
+void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID);
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -69,6 +71,60 @@ struct ROPfuscatorCore::ROPChainStatEntry {
   }
 };
 #endif
+
+static bool findLibcRecursive(const llvm::Twine &path, std::string &libraryPath,
+                              int current_depth) {
+  if (current_depth == 0) {
+    return false;
+  }
+
+  std::error_code ec;
+  auto dir_it = llvm::sys::fs::directory_iterator(path, ec);
+  auto dir_end = llvm::sys::fs::directory_iterator();
+
+  // searching for libc in regular files only
+  while (!ec && dir_it != dir_end) {
+    auto st = dir_it->status();
+    if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
+        llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
+      libraryPath = dir_it->path();
+      // dbg_fmt("libc found here: {}\n", libraryPath);
+
+      return true;
+    }
+    dir_it.increment(ec);
+  }
+
+  // could not find libc, recursing into directories
+  dir_it = llvm::sys::fs::directory_iterator(path, ec);
+
+  while (!ec && dir_it != dir_end) {
+    auto st = dir_it->status();
+    if (st && st->type() == llvm::sys::fs::file_type::directory_file) {
+      // recurse into dir
+      // dbg_fmt("recursing into: {}\n", dir_it->path());
+      if (findLibcRecursive(dir_it->path(), libraryPath, current_depth - 1))
+        return true;
+    }
+    dir_it.increment(ec);
+  }
+
+  return false;
+}
+
+static std::string findLibcPath() {
+  std::string libraryPath;
+  int maxrecursedepth = 3;
+
+  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
+    if (findLibcRecursive(folder, libraryPath, maxrecursedepth)) {
+      dbg_fmt("[*] Using library path: {}\n", libraryPath);
+      return libraryPath;
+    }
+  }
+
+  return "";
+}
 
 // ----------------------------------------------------------------
 
@@ -116,7 +172,7 @@ static void restoreRegs(X86AssembleHelper &as,
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                      MachineBasicBlock &MBB, MachineInstr &MI,
                                      int chainID) {
-  string chainLabel, resumeLabel;
+  std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
   // EMIT PROLOGUE
@@ -314,9 +370,10 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
-    std::string libraryPath;
-    getLibraryPath(libraryPath);
-    BA = BinaryAutopsy::getInstance(libraryPath);
+    if (libcPath.empty()) {
+      libcPath = findLibcPath();
+    }
+    BA = BinaryAutopsy::getInstance(libcPath);
     BA->analyseUsedSymbols(MF.getFunction().getParent());
   }
 
