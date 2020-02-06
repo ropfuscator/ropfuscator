@@ -935,12 +935,3 @@ void ROPChain::removeDuplicates() {
     }
   } while (duplicates);
 }
-
-void generateChainLabels(string &chainLabel, string &resumeLabel,
-                         StringRef funcName, int chainID) {
-  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
-  resumeLabel = fmt::format("resume_{}", chainLabel);
-
-  // replacing $ with _
-  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
-}

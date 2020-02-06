@@ -24,18 +24,6 @@
 #include <tuple>
 #include <vector>
 
-#if __GNUC__
-#if __x86_64__ || __ppc64__
-#define ARCH_64
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
-                                             "/usr/local/lib32"};
-#else
-#define ARCH_32
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
-                                             "/usr/local/lib"};
-#endif
-#endif
-
 enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 
 class ROPChain {
