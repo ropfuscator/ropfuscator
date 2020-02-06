@@ -32,8 +32,26 @@
 
 using namespace llvm;
 
+#if __GNUC__
+#if __x86_64__ || __ppc64__
+#define ARCH_64
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
+                                             "/usr/local/lib32"};
+#else
+#define ARCH_32
+const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
+                                             "/usr/local/lib"};
+#endif
+#endif
+
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
-                         StringRef funcName, int chainID);
+                         StringRef funcName, int chainID) {
+  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
+  resumeLabel = fmt::format("resume_{}", chainLabel);
+
+  // replacing $ with _
+  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
+}
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
