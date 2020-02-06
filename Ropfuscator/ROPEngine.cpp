@@ -170,7 +170,7 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
       libraryPath += "/";
       libraryPath += entry->d_name;
 
-      // llvm::dbgs() << "libc found here: " << libraryPath << "\n";
+      // dbg_fmt("libc found here: {}\n", libraryPath);
 
       return true;
     }
@@ -190,7 +190,7 @@ bool recurseLibcDir(const char *path, std::string &libraryPath,
       // constructing path to dir
       std::string newpath = fmt::format("{}/{}", path, entry->d_name);
 
-      // llvm::dbgs() << "recursing into: " << newpath << "\n";
+      // dbg_fmt("recursing into: {}\n", newpath);
 
       // recurse into dir
       if (recurseLibcDir(newpath.c_str(), libraryPath, current_depth - 1))
@@ -206,7 +206,7 @@ bool getLibraryPath(std::string &libraryPath) {
   if (!CustomLibraryPath.empty()) {
     libraryPath = CustomLibraryPath.getValue();
 
-    dbgs() << fmt::format("[*] Using custom library path: {}\n", libraryPath);
+    dbg_fmt("[*] Using custom library path: {}\n", libraryPath);
 
     return true;
   }
@@ -216,7 +216,7 @@ bool getLibraryPath(std::string &libraryPath) {
 
   for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
     if (recurseLibcDir(folder.c_str(), libraryPath, maxrecursedepth)) {
-      dbgs() << fmt::format("[*] Using library path: {}\n", libraryPath);
+      dbg_fmt("[*] Using library path: {}\n", libraryPath);
       return true;
     }
   }
@@ -883,17 +883,13 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     }
   }
 
-  DEBUG_WITH_TYPE(
-      LIVENESS_ANALYSIS,
-      dbgs() << "[LivenessAnalysis] Available scratch registers:\t");
-
-#ifndef NDEBUG
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
+                  dbg_fmt("[LivenessAnalysis] Available scratch registers:\t"));
   for (auto &reg : scratchRegs) {
-    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs()
-                                           << string(fmt::format("{} ", reg)));
+    DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbg_fmt("{} ", reg));
+    (void)reg; // suppress unused warning
   }
-  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbgs() << "\n");
-#endif
+  DEBUG_WITH_TYPE(LIVENESS_ANALYSIS, dbg_fmt("\n"));
 
   ROPChainStatus status;
   FlagSaveMode flagSave;

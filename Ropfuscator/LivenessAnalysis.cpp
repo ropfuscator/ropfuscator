@@ -55,10 +55,9 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
-                  dbgs() << string(fmt::format(
-                      "[LivenessAnalysis]\tRegister liveness analysis "
-                      "performed on basic block {}\n",
-                      MBB.getNumber())));
+                  dbg_fmt("[LivenessAnalysis]\tRegister liveness analysis "
+                          "performed on basic block {}\n",
+                          MBB.getNumber()));
 
   return regs;
 }
