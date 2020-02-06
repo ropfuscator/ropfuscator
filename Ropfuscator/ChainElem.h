@@ -1,3 +1,4 @@
+#include "Debug.h"
 #include "Microgadget.h"
 #include "Symbol.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -8,7 +9,6 @@
 
 // Generic element to be put in the chain.
 struct ChainElem {
-
   enum class Type {
     GADGET,
     IMM_VALUE,
@@ -34,46 +34,57 @@ struct ChainElem {
     // id for ESP_PUSH and ESP_OFFSET
     int esp_id;
   };
+
   // value - immediate value
   int64_t value;
 
   // Factory method (type: GADGET)
   static ChainElem fromGadget(const Microgadget *gadget) {
     ChainElem e;
+
     e.type = Type::GADGET;
     e.microgadget = gadget;
+
     return e;
   }
 
   // Factory method (type: IMM_VALUE)
   static ChainElem fromImmediate(int64_t value) {
     ChainElem e;
+
     e.type = Type::IMM_VALUE;
     e.value = value;
+
     return e;
   }
 
   // Factory method (type: IMM_GLOBAL)
   static ChainElem fromGlobal(const llvm::GlobalValue *global, int64_t offset) {
     ChainElem e;
+
     e.type = Type::IMM_GLOBAL;
     e.global = global;
     e.value = offset;
+
     return e;
   }
 
   // Factory method (type: JMP_BLOCK)
   static ChainElem fromJmpTarget(llvm::MachineBasicBlock *jmptarget) {
     ChainElem e;
+
     e.type = Type::JMP_BLOCK;
     e.jmptarget = jmptarget;
+
     return e;
   }
 
   // Factory method (type: JMP_FALLTHROUGH)
   static ChainElem createJmpFallthrough() {
     ChainElem e;
+
     e.type = Type::JMP_FALLTHROUGH;
+
     return e;
   }
 
@@ -81,17 +92,21 @@ struct ChainElem {
   static ChainElem createStackPointerPush() {
     static int esp_id = 0;
     ChainElem e;
+
     e.type = Type::ESP_PUSH;
     e.esp_id = ++esp_id;
+
     return e;
   }
 
   // Factory method (type: ESP_OFFSET)
   static ChainElem createStackPointerOffset(int64_t value, int esp_id) {
     ChainElem e;
+
     e.type = Type::ESP_OFFSET;
     e.value = value;
     e.esp_id = esp_id;
+
     return e;
   }
 
@@ -101,32 +116,37 @@ struct ChainElem {
 
     if (A.type == Type::GADGET)
       return (A.microgadget == B.microgadget);
-    else
-      return (A.value == B.value);
+
+    return (A.value == B.value);
   }
 
-  template <typename OstreamT> void debugPrint(OstreamT &os) const {
+  friend std::ostream &operator<<(std::ostream &os, const ChainElem &e) {
+    e.debugPrint(os);
+    return os;
+  }
+
+  void debugPrint(std::ostream &os) const {
     switch (type) {
     case Type::GADGET:
-      os << "GADGET    : " << microgadget->asmInstr << "\n";
+      fmt::print(os, "GADGET\t:{}\n", microgadget->asmInstr);
       break;
     case Type::IMM_VALUE:
-      os << "IMM_VALUE : " << value << "\n";
+      fmt::print(os, "IMM_VALUE\t:{}\n", value);
       break;
     case Type::IMM_GLOBAL:
-      os << "IMM_GLOBAL: " << *global << " + " << value << "\n";
+      fmt::print(os, "IMM_GLOBAL:\t:{} + {}\n", *global, value);
       break;
     case Type::JMP_BLOCK:
-      os << "JMP_BLOCK : " << jmptarget->getNumber() << "\n";
+      fmt::print(os, "JMP_BLOCK\t:{}\n", jmptarget->getNumber());
       break;
     case Type::JMP_FALLTHROUGH:
-      os << "JMP_FALLTHROUGH\n";
+      fmt::print(os, "JMP_FALLTHROUGH\n");
       break;
     case Type::ESP_PUSH:
-      os << "ESP_PUSH  : id=" << esp_id << "\n";
+      fmt::print(os, "ESP_PUSH\t:id={}\n", esp_id);
       break;
     case Type::ESP_OFFSET:
-      os << "ESP_OFFSET: " << value << ", id=" << esp_id << "\n";
+      fmt::print(os, "ESP_OFFSET\t:{}, id={}\n", value, esp_id);
       break;
     }
   }

@@ -24,7 +24,7 @@ void addReg(MachineInstr &MI, int reg,
     it->second.push_back(convertToCapstoneReg(reg));
   } else
     assert(false && "No matching MachineInstr found in regs map!");
-    
+
   return;
 }
 
@@ -55,9 +55,9 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
   }
 
   DEBUG_WITH_TYPE(LIVENESS_ANALYSIS,
-                  dbgs() << "[LivenessAnalysis]\tRegister liveness analysis "
-                            "performed on basic block "
-                         << MBB.getNumber() << "\n");
+                  dbg_fmt("[LivenessAnalysis]\tRegister liveness analysis "
+                          "performed on basic block {}\n",
+                          MBB.getNumber()));
 
   return regs;
 }

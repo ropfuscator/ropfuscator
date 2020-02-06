@@ -20,14 +20,14 @@ struct OpaqueStorage {
   };
 
   const Type type;
-  
+
   union {
     /// when type == REG, contains the register (LLVM)
     llvm_reg_t reg;
     /// when type == STACK, contains the stack offset
     int stackOffset;
   };
-  
+
   static const OpaqueStorage EAX, ECX, EDX, EBX;
   static const OpaqueStorage STACK_0, STACK_4, STACK_8, STACK_12;
 
@@ -50,7 +50,7 @@ typedef std::vector<std::pair<OpaqueStorage, OpaqueValue>> OpaqueState;
 struct OpaqueValue {
   // With contextual opaque predicates, compute output from input
   using compute_fun_type = OpaqueValue (*)(const OpaqueState &);
-  
+
   /// Represents value type.
   enum class Type {
     /// when used in input, "input value should be specific value"
@@ -74,13 +74,13 @@ struct OpaqueValue {
 
   /// create a value with type == ANY.
   static OpaqueValue createAny() { return OpaqueValue(Type::ANY, 0, nullptr); }
-  
+
   /// create a value with type == CONSTANT.
   /// @param value the constant value
   static OpaqueValue createConstant(uint64_t value) {
     return OpaqueValue(Type::CONSTANT, value, nullptr);
   }
-  
+
   /// create a value with type == CONTEXTUAL.
   /// @param compute pointer to a function which computes the value from input
   static OpaqueValue createContextual(compute_fun_type compute) {
