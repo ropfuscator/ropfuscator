@@ -20,6 +20,7 @@ struct Symbol {
   // SymVerDirective - it is just an inline asm directive we need to place to
   // force the static linker to pick the right symbol version during the
   // compilation.
+  // TODO: shall we change it to std::string?
   mutable char *SymVerDirective;
 
   // Address - offset relative to the analysed binary file. When we'll reference
