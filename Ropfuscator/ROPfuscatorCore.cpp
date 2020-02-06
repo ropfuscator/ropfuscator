@@ -50,41 +50,22 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 
   ROPChainStatEntry() { memset(data, 0, sizeof(data)); }
 
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                       const ROPChainStatEntry &entry) {
-    entry.debugPrint(os);
+  static constexpr const char *DEBUG_FMT_NORMAL =
+      "stat: ropfuscated {0} / total {6}\n[not-implemented: {1} | "
+      "no-register: {2} | no-gadget: {3} "
+      "| unsupported: {4} | unsupported-esp: {5}]";
+  static constexpr const char *DEBUG_FMT_SIMPLE = "{0} {1} {2} {3} {4} {5} {6}";
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const ROPChainStatEntry &entry) {
+    fmt::print(os, DEBUG_FMT_NORMAL, entry[ROPChainStatus::OK],
+               entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
+               entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
+               entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
+               entry[ROPChainStatus::ERR_UNSUPPORTED],
+               entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER],
+               entry.total());
     return os;
-  }
-
-  template <class StreamT> void debugPrint(StreamT &os) const {
-    const ROPChainStatEntry &entry = *this;
-
-    string msg =
-        fmt::format("stat: ropfuscated {} / total {}\n[not-implemented: {} | "
-                    "no-register: {} | no-gadget: {} "
-                    "| unsupported: {} | unsupported-esp: {}]",
-                    entry[ROPChainStatus::OK], entry.total(),
-                    entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
-                    entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
-                    entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
-                    entry[ROPChainStatus::ERR_UNSUPPORTED],
-                    entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER]);
-
-    os << msg;
-  }
-
-  template <class StreamT> void debugPrintSimple(StreamT &os) const {
-    const ROPChainStatEntry &entry = *this;
-
-    string msg = fmt::format(
-        "{} {} {} {} {} {} {}", entry[ROPChainStatus::OK],
-        entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
-        entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
-        entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
-        entry[ROPChainStatus::ERR_UNSUPPORTED],
-        entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER], entry.total());
-
-    os << msg;
   }
 };
 #endif
@@ -97,9 +78,8 @@ ROPfuscatorCore::ROPfuscatorCore()
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   for (auto &kv : instr_stat) {
-    DEBUG_WITH_TYPE(OBF_STATS, dbgs() << kv.first << " = "
-                                      << TII->getName(kv.first) << " : "
-                                      << kv.second << "\n");
+    DEBUG_WITH_TYPE(OBF_STATS, dbg_fmt("{} = {} : {}\n", kv.first,
+                                       TII->getName(kv.first), kv.second));
     (void)kv; // suppress unused warnings
   }
 #endif
@@ -292,8 +272,8 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // push $(imm - espoffset)
       auto it = espOffsetMap.find(elem->esp_id);
       if (it == espOffsetMap.end()) {
-        dbgs() << "Internal error: ESP_OFFSET should precede corresponding "
-                  "ESP_PUSH\n";
+        dbg_fmt("Internal error: ESP_OFFSET should precede corresponding "
+                "ESP_PUSH\n");
         exit(1);
       }
       int64_t value = elem->value - it->second;
@@ -345,7 +325,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     const X86Subtarget &target = MF.getSubtarget<X86Subtarget>();
 
     if (target.is64Bit()) {
-      llvm::dbgs() << "Error: currently ROPfuscator only works for 32bit.\n";
+      dbg_fmt("Error: currently ROPfuscator only works for 32bit.\n");
       exit(1);
     }
 
@@ -375,7 +355,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       if (MI.isDebugInstr())
         continue;
 
-      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbgs() << "    " << MI);
+      DEBUG_WITH_TYPE(PROCESSED_INSTR, dbg_fmt("    {}", MI));
       processed++;
 
       // get the list of scratch registers available for this instruction
@@ -413,10 +393,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 #endif
 
       if (status != ROPChainStatus::OK) {
-        DEBUG_WITH_TYPE(
-            PROCESSED_INSTR,
-            dbgs() << string(fmt::format("{}\t✗ Unsupported instruction{}\n",
-                                         COLOR_RED, COLOR_RESET)));
+        DEBUG_WITH_TYPE(PROCESSED_INSTR,
+                        dbg_fmt("{}\t✗ Unsupported instruction{}\n", COLOR_RED,
+                                COLOR_RESET));
 
         if (chain0.valid()) {
           insertROPChain(chain0, MBB, *prevMI, chainID++);
@@ -439,8 +418,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       prevMI = &MI;
 
       DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                      dbgs() << string(fmt::format("{}\t✓ Replaced{}\n",
-                                                   COLOR_GREEN, COLOR_RESET)));
+                      dbg_fmt("{}\t✓ Replaced{}\n", COLOR_GREEN, COLOR_RESET));
 
       obfuscated++;
     }
@@ -459,8 +437,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   }
 
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS, dbgs() << string(fmt::format(
-                                 "{}: {}/{} ({}%) instructions obfuscated\n",
-                                 MF.getName().str(), obfuscated, processed,
-                                 (obfuscated * 100) / processed)));
+  DEBUG_WITH_TYPE(OBF_STATS,
+                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
+                          MF.getName().str(), obfuscated, processed,
+                          (obfuscated * 100) / processed));
 }

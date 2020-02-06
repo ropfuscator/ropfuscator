@@ -1,6 +1,6 @@
+#include "Debug.h"
 #include "Microgadget.h"
 #include "Symbol.h"
-#include "fmt/format.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/IR/GlobalValue.h"
 
@@ -120,28 +120,33 @@ struct ChainElem {
     return (A.value == B.value);
   }
 
-  template <typename OstreamT> void debugPrint(OstreamT &os) const {
+  friend std::ostream &operator<<(std::ostream &os, const ChainElem &e) {
+    e.debugPrint(os);
+    return os;
+  }
+
+  void debugPrint(std::ostream &os) const {
     switch (type) {
     case Type::GADGET:
-      fmt::format_to(os, "GADGET\t:{}\n", microgadget->asmInstr);
+      fmt::print(os, "GADGET\t:{}\n", microgadget->asmInstr);
       break;
     case Type::IMM_VALUE:
-      fmt::format_to(os, "IMM_VALUE\t:{}\n", value);
+      fmt::print(os, "IMM_VALUE\t:{}\n", value);
       break;
     case Type::IMM_GLOBAL:
-      fmt::format_to(os, "IMM_GLOBAL:\t:{} + {}\n", *global, value);
+      fmt::print(os, "IMM_GLOBAL:\t:{} + {}\n", *global, value);
       break;
     case Type::JMP_BLOCK:
-      fmt::format_to(os, "JMP_BLOCK\t:{}\n", jmptarget->getNumber());
+      fmt::print(os, "JMP_BLOCK\t:{}\n", jmptarget->getNumber());
       break;
     case Type::JMP_FALLTHROUGH:
-      fmt::format_to(os, "JMP_FALLTHROUGH\n");
+      fmt::print(os, "JMP_FALLTHROUGH\n");
       break;
     case Type::ESP_PUSH:
-      fmt::format_to(os, "ESP_PUSH\t:id={}\n", esp_id);
+      fmt::print(os, "ESP_PUSH\t:id={}\n", esp_id);
       break;
     case Type::ESP_OFFSET:
-      fmt::format_to(os, "ESP_OFFSET\t:{}, id={}\n", value, esp_id);
+      fmt::print(os, "ESP_OFFSET\t:{}, id={}\n", value, esp_id);
       break;
     }
   }

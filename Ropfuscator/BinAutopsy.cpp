@@ -10,6 +10,7 @@
 #include "ROPEngine.h"
 
 #include <assert.h>
+#include <fmt/format.h>
 #include <fstream>
 #include <sstream>
 #include <stdlib.h>
@@ -30,12 +31,11 @@ public:
     ifstream f(path, std::ios::binary);
 
     if (!f.good()) {
-      llvm::dbgs() << fmt::format("Given file {} does not exist or is invalid",
-                                  path);
+      dbg_fmt("Given file {} does not exist or is invalid", path);
       exit(1);
     }
 
-    llvm::dbgs() << fmt::format("Using {}\n", path);
+    // dbg_fmt("Analysing {}\n", path);
 
     f.seekg(0, std::ios::end);
 
@@ -49,8 +49,7 @@ public:
     auto elf_opt = ELF32LEFile::create(StringRef(&buf[0], size));
 
     if (!elf_opt) {
-      dbgs() << fmt::format("ELF file error: {}", path) << elf_opt.takeError()
-             << "\n";
+      dbg_fmt("ELF file error: {}: {}\n", path, elf_opt.takeError());
       exit(1);
     }
 
@@ -308,8 +307,8 @@ void BinaryAutopsy::dumpSegments() {
 }
 
 void BinaryAutopsy::dumpSections() {
-  DEBUG_WITH_TYPE(
-      SECTIONS, llvm::dbgs() << "[SECTIONS]\tLooking for CODE sections... \n");
+  DEBUG_WITH_TYPE(SECTIONS,
+                  dbg_fmt("[SECTIONS]\tLooking for CODE sections... \n"));
   using namespace std;
 
   // Iterates through only the sections that contain executable code
@@ -319,8 +318,7 @@ void BinaryAutopsy::dumpSections() {
     Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
 
     DEBUG_WITH_TYPE(SECTIONS,
-                    llvm::dbgs() << string(fmt::format(
-                        "[SECTIONS]\t Found section {}\n", sectname)));
+                    dbg_fmt("[SECTIONS]\tFound section {}\n", sectname));
   }
 }
 
@@ -347,7 +345,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   if (Sections.empty())
     dumpSections();
 
-  // llvm::dbgs() << "[*] Scanning for symbols... \n";
+  // dbg_fmt("[*] Scanning for symbols... \n");
   auto symbols = elf->getDynamicSymbols();
 
   // Scan for all the symbols
@@ -412,7 +410,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   }
 
   if (Symbols.empty()) {
-    dbgs() << "No symbols found!\n";
+    dbg_fmt("No symbols found!\n");
     exit(1);
   }
 }
@@ -527,7 +525,7 @@ void BinaryAutopsy::dumpGadgets() {
         }
       }
     }
-    // llvm::dbgs() << cnt << " found!\n";
+    // dbg_fmt("{} found!\n", cnt);
   }
 }
 
@@ -586,8 +584,7 @@ BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0,
 
 void BinaryAutopsy::buildXchgGraph() {
   DEBUG_WITH_TYPE(XCHG_GRAPH,
-                  llvm::dbgs()
-                      << "[XchgGraph] Building the exchange graph...\n");
+                  dbg_fmt("[XchgGraph] Building the exchange graph...\n"));
 
   xgraph = XchgGraph();
 
@@ -595,9 +592,10 @@ void BinaryAutopsy::buildXchgGraph() {
   auto XchgGadgets = findAllGadgets(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
 
   if (XchgGadgets.empty()) {
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs()
-                                    << "[XchgGraph]\t[!] Unable to build "
-                                       "graph: no xchg gadgets found\n");
+    DEBUG_WITH_TYPE(
+        XCHG_GRAPH,
+        dbg_fmt("[XchgGraph]\t"
+                "[!] Unable to build graph: no xchg gadgets found\n"));
 
     return;
   }
@@ -608,9 +606,8 @@ void BinaryAutopsy::buildXchgGraph() {
 
     xgraph.addEdge(edge_a, edge_b);
 
-    DEBUG_WITH_TYPE(XCHG_GRAPH, llvm::dbgs() << string(fmt::format(
-                                    "[XchgGraph]\tAdded new edge: {}, {}\n",
-                                    edge_a, edge_b)));
+    DEBUG_WITH_TYPE(XCHG_GRAPH, dbg_fmt("[XchgGraph]\tAdded new edge: {}, {}\n",
+                                        edge_a, edge_b));
   }
 }
 
@@ -645,8 +642,7 @@ void BinaryAutopsy::applyGadgetFilters() {
 
     if (condition_1 || condition_2 || condition_3) {
       DEBUG_WITH_TYPE(GADGET_FILTER,
-                      llvm::dbgs() << string(fmt::format(
-                          "[GadgetFilter]\tExcluded: {}\n", g->asmInstr)));
+                      dbg_fmt("[GadgetFilter]\tExcluded: {}\n", g->asmInstr));
 
       g = Microgadgets.erase(g);
       excluded_count++;
@@ -763,10 +759,9 @@ void BinaryAutopsy::applyGadgetFilters() {
     }
   }
 
-  DEBUG_WITH_TYPE(
-      GADGET_FILTER,
-      llvm::dbgs() << string(fmt::format(
-          "[GadgetFilter]\t{} gadgets have been excluded.\n", excluded_count)));
+  DEBUG_WITH_TYPE(GADGET_FILTER,
+                  dbg_fmt("[GadgetFilter]\t{} gadgets have been excluded.\n",
+                          excluded_count));
 }
 
 bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
@@ -832,8 +827,7 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
              getEffectiveReg(state, op1) == gadget_op1) ||
             (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
              gadget_op0 == gadget_op1)) {
-          DEBUG_WITH_TYPE(XCHG_CHAIN, llvm::dbgs()
-                                          << "\t\tavoiding double xchg\n");
+          DEBUG_WITH_TYPE(XCHG_CHAIN, dbg_fmt("\t\tavoiding double xchg\n"));
         } else {
           auto xchgChain1 =
               exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
