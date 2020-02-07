@@ -159,41 +159,12 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
-static int saveRegs(X86AssembleHelper &as,
-                    const std::vector<llvm_reg_t> &clobberedRegs) {
-  int stackOffset = 0;
-
-  for (auto i = clobberedRegs.begin(); i != clobberedRegs.end(); ++i) {
-    if (*i == X86_REG_EFLAGS) {
-      as.pushf();
-    } else {
-      as.push(as.reg(*i));
-    }
-
-    stackOffset += 4;
-  }
-
-  return stackOffset;
-}
-
-static void restoreRegs(X86AssembleHelper &as,
-                        const std::vector<llvm_reg_t> &clobberedRegs) {
-  for (auto i = clobberedRegs.rbegin(); i != clobberedRegs.rend(); ++i) {
-    if (*i == X86_REG_EFLAGS) {
-      as.popf();
-    } else {
-      as.pop(as.reg(*i));
-    }
-  }
-}
-
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                      MachineBasicBlock &MBB, MachineInstr &MI,
                                      int chainID) {
   std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
-  // EMIT PROLOGUE
   generateChainLabels(chainLabel, resumeLabel, MBB.getParent()->getName(),
                       chainID);
 
@@ -202,22 +173,56 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   std::map<int, int> espOffsetMap;
   int espoffset = 0;
 
+  // stack layout:
+  // 1. saved-regs (and flags, if FlagSaveMode == SAVE_BEFORE_EXEC)
+  // 2. ROP chain
+  // 3. flags (if FlagSaveMode == SAVE_AFTER_EXEC)
+  // 4. return addr (if jump instruction is not ropfuscated)
+
+  std::set<unsigned int> savedRegs;
+  // generate opaque constants before insert
+  std::vector<std::shared_ptr<OpaqueConstruct>> opaqueConstants;
+  if (opaquePredicateEnabled) {
+    savedRegs.insert(X86::EAX);
+    for (auto &elem : chain) {
+      if (elem.type == ChainElem::Type::GADGET) {
+        auto opaqueConstant =
+            OpaqueConstructFactory::createOpaqueConstant32(OpaqueStorage::EAX);
+        opaqueConstants.push_back(opaqueConstant);
+        auto clobbered = opaqueConstant->getClobberedRegs();
+        savedRegs.insert(clobbered.begin(), clobbered.end());
+      }
+    }
+  }
+
+  // EMIT PROLOGUE
+
+  // save registers (and flags if necessary) on top of the stack
+  int regSavedOffset = 4 * (chain.size() + 1);
+  if (chain.hasUnconditionalJump || chain.hasConditionalJump)
+    regSavedOffset -= 4;
+  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC)
+    regSavedOffset += 4;
   if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
-    // If the obfuscated instruction will modify flags,
-    // the flags should be restored after ROP chain is constructed
-    // and just before the ROP chain is executed.
-    // flag is saved at the top of the stack
-    int flagSavedOffset = 4 * (chain.size() + 1);
-
-    if (chain.hasUnconditionalJump || chain.hasConditionalJump)
-      flagSavedOffset -= 4;
-
+    savedRegs.insert(X86::EFLAGS);
+  } else {
+    savedRegs.erase(X86::EFLAGS);
+  }
+  if (!savedRegs.empty()) {
     // lea esp, [esp-4*(N+1)]   # where N = chain size
-    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -flagSavedOffset));
-    // pushf (EFLAGS register backup)
-    as.pushf();
-    // lea esp, [esp+4*(N+2)]   # where N = chain size
-    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, flagSavedOffset + 4));
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -regSavedOffset));
+    // save registers (and flags)
+    for (auto it = savedRegs.begin(); it != savedRegs.end(); ++it) {
+      if (*it == X86::EFLAGS) {
+        as.pushf();
+      } else {
+        as.push(as.reg(*it));
+      }
+    }
+    // lea esp, [esp+4*(N+1+M)]
+    // where N = chain size, M = num of saved registers
+    as.lea(as.reg(X86::ESP),
+           as.mem(X86::ESP, regSavedOffset + 4 * savedRegs.size()));
   }
 
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
@@ -279,23 +284,20 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
         as.inlineasm(sym->SymVerDirective);
       }
 
+      // push $symbol
+      as.push(as.label(sym->Label));
       if (opaquePredicateEnabled) {
-        // push 0
-        as.push(as.imm(0));
-
-        // mov [esp], {opaque_constant}
-        auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::STACK_0, relativeAddr);
-        auto clobberedRegs = opaqueConstant->getClobberedRegs();
-        int stackOffset = saveRegs(as, clobberedRegs);
-        opaqueConstant->compile(as, stackOffset);
-        restoreRegs(as, clobberedRegs);
-
-        // add [esp], $symbol
-        as.add(as.mem(X86::ESP), as.label(sym->Label));
+        auto opaqueConstant = opaqueConstants.back();
+        opaqueConstants.pop_back();
+        uint32_t opaqueValue =
+            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        // compute opaque constant to eax
+        opaqueConstant->compile(as, 0);
+        // xor eax to create relativeAddr
+        as.lxor(as.reg(X86::EAX), as.imm(opaqueValue ^ relativeAddr));
+        // add [esp], eax
+        as.add(as.mem(X86::ESP), as.reg(X86::EAX));
       } else {
-        // push $symbol
-        as.push(as.label(sym->Label));
         // add [esp], $offset
         as.add(as.mem(X86::ESP), as.imm(relativeAddr));
       }
@@ -360,12 +362,18 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   }
 
   // EMIT EPILOGUE
-  // restore eflags, if eflags should be restored BEFORE chain execution
-  if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
-    // lea esp, [esp-4]
-    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -4));
-    // popf (EFLAGS register restore)
-    as.popf();
+  // restore registers (and flags)
+  if (!savedRegs.empty()) {
+    // lea esp, [esp-4*N]   # where N = num of saved registers
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -4 * savedRegs.size()));
+    // restore registers (and flags)
+    for (auto it = savedRegs.rbegin(); it != savedRegs.rend(); ++it) {
+      if (*it == X86::EFLAGS) {
+        as.popf();
+      } else {
+        as.pop(as.reg(*it));
+      }
+    }
   }
 
   // ret
