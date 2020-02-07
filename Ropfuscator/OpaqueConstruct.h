@@ -31,6 +31,15 @@ struct OpaqueStorage {
   static const OpaqueStorage EAX, ECX, EDX, EBX;
   static const OpaqueStorage STACK_0, STACK_4, STACK_8, STACK_12;
 
+  bool operator==(const OpaqueStorage &other) const {
+    if (this == &other)
+      return true;
+    if (type == Type::REG)
+      return other.type == Type::REG && reg == other.reg;
+    else if (type == Type::STACK)
+      return other.type == Type::STACK && stackOffset == other.stackOffset;
+  }
+
 private:
   OpaqueStorage(Type type, llvm_reg_t reg, int stackOffset) : type(type) {
     if (type == Type::REG)
@@ -41,10 +50,7 @@ private:
 };
 
 // forward declaration
-struct OpaqueValue;
-
-/// Opaque predicate input/output condition
-typedef std::vector<std::pair<OpaqueStorage, OpaqueValue>> OpaqueState;
+struct OpaqueState;
 
 /// Abstract value for opaque predicate input/output
 struct OpaqueValue {
@@ -97,6 +103,34 @@ private:
   }
 };
 
+/// Opaque predicate input/output condition
+struct OpaqueState {
+  std::vector<std::pair<OpaqueStorage, OpaqueValue>> state;
+  OpaqueValue find(OpaqueStorage);
+  uint64_t findConcrete(OpaqueStorage);
+  OpaqueState(std::initializer_list<std::pair<OpaqueStorage, OpaqueValue>> l)
+      : state(l) {}
+  OpaqueState() = default;
+  void emplace_back(const OpaqueStorage &storage, const OpaqueValue &value) {
+    state.emplace_back(storage, value);
+  }
+  const OpaqueValue *find(const OpaqueStorage &key) const {
+    for (auto &p : state) {
+      if (p.first == key) {
+        return &p.second;
+      }
+    }
+    return nullptr;
+  }
+  const uint64_t *findValue(const OpaqueStorage &key) const {
+    auto *p = find(key);
+    if (p && p->type == OpaqueValue::Type::CONSTANT) {
+      return &p->value;
+    }
+    return nullptr;
+  }
+};
+
 /// Opaque construct (opaque predicate, opaque constant) API.
 class OpaqueConstruct {
 public:
@@ -123,6 +157,12 @@ public:
   /// @param value the value to be stored
   static std::shared_ptr<OpaqueConstruct>
   createOpaqueConstant32(const OpaqueStorage &target, uint32_t value,
+                         const std::string &algorithm = "mov");
+
+  /// create a 32-bit opaque constant with random result value.
+  /// @param target target location into which the value is stored
+  static std::shared_ptr<OpaqueConstruct>
+  createOpaqueConstant32(const OpaqueStorage &target,
                          const std::string &algorithm = "mov");
 };
 

@@ -3,6 +3,7 @@
 
 #include "../X86TargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include <fmt/format.h>
 
 namespace llvm {
 class GlobalValue;
@@ -11,6 +12,10 @@ class GlobalValue;
 class X86AssembleHelper {
 public:
   typedef unsigned int llvm_reg_t;
+  static int label_id;
+  static std::string newLabelName() {
+    return fmt::format(".L_ROPF_ASM_{}", label_id++);
+  }
 
   struct Imm {
     uint64_t imm;
@@ -80,19 +85,37 @@ public:
           int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
+  ExternalLabel label() const { return {newLabelName()}; }
   ExternalLabel label(const std::string label) const { return {label}; }
   BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
 
   // --- instruction builder ---
+  void mov(Reg r1, Reg r2) const { _instr(llvm::X86::MOV32rr, r1, r2); }
   void mov(Reg r, Imm i) const { _instr(llvm::X86::MOV32ri, r, i); }
   void mov(Reg r, ImmGlobal i) const { _instr(llvm::X86::MOV32ri, r, i); }
+  void mov(Mem m, Reg r) const { _instr(llvm::X86::MOV32mr, m, r); }
   void mov(Mem m, Imm i) const { _instr(llvm::X86::MOV32mi, m, i); }
   void mov(Mem m, ImmGlobal i) const { _instr(llvm::X86::MOV32mi, m, i); }
   void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
+  void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ExternalLabel i) const { _instr(llvm::X86::ADD32mi, m, i); }
+  void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
+  void mul(Reg r) const { _instr(llvm::X86::MUL32r, r); }
+  void cmp(Reg r, Imm i) const { _instr(llvm::X86::CMP32ri, r, i); }
+  void cmp(Reg r1, Reg r2) const { _instr(llvm::X86::CMP32rr, r1, r2); }
+  void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
+  void movzx(Reg r1, Reg r2) const { _instr(llvm::X86::MOVZX32rr8, r1, r2); }
+  void land(Reg r1, Reg r2) const { _instrd(llvm::X86::AND32rr, r1, r2); }
+  void land8(Reg r1, Reg r2) const { _instrd(llvm::X86::AND8rr, r1, r2); }
+  void lor(Reg r1, Reg r2) const { _instrd(llvm::X86::OR32rr, r1, r2); }
+  void lor8(Reg r1, Reg r2) const { _instrd(llvm::X86::OR8rr, r1, r2); }
+  void lxor(Reg r1, Reg r2) const { _instrd(llvm::X86::XOR32rr, r1, r2); }
+  void lxor(Reg r, Imm i) const { _instrd(llvm::X86::XOR32ri, r, i); }
+  void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r); }
+  void shl(Reg r, Imm i) const { _instr(llvm::X86::SHL32ri, r, i); }
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
@@ -117,6 +140,7 @@ public:
         .addExternalSymbol(external_symbol)
         .addImm(0);
   }
+  void putLabel(ExternalLabel label) { inlineasm(label.label + ":"); }
 
 private:
   llvm::MachineBasicBlock &block;
@@ -135,6 +159,14 @@ private:
   template <typename T1, typename T2>
   void _instr(unsigned int opcode, T1 operand1, T2 operand2) const {
     auto builder = BuildMI(block, position, nullptr, TII->get(opcode));
+    operand1.add(builder);
+    operand2.add(builder);
+  }
+
+  template <typename T2>
+  void _instrd(unsigned int opcode, Reg operand1, T2 operand2) const {
+    auto builder =
+        BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand1.add(builder);
     operand2.add(builder);
   }
