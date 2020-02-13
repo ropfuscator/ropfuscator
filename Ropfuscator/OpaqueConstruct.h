@@ -38,6 +38,7 @@ struct OpaqueStorage {
       return other.type == Type::REG && reg == other.reg;
     else if (type == Type::STACK)
       return other.type == Type::STACK && stackOffset == other.stackOffset;
+    return false;
   }
 
 private:

@@ -31,9 +31,8 @@
 #include "Section.h"
 #include "Symbol.h"
 #include "XchgGraph.h"
-#include <capstone/capstone.h>
-#include <capstone/x86.h>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -55,10 +54,15 @@ class BinaryAutopsy {
 private:
   // Singleton
   static BinaryAutopsy *instance;
-  explicit BinaryAutopsy(std::string path);
+  BinaryAutopsy(std::string path, const llvm::Module &module,
+                const llvm::TargetMachine &target, llvm::MCContext &context);
   BinaryAutopsy() = delete;
   BinaryAutopsy(const BinaryAutopsy &) = delete;
   ~BinaryAutopsy();
+
+  const llvm::Module &module;
+  const llvm::TargetMachine &target;
+  llvm::MCContext &context;
 
 public:
   // XchgGraph instance
@@ -72,10 +76,9 @@ public:
   // Segments - results from dumpSegments() are placed here
   std::vector<Section> Segments;
 
-  // Microgadgets - results from dumpGadgets() are placed here
-  std::vector<Microgadget> Microgadgets;
-
-  std::map<std::string, std::vector<Microgadget>> GadgetPrimitives;
+  // GadgetPrimitives - results from dumpGadgets() are placed here
+  std::map<GadgetType, std::vector<std::shared_ptr<Microgadget>>>
+      GadgetPrimitives;
 
   // elf - an handle to analyse ELF file. Used by dumpSections() and
   // dumpDynamicSymbols()
@@ -84,9 +87,8 @@ public:
   bool isModuleSymbolAnalysed;
 
   // getInstance - returns an instance of this singleton class
-  static BinaryAutopsy *getInstance(std::string path);
-
-  static BinaryAutopsy *getInstance();
+  static BinaryAutopsy *getInstance(std::string path,
+                                    llvm::MachineFunction &MF);
 
   // -----------------------------------------------------------------------------
   //  ANALYSES
@@ -110,22 +112,21 @@ private:
 
   // dumpGadgets - extracts every microgadget (i.e., single instructions
   // before a RET) that can be found in executable sections. Each instruction is
-  // decoded using capstone-engine.
+  // decoded with LLVM disassembler engine.
   void dumpGadgets();
 
   // buildXchgGraph - creates a new instance of xgraph and feeds it with all the
   // XCHG gadgets that have been found.
   void buildXchgGraph();
 
-  // applyGadgetFilters - removes problematic gadgets from the set of discovered
-  // ones, basing on the defined filters.
-  void applyGadgetFilters();
+  // register gadget in GadgetPrimitives with some filters.
+  void addGadget(std::shared_ptr<Microgadget> gadget);
 
-public:
   // analyseUsedSymbols - traverse the module and register the symbol names
   // with forbidden list
-  void analyseUsedSymbols(const llvm::Module *module);
+  void analyseUsedSymbols();
 
+public:
   // -----------------------------------------------------------------------------
   //  HELPER METHODS
   // -----------------------------------------------------------------------------
@@ -135,37 +136,31 @@ public:
   // offset from it.
   const Symbol *getRandomSymbol() const;
 
-  // gadgetLookup - set of overloaded methods to look for a specific gadget in
+  // findGadget - set of overloaded methods to look for a specific gadget in
   // the set of the ones that have been previously discovered.
-  const Microgadget *findGadget(std::string asmInstr) const;
+  // const Microgadget *findGadget(std::string asmInstr) const;
 
-  const Microgadget *findGadget(x86_insn insn, x86_reg op0,
-                                x86_reg op1 = X86_REG_INVALID) const;
+  const Microgadget *findGadget(GadgetType type, unsigned int op0,
+                                unsigned int op1 = llvm::X86::NoRegister) const;
 
-  std::vector<const Microgadget *>
-  findAllGadgets(x86_insn insn, x86_op_type op0,
-                 x86_op_type op1 = x86_op_type()) const;
-
-  std::vector<const Microgadget *>
-  findAllGadgets(x86_insn insn, x86_reg op0,
-                 x86_reg op1 = X86_REG_INVALID) const;
-
-  std::vector<const Microgadget *> findAllGadgets(GadgetClass_t Class) const;
-
-  ROPChain findGadgetPrimitive(XchgState &state, std::string type, x86_reg op0,
-                               x86_reg op1 = X86_REG_INVALID) const;
+  ROPChain findGadgetPrimitive(XchgState &state, GadgetType type,
+                               unsigned int reg1,
+                               unsigned int reg2 = llvm::X86::NoRegister) const;
 
   // areExchangeable - uses XChgGraph to check whether two (or more
   // registers) can be mutually exchanged.
-  bool areExchangeable(x86_reg a, x86_reg b) const;
+  bool areExchangeable(unsigned int a, unsigned int b) const;
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
-  ROPChain exchangeRegs(XchgState &state, x86_reg reg0, x86_reg reg1) const;
+  ROPChain exchangeRegs(XchgState &state, unsigned int reg1,
+                        unsigned int reg2) const;
 
   ROPChain undoXchgs(XchgState &state) const;
 
-  x86_reg getEffectiveReg(const XchgState &state, x86_reg reg) const;
+  unsigned int getEffectiveReg(const XchgState &state, unsigned int reg) const;
+
+  void debugPrintGadgets() const;
 
 private:
   // Takes a path from the XchgGraph and build a ROP Chains with the right
