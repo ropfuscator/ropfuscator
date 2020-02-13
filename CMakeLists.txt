@@ -27,7 +27,6 @@ set(ROPFUSCATOR_SOURCES
         Ropfuscator/ROPEngine.cpp
         Ropfuscator/BinAutopsy.cpp
         Ropfuscator/XchgGraph.cpp
-        Ropfuscator/CapstoneLLVMAdpt.cpp
         Ropfuscator/LivenessAnalysis.cpp
         Ropfuscator/OpaqueConstruct.cpp
         Ropfuscator/Debug.cpp
@@ -91,29 +90,10 @@ add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
 add_subdirectory(ropfuscator-extra)
 
-# capstone
-find_library(CAPSTONE capstone)
-
-if (CAPSTONE)
-	target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE ${CAPSTONE})
-else()
-	find_package(capstone QUIET)
-	
-	if (capstone_FOUND)
-		target_link_libraries(${CURRENT_LLVM_TARGET} LINK_TARGET capstone)
-	else()
-		if (PKG_CONFIG_FOUND)
-			pkg_search_module(capstone capstone)
-			if (capstone_FOUND)
-				target_link_libraries(${CURRENT_LLVM_TARGET} LINK_TARGET capstone)
-			else()
-				message(FATAL_ERROR "libcapstone NOT found. Please install libcapstone headers.")
-			endif()
-		else()
-			message("libcapstone not found. Please install libcapstone headers and/or pkg-config.")
-		endif()
-	endif()
-endif()
+if (CURRENT_LLVM_TARGET)
+        target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMObject)
+        target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
+endif ()
 
 # libfmt
 find_library(FMT fmt)

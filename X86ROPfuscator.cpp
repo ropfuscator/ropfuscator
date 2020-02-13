@@ -58,9 +58,9 @@ public:
     return false;
   }
 
-  bool doInitialization(Module &) override {
+  bool doInitialization(Module &module) override {
     if (!ROPfPassDisabled) {
-      ropfuscator = new ROPfuscatorCore();
+      ropfuscator = new ROPfuscatorCore(module);
 
       ropfuscator->opaquePredicateEnabled = OpaquePredicatesEnabled;
       if (!CustomLibraryPath.empty()) {

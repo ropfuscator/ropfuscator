@@ -146,7 +146,7 @@ static std::string findLibcPath() {
 
 // ----------------------------------------------------------------
 
-ROPfuscatorCore::ROPfuscatorCore()
+ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module)
     : opaquePredicateEnabled(false), BA(nullptr), TII(nullptr) {}
 
 ROPfuscatorCore::~ROPfuscatorCore() {
@@ -399,8 +399,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     if (libcPath.empty()) {
       libcPath = findLibcPath();
     }
-    BA = BinaryAutopsy::getInstance(libcPath);
-    BA->analyseUsedSymbols(MF.getFunction().getParent());
+    BA = BinaryAutopsy::getInstance(libcPath, MF);
   }
 
   if (TII == nullptr) {
@@ -442,7 +441,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       processed++;
 
       // get the list of scratch registers available for this instruction
-      std::vector<x86_reg> MIScratchRegs = MBBScratchRegs.find(&MI)->second;
+      std::vector<unsigned int> MIScratchRegs =
+          MBBScratchRegs.find(&MI)->second;
 
       // Do this instruction and/or following instructions
       // use current flags (i.e. affected by current flags)?
@@ -462,7 +462,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
       ROPChain result;
       ROPChainStatus status =
-          ROPEngine().ropify(MI, MIScratchRegs, shouldFlagSaved, result);
+          ROPEngine(*BA).ropify(MI, MIScratchRegs, shouldFlagSaved, result);
 
       bool isJump = result.hasConditionalJump || result.hasUnconditionalJump;
       if (isJump && result.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {

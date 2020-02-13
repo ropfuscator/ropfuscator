@@ -23,12 +23,13 @@ namespace llvm {
 class MachineFunction;
 class MachineBasicBlock;
 class MachineInstr;
+class Module;
 class X86InstrInfo;
 } // namespace llvm
 
 class ROPfuscatorCore {
 public:
-  ROPfuscatorCore();
+  explicit ROPfuscatorCore(llvm::Module &module);
   ~ROPfuscatorCore();
   void obfuscateFunction(llvm::MachineFunction &MF);
 

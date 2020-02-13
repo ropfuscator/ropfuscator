@@ -15,14 +15,15 @@
 #include "../X86.h"
 #include "../X86InstrBuilder.h"
 #include "../X86TargetMachine.h"
-#include "BinAutopsy.h"
 #include "ChainElem.h"
 #include "LivenessAnalysis.h"
 #include "XchgGraph.h"
-#include <capstone/capstone.h> // x86_reg
 #include <string>
 #include <tuple>
 #include <vector>
+
+// forward declaration
+class BinaryAutopsy;
 
 enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 
@@ -103,49 +104,50 @@ enum class ROPChainStatus {
 class ROPEngine {
   ROPChain chain;
   XchgState state;
+  const BinaryAutopsy &BA;
 
   ROPChainStatus handleArithmeticRI(llvm::MachineInstr *,
-                                    std::vector<x86_reg> &scratchRegs);
+                                    std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleArithmeticRR(llvm::MachineInstr *,
-                                    std::vector<x86_reg> &scratchRegs);
+                                    std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleArithmeticRM(llvm::MachineInstr *,
-                                    std::vector<x86_reg> &scratchRegs);
+                                    std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleXor32RR(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleLea32r(llvm::MachineInstr *,
-                              std::vector<x86_reg> &scratchRegs);
+                              std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleMov32rm(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleMov32mr(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleMov32mi(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleMov32rr(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCmp32mi(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCmp32ri(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCmp32rm(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleJmp1(llvm::MachineInstr *,
-                            std::vector<x86_reg> &scratchRegs);
+                            std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleJcc1(llvm::MachineInstr *,
-                            std::vector<x86_reg> &scratchRegs);
+                            std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCall(llvm::MachineInstr *,
-                            std::vector<x86_reg> &scratchRegs);
+                            std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCallReg(llvm::MachineInstr *,
-                               std::vector<x86_reg> &scratchRegs);
+                               std::vector<unsigned int> &scratchRegs);
   bool convertOperandToChainPushImm(const llvm::MachineOperand &operand,
                                     ChainElem &result);
 
 public:
   // Constructor
-  ROPEngine();
+  ROPEngine(const BinaryAutopsy &BA);
 
   ROPChainStatus ropify(llvm::MachineInstr &MI,
-                        std::vector<x86_reg> &scratchRegs, bool shouldFlagSaved,
-                        ROPChain &resultChain);
+                        std::vector<unsigned int> &scratchRegs,
+                        bool shouldFlagSaved, ROPChain &resultChain);
 
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 };
