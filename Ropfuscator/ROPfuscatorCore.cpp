@@ -274,7 +274,10 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     case ChainElem::Type::GADGET: {
       // Get a random symbol to reference this gadget in memory
       const Symbol *sym = BA->getRandomSymbol();
-      uint64_t relativeAddr = elem->microgadget->getAddress() - sym->Address;
+      // Choose a random address in the gadget
+      const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
+      uint64_t addr = addresses[rand() % addresses.size()];
+      uint64_t relativeAddr = addr - sym->Address;
 
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the
