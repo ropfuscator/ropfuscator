@@ -50,9 +50,6 @@ struct Microgadget {
       : Instr(instr, instr + count), asmInstr(asmInstr) {
     addresses.push_back(address);
   }
-
-  // getAddress - returns the offset relative to the analysed binary file.
-  uint64_t getAddress() const { return addresses[0]; }
 };
 
 #endif

@@ -940,11 +940,16 @@ unsigned int BinaryAutopsy::getEffectiveReg(const XchgState &state,
 }
 
 void BinaryAutopsy::debugPrintGadgets() const {
+  auto regInfo = target.getMCRegisterInfo();
   for (auto &kv : GadgetPrimitives) {
     dbg_fmt("Gadgets of type {}:\n", (int)kv.first);
     for (auto &g : kv.second) {
-      dbg_fmt("  {}\t@0x{:x} {} {}\n", g->asmInstr, g->getAddress(), g->reg1,
-              g->reg2);
+      dbg_fmt("  {}\t{}#{}, {}#{}\t@", g->asmInstr, regInfo->getName(g->reg1),
+              g->reg1, regInfo->getName(g->reg2), g->reg2);
+      for (uint64_t addr : g->addresses) {
+        dbg_fmt(" 0x{:x}", addr);
+      }
+      dbg_fmt("\n");
     }
   }
 }
