@@ -343,17 +343,18 @@ ROPEngine::handleArithmeticRM(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(2).getReg() == 0)
+  if (MI->getOperand(0).getReg() == X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      xxx     orig_0/1, [orig_2 + scale_3 * orig_4 + disp_5]
-  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+  if (MI->getOperand(3).isReg() &&
+      MI->getOperand(3).getReg() != X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(2).getReg();
+  unsigned int src = MI->getOperand(2).getReg(); // may be NoRegister
 
   ChainElem disp_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(5), disp_elem))
@@ -362,7 +363,8 @@ ROPEngine::handleArithmeticRM(MachineInstr *MI,
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, src);
+  if (src != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
   builder.append(gadget_type, dst, SCRATCH_1);
   builder.reorder();
@@ -441,18 +443,22 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *MI,
 ROPChainStatus
 ROPEngine::handleMov32rm(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
-  // instruction uses a segment register
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
+  if (MI->getOperand(0).getReg() == X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
-  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+  if (MI->getOperand(3).isReg() &&
+      MI->getOperand(3).getReg() != X86::NoRegister)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  // instruction uses a segment register
+  if (MI->getOperand(5).isReg() &&
+      MI->getOperand(5).getReg() != X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg();
+  unsigned int src = MI->getOperand(1).getReg(); // may be NoRegister
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
@@ -461,7 +467,8 @@ ROPEngine::handleMov32rm(MachineInstr *MI,
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, src);
+  if (src != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
   builder.append(GadgetType::COPY, dst, SCRATCH_1);
   builder.reorder();
@@ -473,17 +480,21 @@ ROPEngine::handleMov32rm(MachineInstr *MI,
 ROPChainStatus
 ROPEngine::handleMov32mr(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
-  // instruction uses a segment register
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(5).getReg() == 0)
+  if (MI->getOperand(5).getReg() == X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
-  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
+  if (MI->getOperand(2).isReg() &&
+      MI->getOperand(2).getReg() != X86::NoRegister)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  // instruction uses a segment register
+  if (MI->getOperand(4).isReg() &&
+      MI->getOperand(4).getReg() != X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
+  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
   unsigned int src = MI->getOperand(5).getReg();
   ChainElem disp_elem;
 
@@ -515,7 +526,8 @@ ROPEngine::handleMov32mr(MachineInstr *MI,
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, dst);
+  if (dst != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::STORE, SCRATCH_1, src);
   builder.reorder();
   builder.normalInstrFlag = true;
@@ -526,13 +538,14 @@ ROPEngine::handleMov32mr(MachineInstr *MI,
 ROPChainStatus
 ROPEngine::handleMov32mi(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
-  // instruction uses a segment register
-  if (MI->getOperand(0).getReg() == 0)
-    return ROPChainStatus::ERR_UNSUPPORTED;
-
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
-  if (MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0)
+  if (MI->getOperand(2).isReg() &&
+      MI->getOperand(2).getReg() != X86::NoRegister)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  // instruction uses a segment register
+  if (MI->getOperand(4).isReg() &&
+      MI->getOperand(4).getReg() != X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   ChainElem imm_elem;
@@ -541,7 +554,7 @@ ROPEngine::handleMov32mi(MachineInstr *MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
+  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
 
   ChainElem disp_elem;
 
@@ -572,7 +585,8 @@ ROPEngine::handleMov32mi(MachineInstr *MI,
 
   builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, dst);
+  if (dst != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::STORE, SCRATCH_1, SCRATCH_2);
   builder.reorder();
   builder.normalInstrFlag = true;
@@ -604,15 +618,14 @@ ROPEngine::handleCmp32mi(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // skip scaled-index addressing mode since we cannot handle them
   //      cmp     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
-  if ((MI->getOperand(2).isReg() && MI->getOperand(2).getReg() != 0) ||
-      (MI->getOperand(4).isReg() && MI->getOperand(4).getReg() != 0))
+  if ((MI->getOperand(2).isReg() &&
+       MI->getOperand(2).getReg() != X86::NoRegister) ||
+      (MI->getOperand(4).isReg() &&
+       MI->getOperand(4).getReg() != X86::NoRegister))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  if (MI->getOperand(0).getReg() == 0) // instruction uses a segment register
-    return ROPChainStatus::ERR_UNSUPPORTED;
-
-  unsigned int dst = MI->getOperand(0).getReg();
+  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
   ChainElem imm_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(5), imm_elem))
@@ -627,7 +640,8 @@ ROPEngine::handleCmp32mi(MachineInstr *MI,
 
   builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, dst);
+  if (dst != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
   builder.append(GadgetType::SUB, SCRATCH_1, SCRATCH_2);
   builder.reorder();
@@ -663,18 +677,20 @@ ROPEngine::handleCmp32ri(MachineInstr *MI,
 ROPChainStatus
 ROPEngine::handleCmp32rm(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
-  if (MI->getOperand(0).getReg() == 0 // instruction uses a segment register
-      || MI->getOperand(1).getReg() == 0)
+  if (MI->getOperand(0).getReg() == X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // skip scaled-index addressing mode since we cannot handle them
   //      xxx     orig_0, [orig_1 + scale_2 * orig_3 + disp_4]
-  if (MI->getOperand(3).isReg() && MI->getOperand(3).getReg() != 0)
+  if ((MI->getOperand(3).isReg() &&
+       MI->getOperand(3).getReg() != X86::NoRegister) ||
+      (MI->getOperand(5).isReg() &&
+       MI->getOperand(5).getReg() != X86::NoRegister))
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
   unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg();
+  unsigned int src = MI->getOperand(1).getReg(); // may be NoRegister
   ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
@@ -683,7 +699,8 @@ ROPEngine::handleCmp32rm(MachineInstr *MI,
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-  builder.append(GadgetType::ADD, SCRATCH_1, src);
+  if (src != X86::NoRegister)
+    builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
   builder.append(GadgetType::COPY, SCRATCH_2, dst);
   builder.append(GadgetType::SUB, SCRATCH_2, SCRATCH_1);
