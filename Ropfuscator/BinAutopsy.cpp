@@ -29,7 +29,13 @@ using namespace llvm;
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
+// If set to true, find gadget in code segment instead of code section
+// (which will find more gadgets since code segment is wider)
 static const bool searchSegmentForGadget = true;
+// If set to true, symbols which have multiple versions are not used;
+// if set to false, only one version of those symbols is used.
+// (angr will not work correctly if this is set to false)
+static const bool avoidMultiversionSymbol = false;
 
 class ELFParser {
 public:
@@ -340,6 +346,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
   // dbg_fmt("[*] Scanning for symbols... \n");
   auto symbols = elf->getDynamicSymbols();
+  std::set<std::string> symbolNames;
 
   // Scan for all the symbols
   for (size_t i = 0; i < symbols.size(); i++) {
@@ -388,17 +395,17 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
-      bool alreadyPresent = false;
-
-      for (auto &s : Symbols) {
-        if (symbolName == s.Label) {
-          alreadyPresent = true;
-          break;
+      if (symbolNames.find(symbolName) == symbolNames.end()) {
+        symbolNames.insert(symbolName);
+        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
+      } else {
+        // multi-versioned symbol
+        if (avoidMultiversionSymbol) {
+          Symbols.erase(std::remove_if(
+              Symbols.begin(), Symbols.end(),
+              [&](const Symbol &s) { return s.Label == symbolName; }));
         }
       }
-
-      if (!alreadyPresent)
-        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
 

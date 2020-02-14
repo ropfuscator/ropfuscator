@@ -102,7 +102,7 @@ if (FMT)
 	target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE ${FMT})
 else()
 	find_package(fmt QUIET)
-	
+
 	if (fmt_FOUND)
 		target_link_libraries(${CURRENT_LLVM_TARGET} LINK_TARGET fmt)
 	else()
