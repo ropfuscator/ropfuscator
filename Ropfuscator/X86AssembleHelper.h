@@ -12,8 +12,8 @@ class GlobalValue;
 class X86AssembleHelper {
 public:
   typedef unsigned int llvm_reg_t;
-  static int label_id;
   static std::string newLabelName() {
+    static int label_id;
     return fmt::format(".L_ROPF_ASM_{}", label_id++);
   }
 
@@ -93,9 +93,12 @@ public:
   void mov(Reg r1, Reg r2) const { _instr(llvm::X86::MOV32rr, r1, r2); }
   void mov(Reg r, Imm i) const { _instr(llvm::X86::MOV32ri, r, i); }
   void mov(Reg r, ImmGlobal i) const { _instr(llvm::X86::MOV32ri, r, i); }
+  void mov(Reg r, Mem m) const { _instr(llvm::X86::MOV32rm, r, m); }
   void mov(Mem m, Reg r) const { _instr(llvm::X86::MOV32mr, m, r); }
   void mov(Mem m, Imm i) const { _instr(llvm::X86::MOV32mi, m, i); }
   void mov(Mem m, ImmGlobal i) const { _instr(llvm::X86::MOV32mi, m, i); }
+  void cmove(Reg r1, Reg r2) const { _instrd(llvm::X86::CMOVE32rr, r1, r2); }
+  void add(Reg r1, Reg r2) const { _instrd(llvm::X86::ADD32rr, r1, r2); }
   void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
@@ -103,19 +106,26 @@ public:
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ExternalLabel i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
+  void imul(Reg r, Imm i) const { _instrd(llvm::X86::IMUL32rri, r, i); }
   void mul(Reg r) const { _instr(llvm::X86::MUL32r, r); }
   void cmp(Reg r, Imm i) const { _instr(llvm::X86::CMP32ri, r, i); }
   void cmp(Reg r1, Reg r2) const { _instr(llvm::X86::CMP32rr, r1, r2); }
   void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
   void movzx(Reg r1, Reg r2) const { _instr(llvm::X86::MOVZX32rr8, r1, r2); }
   void land(Reg r1, Reg r2) const { _instrd(llvm::X86::AND32rr, r1, r2); }
+  void land(Reg r, Imm i) const { _instrd(llvm::X86::AND32ri, r, i); }
   void land8(Reg r1, Reg r2) const { _instrd(llvm::X86::AND8rr, r1, r2); }
+  void test(Reg r1, Reg r2) const { _instrd(llvm::X86::TEST32rr, r1, r2); }
+  void test(Reg r, Imm i) const { _instrd(llvm::X86::TEST32ri, r, i); }
   void lor(Reg r1, Reg r2) const { _instrd(llvm::X86::OR32rr, r1, r2); }
   void lor8(Reg r1, Reg r2) const { _instrd(llvm::X86::OR8rr, r1, r2); }
   void lxor(Reg r1, Reg r2) const { _instrd(llvm::X86::XOR32rr, r1, r2); }
   void lxor(Reg r, Imm i) const { _instrd(llvm::X86::XOR32ri, r, i); }
+  void lxor(Mem m, Imm i) const { _instr(llvm::X86::XOR32mi, m, i); }
   void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r); }
-  void shl(Reg r, Imm i) const { _instr(llvm::X86::SHL32ri, r, i); }
+  void shl(Reg r, Imm i) const { _instrd(llvm::X86::SHL32ri, r, i); }
+  void shr(Reg r) const { _instr(llvm::X86::SHR32r1, r); }
+  void shr(Reg r, Imm i) const { _instrd(llvm::X86::SHR32ri, r, i); }
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
@@ -125,9 +135,12 @@ public:
   void pushf() const { _instr(llvm::X86::PUSHF32); }
   void popf() const { _instr(llvm::X86::POPF32); }
   void ret() const { _instr(llvm::X86::RETL); }
+  void rdtsc() const { _instr(llvm::X86::RDTSC); }
   void call(ExternalLabel l) const { _instr(llvm::X86::CALLpcrel32, l); }
   void jmp(ExternalLabel l) const { _instr(llvm::X86::JMP_1, l); }
   void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
+  void je(ExternalLabel l) const { _instr(llvm::X86::JE_1, l); }
+  void je(BasicBlockRef l) const { _instr(llvm::X86::JE_1, l); }
   void lea(Reg r, Mem m) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);

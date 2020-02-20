@@ -34,6 +34,7 @@ public:
   void obfuscateFunction(llvm::MachineFunction &MF);
 
   bool opaquePredicateEnabled;
+  bool opaquePredicateBranchEnabled;
   std::string libcPath;
 
 private:

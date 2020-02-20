@@ -44,6 +44,9 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 #endif
 #endif
 
+const std::string OPAQUE_CONSTRUCT_ALGORITHM = "mov";
+const std::string OPAQUE_CONSTRUCT_BRANCH_ALGORITHM = "addreg+mov";
+
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID) {
   chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
@@ -147,7 +150,8 @@ static std::string findLibcPath() {
 // ----------------------------------------------------------------
 
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module)
-    : opaquePredicateEnabled(false), BA(nullptr), TII(nullptr) {}
+    : opaquePredicateEnabled(false), opaquePredicateBranchEnabled(false),
+      BA(nullptr), TII(nullptr) {}
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -180,17 +184,30 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   // 4. return addr (if jump instruction is not ropfuscated)
 
   std::set<unsigned int> savedRegs;
+  savedRegs.insert(X86::EFLAGS); // flags are modified generally
   // generate opaque constants before insert
   std::vector<std::shared_ptr<OpaqueConstruct>> opaqueConstants;
   if (opaquePredicateEnabled) {
-    savedRegs.insert(X86::EAX);
+    savedRegs.insert(X86::EAX); // OpaqueConstant will be stored in EAX
+
     for (auto &elem : chain) {
       if (elem.type == ChainElem::Type::GADGET) {
-        auto opaqueConstant =
-            OpaqueConstructFactory::createOpaqueConstant32(OpaqueStorage::EAX);
-        opaqueConstants.push_back(opaqueConstant);
-        auto clobbered = opaqueConstant->getClobberedRegs();
-        savedRegs.insert(clobbered.begin(), clobbered.end());
+        if (elem.microgadget->addresses.size() > 1 &&
+            opaquePredicateBranchEnabled) {
+          savedRegs.insert(X86::EDX); // ValueAdjustor will clobber EDX
+          auto opaqueConstant =
+              OpaqueConstructFactory::createBranchingOpaqueConstant32(
+                  OpaqueStorage::EAX, 2, OPAQUE_CONSTRUCT_BRANCH_ALGORITHM);
+          opaqueConstants.push_back(opaqueConstant);
+          auto clobbered = opaqueConstant->getClobberedRegs();
+          savedRegs.insert(clobbered.begin(), clobbered.end());
+        } else {
+          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+              OpaqueStorage::EAX, OPAQUE_CONSTRUCT_ALGORITHM);
+          opaqueConstants.push_back(opaqueConstant);
+          auto clobbered = opaqueConstant->getClobberedRegs();
+          savedRegs.insert(clobbered.begin(), clobbered.end());
+        }
       }
     }
   }
@@ -276,8 +293,22 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       const Symbol *sym = BA->getRandomSymbol();
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
-      uint64_t addr = addresses[rand() % addresses.size()];
-      uint64_t relativeAddr = addr - sym->Address;
+      std::vector<uint32_t> offsets;
+      if (addresses.size() > 1 && opaquePredicateBranchEnabled) {
+        // take 2 addresses randomly
+        std::vector<int> indices(addresses.size());
+        for (int i = 0; i < addresses.size(); i++) {
+          indices[i] = i;
+        }
+        while (offsets.size() < 2) {
+          int n = rand() % indices.size();
+          int index = indices[n];
+          indices.erase(indices.begin() + n);
+          offsets.push_back(addresses[index] - sym->Address);
+        }
+      } else {
+        offsets.push_back(addresses[rand() % addresses.size()] - sym->Address);
+      }
 
       // .symver directive: necessary to prevent aliasing when more
       // symbols have the same name. We do this exclusively when the
@@ -292,17 +323,19 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       if (opaquePredicateEnabled) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
-        uint32_t opaqueValue =
-            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        auto output = opaqueConstant->getOutput();
+        auto &opaqueValues = *output.findValues(OpaqueStorage::EAX);
+        auto adjuster = OpaqueConstructFactory::createValueAdjustor(
+            OpaqueStorage::EAX, opaqueValues, offsets);
         // compute opaque constant to eax
         opaqueConstant->compile(as, 0);
-        // xor eax to create relativeAddr
-        as.lxor(as.reg(X86::EAX), as.imm(opaqueValue ^ relativeAddr));
+        // adjust eax to be relativeAddr
+        adjuster->compile(as, 0);
         // add [esp], eax
         as.add(as.mem(X86::ESP), as.reg(X86::EAX));
       } else {
         // add [esp], $offset
-        as.add(as.mem(X86::ESP), as.imm(relativeAddr));
+        as.add(as.mem(X86::ESP), as.imm(offsets[0]));
       }
       break;
     }
