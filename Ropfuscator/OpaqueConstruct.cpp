@@ -1,6 +1,8 @@
 #include "OpaqueConstruct.h"
 #include "../X86TargetMachine.h"
+#include "Debug.h"
 #include "X86AssembleHelper.h"
+#include <algorithm>
 #include <random>
 
 using namespace llvm;
@@ -364,9 +366,315 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
   return std::shared_ptr<OpaqueConstruct>();
 }
 
+class RdtscRandomGeneratorOC : public OpaqueConstruct {
+public:
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
+    as.rdtsc();
+  }
+  OpaqueState getInput() const override { return {}; }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EDX};
+  }
+};
+
+class AddRegRandomGeneratorOC : public OpaqueConstruct {
+public:
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
+    for (auto reg : {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI})
+      as.add(as.reg(X86::EAX), as.reg(reg));
+  }
+  OpaqueState getInput() const override { return {}; }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EFLAGS};
+  }
+};
+
+class MovRandomSelectorOC : public OpaqueConstruct {
+public:
+  MovRandomSelectorOC(const OpaqueStorage &target,
+                      const std::vector<uint32_t> &values)
+      : target(target), values(values) {
+    std::random_shuffle(this->values.begin(), this->values.end());
+  }
+
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
+    unsigned int targetreg =
+        target.type == OpaqueStorage::Type::REG ? target.reg : X86::EAX;
+    unsigned int tmpreg = target.reg == X86::EAX ? X86::EDX : X86::EAX;
+    auto endLabel = as.label();
+    bool labelUsed = false;
+    compileAux(as, as.reg(targetreg), as.reg(tmpreg), endLabel, 0,
+               values.size(), 1, labelUsed);
+    if (labelUsed)
+      as.putLabel(endLabel);
+    if (target.type == OpaqueStorage::Type::STACK) {
+      as.mov(as.mem(X86::ESP, target.stackOffset + stackOffset),
+             as.reg(targetreg));
+    }
+  }
+
+  OpaqueState getInput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createConstant(values)}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EDX};
+  }
+
+private:
+  OpaqueStorage target;
+  std::vector<uint32_t> values;
+
+  void compileAux(X86AssembleHelper &as, const X86AssembleHelper::Reg &target,
+                  const X86AssembleHelper::Reg &tmpreg,
+                  const X86AssembleHelper::ExternalLabel &endLabel, int m,
+                  int n, uint32_t flag, bool &labelUsed) const {
+    if (n == 1) {
+      as.mov(target, as.imm(values[m]));
+      if (m + n != values.size()) {
+        as.jmp(endLabel);
+        labelUsed = true;
+      }
+    } else if (n == 2) {
+      as.test(as.reg(X86::EAX), as.imm(flag));
+      as.mov(target, as.imm(values[0]));
+      as.mov(tmpreg, as.imm(values[1]));
+      as.cmove(target, tmpreg);
+      if (m + n != values.size()) {
+        as.jmp(endLabel);
+        labelUsed = true;
+      }
+    } else {
+      int n2 = n / 2;
+      auto label = as.label();
+      as.test(as.reg(X86::EAX), as.imm(flag));
+      as.je(label);
+      compileAux(as, target, tmpreg, endLabel, m, n2, flag << 1, labelUsed);
+      as.putLabel(label);
+      compileAux(as, target, tmpreg, endLabel, m + n2, n - n2, flag << 1,
+                 labelUsed);
+    }
+  }
+};
+
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createOpaqueConstant32(const OpaqueStorage &target,
                                                const std::string &algorithm) {
   uint32_t value = rand_device();
   return createOpaqueConstant32(target, value, algorithm);
+}
+
+class ComposedOpaqueConstruct : public OpaqueConstruct {
+  std::vector<std::shared_ptr<OpaqueConstruct>> functions;
+
+public:
+  ComposedOpaqueConstruct(
+      std::initializer_list<std::shared_ptr<OpaqueConstruct>> functions)
+      : functions(functions) {
+    std::reverse(this->functions.begin(), this->functions.end());
+  }
+
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
+    for (auto func : functions) {
+      func->compile(as, stackOffset);
+    }
+  }
+
+  OpaqueState getInput() const override {
+    return functions.size() > 0 ? functions[0]->getInput() : OpaqueState();
+  }
+  OpaqueState getOutput() const override {
+    return functions.size() > 0 ? functions[functions.size() - 1]->getOutput()
+                                : OpaqueState();
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    std::set<llvm_reg_t> regs;
+    for (auto func : functions) {
+      auto clobbered = func->getClobberedRegs();
+      regs.insert(clobbered.begin(), clobbered.end());
+    }
+    return std::vector<llvm_reg_t>(regs.begin(), regs.end());
+  }
+};
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
+                                std::shared_ptr<OpaqueConstruct> g) {
+  uint32_t value = rand_device();
+  return std::shared_ptr<OpaqueConstruct>(new ComposedOpaqueConstruct({f, g}));
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::createBranchingOpaqueConstant32(
+    const OpaqueStorage &target, const std::vector<uint32_t> &values,
+    const std::string &algorithm) {
+  std::string random_algo = "addreg", selector_algo = "mov";
+  size_t pos = algorithm.find("+");
+  if (pos != std::string::npos) {
+    random_algo = algorithm.substr(0, pos);
+    selector_algo = algorithm.substr(pos + 1);
+  } else {
+    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
+    // use default algorithm anyway
+  }
+  std::shared_ptr<OpaqueConstruct> randomOC, selectorOC;
+  // random generator
+  if (random_algo == "addreg") {
+    randomOC.reset(new AddRegRandomGeneratorOC());
+  } else if (random_algo == "rdtsc") {
+    randomOC.reset(new RdtscRandomGeneratorOC());
+  } else {
+    dbg_fmt("Warning: unknown random algorithm: {}\n", random_algo);
+    // use default algorithm anyway
+    randomOC.reset(new AddRegRandomGeneratorOC());
+  }
+  // selector
+  if (selector_algo == "mov") {
+    selectorOC.reset(new MovRandomSelectorOC(target, values));
+  } else {
+    dbg_fmt("Warning: unknown selector algorithm: {}\n", selector_algo);
+    // use default algorithm anyway
+    selectorOC.reset(new MovRandomSelectorOC(target, values));
+  }
+  return compose(selectorOC, randomOC);
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::createBranchingOpaqueConstant32(
+    const OpaqueStorage &target, size_t n_choices,
+    const std::string &algorithm) {
+  std::set<uint32_t> values;
+  while (values.size() < n_choices) {
+    values.insert(rand_device());
+  }
+  std::vector<uint32_t> values_v(values.begin(), values.end());
+  return createBranchingOpaqueConstant32(target, values_v, algorithm);
+}
+
+// This class will convert input values to output values,
+// without leaking input/output values themselves.
+// All input / output values should be distinct and have same length.
+//
+// case n=1:
+//   just use XOR to convert value.
+//   y1 = x1 ^ V   where V = x1 ^ y1
+// case n=2:
+//   using multiplication and addition (with optional shift) to convert value.
+//   y1 = (x1 >> S) * V + U
+//   y2 = (x2 >> S) * V + U
+//     where V = (y2 - y1) * (Inv(x2 >> S - x1 >> S) mod 2**32)
+//           U = y1 - (x1 >> S) * V
+//     (Note: modular inverse may not exist for (x2-x1) when x2-x1 is even,
+//            so we try S = 0..31 to find )
+// case n>2:
+//   not implemented. maybe matrix-modulo-inverse based implementation?
+class ValueAdjustingOpaqueConstruct : public OpaqueConstruct {
+public:
+  ValueAdjustingOpaqueConstruct(const OpaqueStorage &target,
+                                const std::vector<uint32_t> &inputvalues,
+                                const std::vector<uint32_t> &outputvalues)
+      : target(target), inputvalues(inputvalues), outputvalues(outputvalues) {
+    assert(inputvalues.size() == outputvalues.size());
+  }
+
+  void compile(X86AssembleHelper &as, int stackOffset) const override {
+    if (inputvalues.size() == 1) {
+      uint32_t xorval = inputvalues[0] ^ outputvalues[0];
+      switch (target.type) {
+      case OpaqueStorage::Type::REG:
+        as.lxor(as.reg(target.reg), as.imm(xorval));
+        break;
+      case OpaqueStorage::Type::STACK:
+        auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
+        as.lxor(stackref, as.imm(xorval));
+        break;
+      }
+    } else if (inputvalues.size() == 2) {
+      uint32_t x1 = inputvalues[0];
+      uint32_t x2 = inputvalues[1];
+      uint32_t y1 = outputvalues[0];
+      uint32_t y2 = outputvalues[1];
+      if (x1 == x2)
+        abort();
+      uint32_t shift = 0;
+      // while x2>>shift - x1>>shift is even, increase shift amount
+      // since even numbers do not have a modular inverse (mod 2^32)
+      while (((x2 >> shift) - (x1 >> shift)) % 2 == 0) {
+        shift++;
+      }
+      // assert(((x2 >> shift) - (x1 >> shift)) % 2 != 0);
+      // now x2>>shift - x1>>shift is odd, and has a modular inverse
+      uint32_t v = modinv((x2 >> shift) - (x1 >> shift), 0x100000000ULL);
+      v *= y2 - y1;
+      uint32_t u = y1 - (x1 >> shift) * v;
+      // assert((x1 >> shift) * v + u == y1 && (x2 >> shift) * v + u == y2);
+      switch (target.type) {
+      case OpaqueStorage::Type::REG:
+        if (shift > 0)
+          as.shr(as.reg(target.reg), as.imm(shift));
+        as.imul(as.reg(target.reg), as.imm(v));
+        as.add(as.reg(target.reg), as.imm(u));
+        break;
+      case OpaqueStorage::Type::STACK:
+        auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
+        as.mov(as.reg(X86::EAX), stackref);
+        if (shift > 0)
+          as.shr(as.reg(X86::EAX), as.imm(shift));
+        as.imul(as.reg(X86::EAX), as.imm(v));
+        as.add(as.reg(X86::EAX), as.imm(u));
+        as.mov(stackref, as.reg(X86::EAX));
+        break;
+      }
+    } else {
+      dbg_fmt("Not implemented: adjusting values of n>2\n");
+      exit(1);
+    }
+  }
+
+  OpaqueState getInput() const override {
+    return {{target, OpaqueValue::createConstant(inputvalues)}};
+  }
+  OpaqueState getOutput() const override {
+    return {{target, OpaqueValue::createConstant(outputvalues)}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EDX, X86::EFLAGS};
+  }
+
+private:
+  OpaqueStorage target;
+  std::vector<uint32_t> inputvalues;
+  std::vector<uint32_t> outputvalues;
+
+  static void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x,
+                   uint64_t &y) {
+    if (a == 0) {
+      g = m;
+      x = 0;
+      y = 1;
+    } else {
+      egcd(m % a, a, g, y, x);
+      x -= (m / a) * y;
+    }
+  }
+  static uint64_t modinv(uint64_t a, uint64_t m) {
+    uint64_t g, x, y;
+    egcd(a, m, g, x, y);
+    return g == 1 ? x % m : 0;
+  }
+};
+
+std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createValueAdjustor(
+    const OpaqueStorage &target, const std::vector<uint32_t> &inputvalues,
+    const std::vector<uint32_t> &outputvalues) {
+  return std::shared_ptr<OpaqueConstruct>(
+      new ValueAdjustingOpaqueConstruct(target, inputvalues, outputvalues));
 }

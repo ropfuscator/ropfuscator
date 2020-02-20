@@ -63,6 +63,7 @@ struct OpaqueValue {
     /// when used in input, "input value should be specific value"
     /// when used in output, "output value is constant"
     CONSTANT,
+    CONSTANT_MULTIPLE,
     /// when used in input, "any value is accepted";
     /// when used in output, "may be any value"
     ANY,
@@ -72,36 +73,36 @@ struct OpaqueValue {
 
   const Type type;
 
-  union {
-    /// when type == CONSTANT, contains the constant value
-    uint64_t value;
-    /// when type == CONTEXTUAL, contains the compute function
-    compute_fun_type compute;
-  };
+  /// when type == CONSTANT | CONSTANT_MULTIPLE, contains the constant value(s)
+  std::vector<uint32_t> values;
+  /// when type == CONTEXTUAL, contains the compute function
+  compute_fun_type compute;
 
   /// create a value with type == ANY.
-  static OpaqueValue createAny() { return OpaqueValue(Type::ANY, 0, nullptr); }
+  static OpaqueValue createAny() { return OpaqueValue(Type::ANY, {}, nullptr); }
 
   /// create a value with type == CONSTANT.
   /// @param value the constant value
-  static OpaqueValue createConstant(uint64_t value) {
-    return OpaqueValue(Type::CONSTANT, value, nullptr);
+  static OpaqueValue createConstant(uint32_t value) {
+    return OpaqueValue(Type::CONSTANT, {value}, nullptr);
+  }
+
+  /// create a value with type == CONSTANT_VALUES.
+  /// @param values the constant value
+  static OpaqueValue createConstant(const std::vector<uint32_t> &values) {
+    return OpaqueValue(Type::CONSTANT_MULTIPLE, values, nullptr);
   }
 
   /// create a value with type == CONTEXTUAL.
   /// @param compute pointer to a function which computes the value from input
   static OpaqueValue createContextual(compute_fun_type compute) {
-    return OpaqueValue(Type::CONTEXTUAL, 0, compute);
+    return OpaqueValue(Type::CONTEXTUAL, {}, compute);
   }
 
 private:
-  OpaqueValue(Type type, uint64_t value, compute_fun_type compute)
-      : type(type) {
-    if (type == Type::CONSTANT)
-      this->value = value;
-    if (type == Type::CONTEXTUAL)
-      this->compute = compute;
-  }
+  OpaqueValue(Type type, const std::vector<uint32_t> &values,
+              compute_fun_type compute)
+      : type(type), values(values), compute(compute) {}
 };
 
 /// Opaque predicate input/output condition
@@ -123,12 +124,17 @@ struct OpaqueState {
     }
     return nullptr;
   }
-  const uint64_t *findValue(const OpaqueStorage &key) const {
+  const std::vector<uint32_t> *findValues(const OpaqueStorage &key) const {
     auto *p = find(key);
-    if (p && p->type == OpaqueValue::Type::CONSTANT) {
-      return &p->value;
+    if (p && (p->type == OpaqueValue::Type::CONSTANT ||
+              p->type == OpaqueValue::Type::CONSTANT_MULTIPLE)) {
+      return &p->values;
     }
     return nullptr;
+  }
+  const uint32_t *findValue(const OpaqueStorage &key) const {
+    auto *p = findValues(key);
+    return p ? p->data() : nullptr;
   }
 };
 
@@ -156,25 +162,45 @@ public:
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
   /// @param value the value to be stored
+  /// @param algorithm opaque constant algorithm (default: "mov")
   static std::shared_ptr<OpaqueConstruct>
   createOpaqueConstant32(const OpaqueStorage &target, uint32_t value,
                          const std::string &algorithm = "mov");
 
   /// create a 32-bit opaque constant with random result value.
   /// @param target target location into which the value is stored
+  /// @param algorithm opaque constant algorithm (default: "mov")
   static std::shared_ptr<OpaqueConstruct>
   createOpaqueConstant32(const OpaqueStorage &target,
                          const std::string &algorithm = "mov");
-};
 
-#if 0
-class OpaqueConstructManipulator {
-public:
-  static bool isComposable(const OpaqueConstruct &f, const OpaqueConstruct &g);
+  /// create a 32-bit opaque constant with specified algorithm.
+  /// @param target target location into which the value is stored
+  /// @param values the values to be stored
+  /// @param algorithm opaque constant algorithm, in the form of
+  ///  "randomgenerator+selector" (default: addreg+mov)
+  static std::shared_ptr<OpaqueConstruct>
+  createBranchingOpaqueConstant32(const OpaqueStorage &target,
+                                  const std::vector<uint32_t> &values,
+                                  const std::string &algorithm = "addreg+mov");
+
+  /// create a 32-bit opaque constant with specified algorithm.
+  /// @param target target location into which the value is stored
+  /// @param n_choices the number of random values
+  /// @param algorithm opaque constant algorithm, in the form of
+  ///  "randomgenerator+selector" (default: addreg+mov)
+  static std::shared_ptr<OpaqueConstruct>
+  createBranchingOpaqueConstant32(const OpaqueStorage &target, size_t n_choices,
+                                  const std::string &algorithm = "addreg+mov");
+
+  static std::shared_ptr<OpaqueConstruct>
+  createValueAdjustor(const OpaqueStorage &target,
+                      const std::vector<uint32_t> &inputvalues,
+                      const std::vector<uint32_t> &outputvalues);
+
   static std::shared_ptr<OpaqueConstruct>
   compose(std::shared_ptr<OpaqueConstruct> f,
           std::shared_ptr<OpaqueConstruct> g);
 };
-#endif
 
 #endif

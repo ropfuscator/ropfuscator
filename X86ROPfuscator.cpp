@@ -29,6 +29,10 @@ static cl::opt<bool> OpaquePredicatesEnabled(
     "fopaque-predicates",
     cl::desc("Enable the injection of opaque predicates"));
 
+static cl::opt<bool> OpaquePredicatesBranchEnabled(
+    "fopaque-predicates-branch",
+    cl::desc("Enable the injection of opaque predicates with branch"));
+
 static cl::opt<std::string> CustomLibraryPath(
     "use-custom-lib",
     cl::desc("Specify a custom library which gadget must be extracted from"),
@@ -63,6 +67,9 @@ public:
       ropfuscator = new ROPfuscatorCore(module);
 
       ropfuscator->opaquePredicateEnabled = OpaquePredicatesEnabled;
+      ropfuscator->opaquePredicateBranchEnabled = OpaquePredicatesBranchEnabled;
+      if (ropfuscator->opaquePredicateBranchEnabled)
+        ropfuscator->opaquePredicateEnabled = true;
       if (!CustomLibraryPath.empty()) {
         ropfuscator->libcPath = CustomLibraryPath.getValue();
       }
