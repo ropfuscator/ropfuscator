@@ -107,6 +107,9 @@ public:
   void add(Mem m, ExternalLabel i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
   void imul(Reg r, Imm i) const { _instrd(llvm::X86::IMUL32rri, r, i); }
+  void imul(Reg r1, Reg r2, Imm i) const {
+    _instrd(llvm::X86::IMUL32rri, r1, r2, i);
+  }
   void mul(Reg r) const { _instr(llvm::X86::MUL32r, r); }
   void cmp(Reg r, Imm i) const { _instr(llvm::X86::CMP32ri, r, i); }
   void cmp(Reg r1, Reg r2) const { _instr(llvm::X86::CMP32rr, r1, r2); }
@@ -141,6 +144,10 @@ public:
   void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
   void je(ExternalLabel l) const { _instr(llvm::X86::JE_1, l); }
   void je(BasicBlockRef l) const { _instr(llvm::X86::JE_1, l); }
+  void ja(ExternalLabel l) const { _instr(llvm::X86::JA_1, l); }
+  void ja(BasicBlockRef l) const { _instr(llvm::X86::JA_1, l); }
+  void jb(ExternalLabel l) const { _instr(llvm::X86::JB_1, l); }
+  void jb(BasicBlockRef l) const { _instr(llvm::X86::JB_1, l); }
   void lea(Reg r, Mem m) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);
@@ -182,6 +189,15 @@ private:
         BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand1.add(builder);
     operand2.add(builder);
+  }
+
+  template <typename T2, typename T3>
+  void _instrd(unsigned int opcode, Reg operand1, T2 operand2,
+               T3 operand3) const {
+    auto builder =
+        BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
+    operand2.add(builder);
+    operand3.add(builder);
   }
 };
 

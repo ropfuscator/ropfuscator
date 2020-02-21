@@ -46,6 +46,7 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 
 const std::string OPAQUE_CONSTRUCT_ALGORITHM = "mov";
 const std::string OPAQUE_CONSTRUCT_BRANCH_ALGORITHM = "addreg+mov";
+const size_t OPAQUE_CONSTRUCT_BRANCH_MAX = 32;
 
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID) {
@@ -194,10 +195,14 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       if (elem.type == ChainElem::Type::GADGET) {
         if (elem.microgadget->addresses.size() > 1 &&
             opaquePredicateBranchEnabled) {
+          savedRegs.insert(X86::ECX); // ValueAdjustor will clobber ECX
           savedRegs.insert(X86::EDX); // ValueAdjustor will clobber EDX
           auto opaqueConstant =
               OpaqueConstructFactory::createBranchingOpaqueConstant32(
-                  OpaqueStorage::EAX, 2, OPAQUE_CONSTRUCT_BRANCH_ALGORITHM);
+                  OpaqueStorage::EAX,
+                  std::min(OPAQUE_CONSTRUCT_BRANCH_MAX,
+                           elem.microgadget->addresses.size()),
+                  OPAQUE_CONSTRUCT_BRANCH_ALGORITHM);
           opaqueConstants.push_back(opaqueConstant);
           auto clobbered = opaqueConstant->getClobberedRegs();
           savedRegs.insert(clobbered.begin(), clobbered.end());
@@ -297,10 +302,11 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       if (addresses.size() > 1 && opaquePredicateBranchEnabled) {
         // take 2 addresses randomly
         std::vector<int> indices(addresses.size());
-        for (int i = 0; i < addresses.size(); i++) {
+        for (size_t i = 0; i < addresses.size(); i++) {
           indices[i] = i;
         }
-        while (offsets.size() < 2) {
+        while (offsets.size() <
+               std::min(OPAQUE_CONSTRUCT_BRANCH_MAX, addresses.size())) {
           int n = rand() % indices.size();
           int index = indices[n];
           indices.erase(indices.begin() + n);
