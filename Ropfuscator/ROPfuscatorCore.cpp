@@ -47,6 +47,7 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 const std::string OPAQUE_CONSTRUCT_ALGORITHM = "mov";
 const std::string OPAQUE_CONSTRUCT_BRANCH_ALGORITHM = "addreg+mov";
 const size_t OPAQUE_CONSTRUCT_BRANCH_MAX = 32;
+const bool obfuscateImmediateOperand = true;
 
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID) {
@@ -192,7 +193,8 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     savedRegs.insert(X86::EAX); // OpaqueConstant will be stored in EAX
 
     for (auto &elem : chain) {
-      if (elem.type == ChainElem::Type::GADGET) {
+      switch (elem.type) {
+      case ChainElem::Type::GADGET:
         if (elem.microgadget->addresses.size() > 1 &&
             opaquePredicateBranchEnabled) {
           savedRegs.insert(X86::ECX); // ValueAdjustor will clobber ECX
@@ -213,6 +215,19 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
           auto clobbered = opaqueConstant->getClobberedRegs();
           savedRegs.insert(clobbered.begin(), clobbered.end());
         }
+        break;
+      case ChainElem::Type::IMM_VALUE:
+      case ChainElem::Type::IMM_GLOBAL:
+        if (obfuscateImmediateOperand) {
+          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+              OpaqueStorage::EAX, OPAQUE_CONSTRUCT_ALGORITHM);
+          opaqueConstants.push_back(opaqueConstant);
+          auto clobbered = opaqueConstant->getClobberedRegs();
+          savedRegs.insert(clobbered.begin(), clobbered.end());
+        }
+        break;
+      default:
+        break;
       }
     }
   }
@@ -280,16 +295,44 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     switch (elem->type) {
 
     case ChainElem::Type::IMM_VALUE: {
-      // Push the immediate value onto the stack //
-      // push $imm
-      as.push(as.imm(elem->value));
+      // Push the immediate value onto the stack
+      if (opaquePredicateEnabled && obfuscateImmediateOperand) {
+        auto opaqueConstant = opaqueConstants.back();
+        opaqueConstants.pop_back();
+        uint32_t value =
+            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        // compute opaque constant to eax
+        opaqueConstant->compile(as, 0);
+        // adjust eax to be the constant
+        uint32_t diff = elem->value - value;
+        as.add(as.reg(X86::EAX), as.imm(diff));
+        // push eax
+        as.push(as.reg(X86::EAX));
+      } else {
+        // push $imm
+        as.push(as.imm(elem->value));
+      }
       break;
     }
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
-      // push global_symbol
-      as.push(as.imm(elem->global, elem->value));
+      if (opaquePredicateEnabled && obfuscateImmediateOperand) {
+        auto opaqueConstant = opaqueConstants.back();
+        opaqueConstants.pop_back();
+        uint32_t value =
+            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        // compute opaque constant to eax
+        opaqueConstant->compile(as, 0);
+        // adjust eax to be the constant
+        uint32_t diff = elem->value - value;
+        as.add(as.reg(X86::EAX), as.imm(elem->global, diff));
+        // push eax
+        as.push(as.reg(X86::EAX));
+      } else {
+        // push global_symbol
+        as.push(as.imm(elem->global, elem->value));
+      }
       break;
     }
 
