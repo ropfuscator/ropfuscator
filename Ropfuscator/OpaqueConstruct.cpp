@@ -237,7 +237,7 @@ class MultiplyCompareOpaquePredicate : public OpaqueConstruct {
 public:
   MultiplyCompareOpaquePredicate(uint32_t input1, uint32_t input2,
                                  uint64_t compvalue)
-      : input1(input1), input2(input2), compvalue(compvalue) {
+      : compvalue(compvalue) {
     inputState.emplace_back(OpaqueStorage::EAX,
                             OpaqueValue::createConstant(input1));
     inputState.emplace_back(OpaqueStorage::EDX,
@@ -289,7 +289,6 @@ public:
 private:
   static PrimeNumberGenerator<std::default_random_engine> rng;
 
-  uint32_t input1, input2;
   uint64_t compvalue;
   OpaqueState inputState, outputState;
 };
@@ -435,8 +434,8 @@ private:
 
   void compileAux(X86AssembleHelper &as, const X86AssembleHelper::Reg &target,
                   const X86AssembleHelper::Reg &tmpreg,
-                  const X86AssembleHelper::ExternalLabel &endLabel, int m,
-                  int n, uint32_t flag, bool &labelUsed) const {
+                  const X86AssembleHelper::ExternalLabel &endLabel, uint32_t m,
+                  uint32_t n, uint32_t flag, bool &labelUsed) const {
     if (n == 1) {
       as.mov(target, as.imm(values[m]));
       if (m + n != values.size()) {
@@ -508,7 +507,6 @@ public:
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
                                 std::shared_ptr<OpaqueConstruct> g) {
-  uint32_t value = rand_device();
   return std::shared_ptr<OpaqueConstruct>(new ComposedOpaqueConstruct({f, g}));
 }
 
@@ -559,6 +557,233 @@ OpaqueConstructFactory::createBranchingOpaqueConstant32(
   return createBranchingOpaqueConstant32(target, values_v, algorithm);
 }
 
+namespace {
+
+class Math {
+
+  static std::random_device rdev;
+  static std::default_random_engine reng;
+  static void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x,
+                   uint64_t &y) {
+    if (a == 0) {
+      g = m;
+      x = 0;
+      y = 1;
+    } else {
+      egcd(m % a, a, g, y, x);
+      x -= (m / a) * y;
+    }
+  }
+
+public:
+  static uint64_t modinv(uint64_t a, uint64_t m) {
+    uint64_t g, x, y;
+    egcd(a, m, g, x, y);
+    return g == 1 ? x % m : 0;
+  }
+  static uint64_t randrange(uint64_t x, uint64_t y) {
+    std::uniform_int_distribution<uint64_t> dist(x, y);
+    return dist(reng);
+  }
+  static uint32_t randrange(uint32_t x, uint32_t y) {
+    std::uniform_int_distribution<uint32_t> dist(x, y);
+    return dist(reng);
+  }
+};
+
+std::random_device Math::rdev;
+std::default_random_engine Math::reng(Math::rdev());
+
+class Matrix {
+  unsigned int M, N;
+  std::vector<uint64_t> data;
+
+public:
+  class View {
+    Matrix &matrix;
+    unsigned int offX, offY, M, N;
+
+  public:
+    View(Matrix &matrix, unsigned int offX, unsigned int offY, unsigned int M,
+         unsigned int N)
+        : matrix(matrix), offX(offX), offY(offY), M(M), N(N) {}
+    uint64_t &at(unsigned int y, unsigned int x) {
+      return matrix.at(y + offY, x + offX);
+    }
+    uint64_t at(unsigned int y, unsigned int x) const {
+      return matrix.at(y + offY, x + offX);
+    }
+    uint64_t &operator[](const std::pair<unsigned int, unsigned int> &index) {
+      return at(index.first, index.second);
+    }
+    uint64_t
+    operator[](const std::pair<unsigned int, unsigned int> &index) const {
+      return at(index.first, index.second);
+    }
+    unsigned int width() const { return M; }
+    unsigned int height() const { return N; }
+    View &operator=(const View &other) {
+      assert(width() == other.width() && height() == other.height());
+      for (unsigned int i = 0; i < height(); i++) {
+        for (unsigned int j = 0; j < width(); j++) {
+          at(i, j) = other.at(i, j);
+        }
+      }
+      return *this;
+    }
+    View &operator=(const Matrix &other) {
+      return *this = const_cast<Matrix &>(other).view();
+    }
+    template <typename UnaOp> Matrix op(UnaOp op) const {
+      Matrix result(width(), height());
+      for (unsigned int i = 0; i < height(); i++) {
+        for (unsigned int j = 0; j < width(); j++) {
+          result.at(i, j) = op(at(i, j));
+        }
+      }
+      return result;
+    }
+    template <typename BinOp> Matrix op(const View &other, BinOp op) const {
+      assert(width() == other.width() && height() == other.height());
+      Matrix result(width(), height());
+      for (unsigned int i = 0; i < height(); i++) {
+        for (unsigned int j = 0; j < width(); j++) {
+          result.at(i, j) = op(at(i, j), other.at(i, j));
+        }
+      }
+      return result;
+    }
+    Matrix mult(const View &other) const {
+      assert(width() == other.height());
+      Matrix result(other.width(), height());
+      for (unsigned int i = 0; i < height(); i++) {
+        for (unsigned int j = 0; j < other.width(); j++) {
+          for (unsigned int k = 0; k < width(); k++) {
+            result.at(i, j) += at(i, k) * other.at(k, j);
+          }
+        }
+      }
+      return result;
+    }
+    Matrix operator*(const View &other) const { return mult(other); }
+    Matrix operator*(const Matrix &other) const {
+      return *this * const_cast<Matrix &>(other).view();
+    }
+    Matrix operator+(const View &other) const {
+      return op(other, std::plus<uint64_t>());
+    }
+    Matrix operator+(const Matrix &other) const {
+      return *this + const_cast<Matrix &>(other).view();
+    }
+    Matrix operator-(const View &other) const {
+      return op(other, std::minus<uint64_t>());
+    }
+    Matrix operator-(const Matrix &other) const {
+      return *this - const_cast<Matrix &>(other).view();
+    }
+    Matrix operator-() const { return op(std::negate<uint64_t>()); }
+    Matrix inverse_mod(uint64_t modulus) const {
+      assert(M == N);
+      Matrix result(N, N);
+      if (N == 0) {
+        return result;
+      } else if (N == 1) {
+        uint64_t inv = Math::modinv(at(0, 0), modulus);
+        if (inv == 0) {
+          return Matrix(0, 0); // failure
+        }
+        result.at(0, 0) = inv;
+        return result;
+      } else if (N == 2) {
+        uint64_t det = at(0, 0) * at(1, 1) - at(0, 1) * at(1, 0);
+        uint64_t invdet = Math::modinv(det, modulus);
+        if (invdet == 0) {
+          return Matrix(0, 0); // failure
+        }
+        result.at(0, 0) = uint64_t(invdet * at(1, 1)) % modulus;
+        result.at(0, 1) = uint64_t(invdet * -at(0, 1)) % modulus;
+        result.at(1, 0) = uint64_t(invdet * -at(1, 0)) % modulus;
+        result.at(1, 1) = uint64_t(invdet * at(0, 0)) % modulus;
+        return result;
+      } else {
+        unsigned int n1 = (N + 1) / 2;
+        unsigned int n2 = N - n1;
+        // split matrix
+        View A = view(0, 0, n1, n1);
+        View B = view(n1, 0, n2, n1);
+        View C = view(0, n1, n1, n2);
+        View D = view(n1, n1, n2, n2);
+        Matrix InvA = A.inverse_mod(modulus);
+        if (InvA.width() == 0) {
+          return Matrix(0, 0); // failure
+        }
+        Matrix F = D - C * InvA * B;
+        Matrix InvF = F.view().inverse_mod(modulus);
+        if (InvF.width() == 0) {
+          return Matrix(0, 0); // failure
+        }
+        Matrix G = InvA * B * InvF;
+        Matrix H = C * InvA;
+        result.view(0, 0, n1, n1) = InvA + G * H;
+        result.view(n1, 0, n2, n1) = -G;
+        result.view(0, n1, n1, n2) = -InvF * H;
+        result.view(n1, n1, n2, n2) = InvF;
+        for (unsigned int i = 0; i < N; i++) {
+          for (unsigned int j = 0; j < N; j++) {
+            result.at(i, j) %= modulus;
+          }
+        }
+        return result;
+      }
+    }
+    View view(unsigned int offX, unsigned int offY, unsigned int m,
+              unsigned int n) const {
+      assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
+             n + offY <= N);
+      return View(matrix, this->offX + offX, this->offY + offY, m, n);
+    }
+  };
+  Matrix(unsigned int M, unsigned int N) : M(M), N(N), data(M * N) {}
+  uint64_t &at(unsigned int y, unsigned int x) {
+    assert(x < M && y < N);
+    return data[x + y * M];
+  }
+  uint64_t at(unsigned int y, unsigned int x) const {
+    assert(x < M && y < N);
+    return data[x + y * M];
+  }
+  unsigned int width() { return M; }
+  unsigned int height() { return N; }
+  View view() { return View(*this, 0, 0, M, N); }
+  View view(unsigned int offX, unsigned int offY, unsigned int m,
+            unsigned int n) {
+    assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
+           n + offY <= N);
+    return View(*this, offX, offY, m, n);
+  }
+  Matrix operator+(const View &other) const {
+    return const_cast<Matrix &>(*this).view() + other;
+  }
+  Matrix operator+(const Matrix &other) const {
+    return const_cast<Matrix &>(*this).view() + other;
+  }
+  Matrix operator-(const View &other) const {
+    return const_cast<Matrix &>(*this).view() - other;
+  }
+  Matrix operator-(const Matrix &other) const {
+    return const_cast<Matrix &>(*this).view() - other;
+  }
+  Matrix operator*(const View &other) const {
+    return const_cast<Matrix &>(*this).view() * other;
+  }
+  Matrix operator*(const Matrix &other) const {
+    return const_cast<Matrix &>(*this).view() * other;
+  }
+  Matrix operator-() const { return -const_cast<Matrix &>(*this).view(); }
+};
+
+} // namespace
+
 // This class will convert input values to output values,
 // without leaking input/output values themselves.
 // All input / output values should be distinct and have same length.
@@ -583,59 +808,27 @@ public:
                                 const std::vector<uint32_t> &outputvalues)
       : target(target), inputvalues(inputvalues), outputvalues(outputvalues) {
     assert(inputvalues.size() == outputvalues.size());
+    std::sort(this->inputvalues.begin(), this->inputvalues.end());
+    std::random_shuffle(this->outputvalues.begin(), this->outputvalues.end());
   }
 
   void compile(X86AssembleHelper &as, int stackOffset) const override {
-    if (inputvalues.size() == 1) {
-      uint32_t xorval = inputvalues[0] ^ outputvalues[0];
-      switch (target.type) {
-      case OpaqueStorage::Type::REG:
-        as.lxor(as.reg(target.reg), as.imm(xorval));
-        break;
-      case OpaqueStorage::Type::STACK:
-        auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
-        as.lxor(stackref, as.imm(xorval));
-        break;
-      }
-    } else if (inputvalues.size() == 2) {
-      uint32_t x1 = inputvalues[0];
-      uint32_t x2 = inputvalues[1];
-      uint32_t y1 = outputvalues[0];
-      uint32_t y2 = outputvalues[1];
-      if (x1 == x2)
-        abort();
-      uint32_t shift = 0;
-      // while x2>>shift - x1>>shift is even, increase shift amount
-      // since even numbers do not have a modular inverse (mod 2^32)
-      while (((x2 >> shift) - (x1 >> shift)) % 2 == 0) {
-        shift++;
-      }
-      // assert(((x2 >> shift) - (x1 >> shift)) % 2 != 0);
-      // now x2>>shift - x1>>shift is odd, and has a modular inverse
-      uint32_t v = modinv((x2 >> shift) - (x1 >> shift), 0x100000000ULL);
-      v *= y2 - y1;
-      uint32_t u = y1 - (x1 >> shift) * v;
-      // assert((x1 >> shift) * v + u == y1 && (x2 >> shift) * v + u == y2);
-      switch (target.type) {
-      case OpaqueStorage::Type::REG:
-        if (shift > 0)
-          as.shr(as.reg(target.reg), as.imm(shift));
-        as.imul(as.reg(target.reg), as.imm(v));
-        as.add(as.reg(target.reg), as.imm(u));
-        break;
-      case OpaqueStorage::Type::STACK:
-        auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
-        as.mov(as.reg(X86::EAX), stackref);
-        if (shift > 0)
-          as.shr(as.reg(X86::EAX), as.imm(shift));
-        as.imul(as.reg(X86::EAX), as.imm(v));
-        as.add(as.reg(X86::EAX), as.imm(u));
-        as.mov(stackref, as.reg(X86::EAX));
-        break;
-      }
-    } else {
-      dbg_fmt("Not implemented: adjusting values of n>2\n");
-      exit(1);
+    auto endLabel = as.label();
+    bool endLabelUsed = false;
+    switch (target.type) {
+    case OpaqueStorage::Type::REG:
+      compileAux(as, 0, inputvalues.size(), target.reg, endLabelUsed, endLabel);
+      if (endLabelUsed)
+        as.putLabel(endLabel);
+      break;
+    case OpaqueStorage::Type::STACK:
+      auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
+      as.mov(as.reg(X86::EAX), stackref);
+      compileAux(as, 0, inputvalues.size(), X86::EAX, endLabelUsed, endLabel);
+      if (endLabelUsed)
+        as.putLabel(endLabel);
+      as.mov(stackref, as.reg(X86::EAX));
+      break;
     }
   }
 
@@ -646,7 +839,16 @@ public:
     return {{target, OpaqueValue::createConstant(outputvalues)}};
   }
   std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EDX, X86::EFLAGS};
+    switch (inputvalues.size()) {
+    case 1:
+      if (target.type == OpaqueStorage::Type::STACK)
+        return {X86::EAX, X86::EFLAGS};
+      return {X86::EFLAGS};
+    case 2:
+      return {X86::EAX, X86::EDX, X86::EFLAGS};
+    default:
+      return {X86::EAX, X86::ECX, X86::EDX, X86::EFLAGS};
+    }
   }
 
 private:
@@ -654,21 +856,87 @@ private:
   std::vector<uint32_t> inputvalues;
   std::vector<uint32_t> outputvalues;
 
-  static void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x,
-                   uint64_t &y) {
-    if (a == 0) {
-      g = m;
-      x = 0;
-      y = 1;
+  void compileAux(X86AssembleHelper &as, uint32_t pos, uint32_t N,
+                  unsigned int targetreg, bool &endLabelUsed,
+                  const X86AssembleHelper::ExternalLabel &endLabel) const {
+    if (N == 1) {
+      uint32_t xorval = inputvalues[pos] ^ outputvalues[pos];
+      as.lxor(as.reg(targetreg), as.imm(xorval));
     } else {
-      egcd(m % a, a, g, y, x);
-      x -= (m / a) * y;
+      std::vector<uint32_t> params;
+      uint32_t shift;
+      if (computeParams(pos, N, params, shift)) {
+        // tmpreg1: used in N>2, tmpreg2: used in N>3
+        unsigned int tmpreg1 = targetreg == X86::EDX ? X86::EAX : X86::EDX;
+        unsigned int tmpreg2 = targetreg == X86::ECX ? X86::EAX : X86::ECX;
+        if (shift > 0)
+          as.shr(as.reg(targetreg), as.imm(shift));
+        for (uint32_t i = 0; i + 2 < N; i++) {
+          if (i == 0) {
+            as.imul(as.reg(tmpreg1), as.reg(targetreg), as.imm(params[i]));
+          } else {
+            as.imul(as.reg(tmpreg2), as.reg(targetreg), as.imm(params[i]));
+            as.add(as.reg(tmpreg1), as.reg(tmpreg2));
+          }
+          as.shr(as.reg(targetreg), as.imm(1));
+        }
+        as.imul(as.reg(targetreg), as.imm(params[N - 2]));
+        as.add(as.reg(targetreg), as.imm(params[N - 1]));
+        if (N > 2) {
+          as.add(as.reg(targetreg), as.reg(tmpreg1));
+        }
+      } else {
+        // cannot find matrix inverse; we should split the input-output map
+        // and compile each case
+        assert(N >= 3);
+        uint32_t n2 = (N + 1) / 2;
+        assert(inputvalues[pos + n2 - 1] < inputvalues[pos + n2]);
+        uint32_t mid =
+            Math::randrange(inputvalues[pos + n2 - 1], inputvalues[pos + n2]);
+        auto label1 = as.label();
+        auto label2 = as.label();
+        // test if input < mid
+        as.cmp(as.reg(targetreg), as.imm(mid));
+        as.jb(label1);
+        // case input >= mid:
+        compileAux(as, pos + n2, N - n2, targetreg, endLabelUsed, endLabel);
+        as.jmp(endLabel);
+        endLabelUsed = true;
+        // case input < mid:
+        as.putLabel(label1);
+        compileAux(as, pos, n2, targetreg, endLabelUsed, endLabel);
+      }
     }
   }
-  static uint64_t modinv(uint64_t a, uint64_t m) {
-    uint64_t g, x, y;
-    egcd(a, m, g, x, y);
-    return g == 1 ? x % m : 0;
+
+  // compute parameters such that:
+  // ForAll j: output[j] ==
+  //  Sum_i<-{0..N-2} { params[i]*(input[j]>>(shift+i)) } + params[N-1]
+  bool computeParams(uint32_t pos, uint32_t N, std::vector<uint32_t> &params,
+                     uint32_t &shift) const {
+    Matrix mat(N, N);
+    for (uint32_t s = 0; s + N < 32 + 2; s++) {
+      for (uint32_t i = 0; i < N; i++) {
+        for (uint32_t j = 0; j < N - 1; j++) {
+          mat.at(i, j) = inputvalues[pos + i] >> (s + j);
+        }
+        mat.at(i, N - 1) = 1;
+      }
+      Matrix invmat = mat.view().inverse_mod(0x100000000ULL);
+      if (invmat.width() > 0) {
+        Matrix output(1, N);
+        for (uint32_t i = 0; i < N; i++) {
+          output.at(i, 0) = outputvalues[pos + i];
+        }
+        Matrix p = invmat * output;
+        for (uint32_t i = 0; i < N; i++) {
+          params.push_back((uint32_t)p.at(i, 0));
+        }
+        shift = s;
+        return true;
+      }
+    }
+    return false;
   }
 };
 
