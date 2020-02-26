@@ -28,6 +28,7 @@
 #include "ChainElem.h"
 #include "Microgadget.h"
 #include "ROPEngine.h"
+#include "ROPfuscatorConfig.h"
 #include "Section.h"
 #include "Symbol.h"
 #include "XchgGraph.h"
@@ -54,7 +55,7 @@ class BinaryAutopsy {
 private:
   // Singleton
   static BinaryAutopsy *instance;
-  BinaryAutopsy(std::string path, const llvm::Module &module,
+  BinaryAutopsy(const GlobalConfig &config, const llvm::Module &module,
                 const llvm::TargetMachine &target, llvm::MCContext &context);
   BinaryAutopsy() = delete;
   BinaryAutopsy(const BinaryAutopsy &) = delete;
@@ -63,6 +64,7 @@ private:
   const llvm::Module &module;
   const llvm::TargetMachine &target;
   llvm::MCContext &context;
+  const GlobalConfig &config;
 
 public:
   // XchgGraph instance
@@ -87,7 +89,7 @@ public:
   bool isModuleSymbolAnalysed;
 
   // getInstance - returns an instance of this singleton class
-  static BinaryAutopsy *getInstance(std::string path,
+  static BinaryAutopsy *getInstance(const GlobalConfig &config,
                                     llvm::MachineFunction &MF);
 
   // -----------------------------------------------------------------------------
