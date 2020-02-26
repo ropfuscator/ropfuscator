@@ -17,6 +17,7 @@
 #include "LivenessAnalysis.h"
 #include "OpaqueConstruct.h"
 #include "ROPEngine.h"
+#include "ROPfuscatorConfig.h"
 #include "X86AssembleHelper.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -44,9 +45,6 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
 #endif
 #endif
 
-const std::string OPAQUE_CONSTRUCT_ALGORITHM = "mov";
-const std::string OPAQUE_CONSTRUCT_BRANCH_ALGORITHM = "addreg+mov";
-const size_t OPAQUE_CONSTRUCT_BRANCH_MAX = 32;
 const bool obfuscateImmediateOperand = true;
 
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
@@ -151,9 +149,9 @@ static std::string findLibcPath() {
 
 // ----------------------------------------------------------------
 
-ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module)
-    : opaquePredicateEnabled(false), opaquePredicateBranchEnabled(false),
-      BA(nullptr), TII(nullptr) {}
+ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
+                                 const ROPfuscatorConfig &config)
+    : config(config), BA(nullptr), TII(nullptr) {}
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -167,7 +165,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 
 void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
                                      MachineBasicBlock &MBB, MachineInstr &MI,
-                                     int chainID) {
+                                     int chainID,
+                                     const ObfuscationParameter &param) {
   std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
@@ -189,28 +188,28 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   savedRegs.insert(X86::EFLAGS); // flags are modified generally
   // generate opaque constants before insert
   std::vector<std::shared_ptr<OpaqueConstruct>> opaqueConstants;
-  if (opaquePredicateEnabled) {
+  if (param.opaquePredicateEnabled) {
     savedRegs.insert(X86::EAX); // OpaqueConstant will be stored in EAX
 
     for (auto &elem : chain) {
       switch (elem.type) {
       case ChainElem::Type::GADGET:
         if (elem.microgadget->addresses.size() > 1 &&
-            opaquePredicateBranchEnabled) {
+            param.opaqueBranchDivergenceEnabled) {
           savedRegs.insert(X86::ECX); // ValueAdjustor will clobber ECX
           savedRegs.insert(X86::EDX); // ValueAdjustor will clobber EDX
           auto opaqueConstant =
               OpaqueConstructFactory::createBranchingOpaqueConstant32(
                   OpaqueStorage::EAX,
-                  std::min(OPAQUE_CONSTRUCT_BRANCH_MAX,
+                  std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
                            elem.microgadget->addresses.size()),
-                  OPAQUE_CONSTRUCT_BRANCH_ALGORITHM);
+                  param.opaqueBranchDivergenceAlgorithm);
           opaqueConstants.push_back(opaqueConstant);
           auto clobbered = opaqueConstant->getClobberedRegs();
           savedRegs.insert(clobbered.begin(), clobbered.end());
         } else {
           auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, OPAQUE_CONSTRUCT_ALGORITHM);
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
           opaqueConstants.push_back(opaqueConstant);
           auto clobbered = opaqueConstant->getClobberedRegs();
           savedRegs.insert(clobbered.begin(), clobbered.end());
@@ -220,7 +219,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       case ChainElem::Type::IMM_GLOBAL:
         if (obfuscateImmediateOperand) {
           auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, OPAQUE_CONSTRUCT_ALGORITHM);
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
           opaqueConstants.push_back(opaqueConstant);
           auto clobbered = opaqueConstant->getClobberedRegs();
           savedRegs.insert(clobbered.begin(), clobbered.end());
@@ -296,7 +295,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 
     case ChainElem::Type::IMM_VALUE: {
       // Push the immediate value onto the stack
-      if (opaquePredicateEnabled && obfuscateImmediateOperand) {
+      if (param.opaquePredicateEnabled && obfuscateImmediateOperand) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
         uint32_t value =
@@ -317,7 +316,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
-      if (opaquePredicateEnabled && obfuscateImmediateOperand) {
+      if (param.opaquePredicateEnabled && obfuscateImmediateOperand) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
         uint32_t value =
@@ -342,14 +341,15 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
       std::vector<uint32_t> offsets;
-      if (addresses.size() > 1 && opaquePredicateBranchEnabled) {
+      if (addresses.size() > 1 && param.opaqueBranchDivergenceEnabled) {
         // take 2 addresses randomly
         std::vector<int> indices(addresses.size());
         for (size_t i = 0; i < addresses.size(); i++) {
           indices[i] = i;
         }
         while (offsets.size() <
-               std::min(OPAQUE_CONSTRUCT_BRANCH_MAX, addresses.size())) {
+               std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
+                        addresses.size())) {
           int n = rand() % indices.size();
           int index = indices[n];
           indices.erase(indices.begin() + n);
@@ -369,7 +369,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 
       // push $symbol
       as.push(as.label(sym->Label));
-      if (opaquePredicateEnabled) {
+      if (param.opaquePredicateEnabled) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
         auto output = opaqueConstant->getOutput();
@@ -481,10 +481,10 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
-    if (libcPath.empty()) {
-      libcPath = findLibcPath();
+    if (config.globalConfig.libraryPath.empty()) {
+      config.globalConfig.libraryPath = findLibcPath();
     }
-    BA = BinaryAutopsy::getInstance(libcPath, MF);
+    BA = BinaryAutopsy::getInstance(config.globalConfig, MF);
   }
 
   if (TII == nullptr) {
@@ -497,6 +497,12 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     }
 
     TII = target.getInstrInfo();
+  }
+
+  std::string funcName = MF.getName().str();
+  ObfuscationParameter param = config.getParameter(funcName);
+  if (!param.obfuscationEnabled) {
+    return;
   }
 
   // stats
@@ -566,7 +572,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
                                 COLOR_RESET));
 
         if (chain0.valid()) {
-          insertROPChain(chain0, MBB, *prevMI, chainID++);
+          insertROPChain(chain0, MBB, *prevMI, chainID++, param);
           chain0.clear();
         }
         continue;
@@ -578,7 +584,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         chain0.merge(result);
       } else {
         if (chain0.valid()) {
-          insertROPChain(chain0, MBB, *prevMI, chainID++);
+          insertROPChain(chain0, MBB, *prevMI, chainID++, param);
           chain0.clear();
         }
         chain0 = std::move(result);
@@ -592,7 +598,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     }
 
     if (chain0.valid()) {
-      insertROPChain(chain0, MBB, *prevMI, chainID++);
+      insertROPChain(chain0, MBB, *prevMI, chainID++, param);
       chain0.clear();
     }
 
@@ -606,7 +612,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
   // print obfuscation stats for this function
   DEBUG_WITH_TYPE(OBF_STATS,
-                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
-                          MF.getName().str(), obfuscated, processed,
+                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n", funcName,
+                          obfuscated, processed,
                           (obfuscated * 100) / processed));
 }

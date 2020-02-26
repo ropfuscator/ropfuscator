@@ -29,14 +29,6 @@ using namespace llvm;
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
-// If set to true, find gadget in code segment instead of code section
-// (which will find more gadgets since code segment is wider)
-static const bool searchSegmentForGadget = true;
-// If set to true, symbols which have multiple versions are not used;
-// if set to false, only one version of those symbols is used.
-// (angr will not work correctly if this is set to false)
-static const bool avoidMultiversionSymbol = false;
-
 class ELFParser {
 public:
   ELFParser(const std::string &path) {
@@ -264,10 +256,10 @@ private:
   }
 };
 
-BinaryAutopsy::BinaryAutopsy(string path, const Module &module,
+BinaryAutopsy::BinaryAutopsy(const GlobalConfig &config, const Module &module,
                              const TargetMachine &target, MCContext &context)
-    : module(module), target(target), context(context),
-      elf(new ELFParser(path)) {
+    : module(module), target(target), context(context), config(config),
+      elf(new ELFParser(config.libraryPath)) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
   isModuleSymbolAnalysed = false;
@@ -288,10 +280,10 @@ void BinaryAutopsy::dissect() {
 
 BinaryAutopsy *BinaryAutopsy::instance = 0;
 
-BinaryAutopsy *BinaryAutopsy::getInstance(string path,
+BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &config,
                                           llvm::MachineFunction &MF) {
   if (instance == nullptr) {
-    instance = new BinaryAutopsy(path, *MF.getFunction().getParent(),
+    instance = new BinaryAutopsy(config, *MF.getFunction().getParent(),
                                  MF.getTarget(), MF.getContext());
   }
 
@@ -400,7 +392,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
         Symbols.emplace_back(Symbol(symbolName, versionString, addr));
       } else {
         // multi-versioned symbol
-        if (avoidMultiversionSymbol) {
+        if (config.avoidMultiversionSymbol) {
           Symbols.erase(std::remove_if(
               Symbols.begin(), Symbols.end(),
               [&](const Symbol &s) { return s.Label == symbolName; }));
@@ -507,7 +499,7 @@ void BinaryAutopsy::dumpGadgets() {
 
   const uint8_t *buf = elf->base();
 
-  for (auto &s : (searchSegmentForGadget ? Segments : Sections)) {
+  for (auto &s : (config.searchSegmentForGadget ? Segments : Sections)) {
     int cnt = 0;
 
     // Scan for RET instructions
