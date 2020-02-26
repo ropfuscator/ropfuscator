@@ -3,8 +3,18 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
+
+// algorithms for opaque constant
+const std::string OPAQUE_CONSTANT_ALGORITHM_MOV = "mov";
+const std::string OPAQUE_CONSTANT_ALGORITHM_MULTCOMP = "multcomp";
+
+// algorithms for opaque constant based branch
+const std::string OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV = "addreg+mov";
+const std::string OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV = "rdtsc+mov";
+const std::string OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV = "negativestack+mov";
 
 typedef unsigned int llvm_reg_t;
 class X86AssembleHelper;
@@ -163,35 +173,34 @@ public:
   /// @param target target location into which the value is stored
   /// @param value the value to be stored
   /// @param algorithm opaque constant algorithm (default: "mov")
-  static std::shared_ptr<OpaqueConstruct>
-  createOpaqueConstant32(const OpaqueStorage &target, uint32_t value,
-                         const std::string &algorithm = "mov");
+  static std::shared_ptr<OpaqueConstruct> createOpaqueConstant32(
+      const OpaqueStorage &target, uint32_t value,
+      const std::string &algorithm = OPAQUE_CONSTANT_ALGORITHM_MOV);
 
   /// create a 32-bit opaque constant with random result value.
   /// @param target target location into which the value is stored
   /// @param algorithm opaque constant algorithm (default: "mov")
-  static std::shared_ptr<OpaqueConstruct>
-  createOpaqueConstant32(const OpaqueStorage &target,
-                         const std::string &algorithm = "mov");
+  static std::shared_ptr<OpaqueConstruct> createOpaqueConstant32(
+      const OpaqueStorage &target,
+      const std::string &algorithm = OPAQUE_CONSTANT_ALGORITHM_MOV);
 
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
   /// @param values the values to be stored
   /// @param algorithm opaque constant algorithm, in the form of
   ///  "randomgenerator+selector" (default: addreg+mov)
-  static std::shared_ptr<OpaqueConstruct>
-  createBranchingOpaqueConstant32(const OpaqueStorage &target,
-                                  const std::vector<uint32_t> &values,
-                                  const std::string &algorithm = "addreg+mov");
+  static std::shared_ptr<OpaqueConstruct> createBranchingOpaqueConstant32(
+      const OpaqueStorage &target, const std::vector<uint32_t> &values,
+      const std::string &algorithm = OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV);
 
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
   /// @param n_choices the number of random values
   /// @param algorithm opaque constant algorithm, in the form of
   ///  "randomgenerator+selector" (default: addreg+mov)
-  static std::shared_ptr<OpaqueConstruct>
-  createBranchingOpaqueConstant32(const OpaqueStorage &target, size_t n_choices,
-                                  const std::string &algorithm = "addreg+mov");
+  static std::shared_ptr<OpaqueConstruct> createBranchingOpaqueConstant32(
+      const OpaqueStorage &target, size_t n_choices,
+      const std::string &algorithm = OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV);
 
   static std::shared_ptr<OpaqueConstruct>
   createValueAdjustor(const OpaqueStorage &target,
