@@ -1,5 +1,6 @@
 set(CMAKE_CXX_STANDARD 17)
 set(LLVM_TARGET_DEFINITIONS X86.td)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fexceptions")
 
 tablegen(LLVM X86GenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM X86GenAsmWriter.inc -gen-asm-writer)
@@ -95,6 +96,8 @@ if (CURRENT_LLVM_TARGET)
         target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
 endif ()
 
+include_directories(ropfuscator-extra/include/toml11)
+
 # libfmt
 find_library(FMT fmt)
 
@@ -118,4 +121,3 @@ else()
 		endif()
 	endif()
 endif()
-
