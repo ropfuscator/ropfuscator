@@ -31,19 +31,6 @@ static cl::opt<std::string> RopfuscatorConfigFile(
     cl::desc("Specify a configuration file path for obfuscation"),
     cl::NotHidden, cl::Optional, cl::ValueRequired);
 
-static cl::opt<bool> OpaquePredicatesEnabled(
-    "fopaque-predicates",
-    cl::desc("Enable the injection of opaque predicates"));
-
-static cl::opt<bool> OpaquePredicatesBranchEnabled(
-    "fopaque-predicates-branch",
-    cl::desc("Enable the injection of opaque predicates with branch"));
-
-static cl::opt<std::string> CustomLibraryPath(
-    "use-custom-lib",
-    cl::desc("Specify a custom library which gadget must be extracted from"),
-    cl::NotHidden, cl::Optional, cl::ValueRequired);
-
 // ----------------------------------------------------------------
 
 namespace {
@@ -75,15 +62,6 @@ public:
 
     ROPfuscatorConfig config;
 
-    config.defaultParameter.opaquePredicateEnabled =
-        OpaquePredicatesEnabled || OpaquePredicatesBranchEnabled;
-    config.defaultParameter.opaqueBranchDivergenceEnabled =
-        OpaquePredicatesBranchEnabled;
-
-    if (!CustomLibraryPath.empty()) {
-      config.globalConfig.libraryPath = CustomLibraryPath.getValue();
-    }
-
     if (!RopfuscatorConfigFile.empty()) {
       config.loadFromFile(RopfuscatorConfigFile);
     }
@@ -104,7 +82,7 @@ public:
 
 private:
   ROPfuscatorCore *ropfuscator;
-};
+}; // namespace
 
 char X86ROPfuscator::ID = 0;
 } // namespace
