@@ -28,7 +28,7 @@ option(ROPF_OPAQUEP "Enable opaque predicates to protect the ROP chains." OFF)
 # endif ()
 
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
+add_subdirectory("evaluation" EXCLUDE_FROM_ALL)
 add_subdirectory("examples" EXCLUDE_FROM_ALL)
 add_subdirectory("lib" EXCLUDE_FROM_ALL)
 add_subdirectory("testcase" EXCLUDE_FROM_ALL)
-add_subdirectory("evaluation" EXCLUDE_FROM_ALL)
