@@ -69,20 +69,26 @@ public:
   }
 
   bool doInitialization(Module &module) override {
-    if (!ROPfPassDisabled) {
-      ROPfuscatorConfig config;
-      config.defaultParameter.opaquePredicateEnabled =
-          OpaquePredicatesEnabled || OpaquePredicatesBranchEnabled;
-      config.defaultParameter.opaqueBranchDivergenceEnabled =
-          OpaquePredicatesBranchEnabled;
-      if (!CustomLibraryPath.empty()) {
-        config.globalConfig.libraryPath = CustomLibraryPath.getValue();
-      }
-      if (!RopfuscatorConfigFile.empty()) {
-        config.loadFromFile(RopfuscatorConfigFile);
-      }
-      ropfuscator = new ROPfuscatorCore(module, config);
+    if (ROPfPassDisabled) {
+      return false;
     }
+
+    ROPfuscatorConfig config;
+
+    config.defaultParameter.opaquePredicateEnabled =
+        OpaquePredicatesEnabled || OpaquePredicatesBranchEnabled;
+    config.defaultParameter.opaqueBranchDivergenceEnabled =
+        OpaquePredicatesBranchEnabled;
+
+    if (!CustomLibraryPath.empty()) {
+      config.globalConfig.libraryPath = CustomLibraryPath.getValue();
+    }
+
+    if (!RopfuscatorConfigFile.empty()) {
+      config.loadFromFile(RopfuscatorConfigFile);
+    }
+
+    ropfuscator = new ROPfuscatorCore(module, config);
 
     return true;
   }
