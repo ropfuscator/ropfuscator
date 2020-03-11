@@ -8,10 +8,6 @@ set(ROPF_IR_FLAGS_STDBIN ${ROPF_IR_FLAGS})
 set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS})
 set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS})
 
-if (ROPF_OPAQUEP)
-    set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS_ROPFBIN} -fopaque-predicates)
-endif ()
-
 foreach (filename ${files})
     get_filename_component(exec_name ${filename} NAME_WE)
     set(ropfuscated_exec_name "${exec_name}-ropfuscated")
@@ -31,15 +27,6 @@ foreach (filename ${files})
         # ropfuscated binaries
         set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata)
         target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
-    endif ()
-
-    if (ROPF_LIBNAIVE)
-        target_link_libraries(${exec_name} naive)
-        target_link_libraries(${ropfuscated_exec_name} naive)
-    endif ()
-
-    if (ROPF_OPAQUEP)
-        target_link_libraries(${ropfuscated_exec_name} opaquepredicate)
     endif ()
 
     #######################
