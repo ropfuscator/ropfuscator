@@ -70,7 +70,7 @@ foreach (filename ${files})
             COMMAND
             $<TARGET_FILE:llc>
             ARGS
-            ${ROPF_ASM_FLAGS_ROPFBIN} ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s
+            ${ROPF_ASM_FLAGS_ROPFBIN} ${ropfuscated_exec_name}.bc -ropfuscator-config=${CMAKE_CURRENT_SOURCE_DIR}/../ropfuscator-default.conf -o ${ropfuscated_exec_name}.s
     )
 endforeach ()
 
