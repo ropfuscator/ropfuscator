@@ -2,12 +2,10 @@
 #define ROPFUSCATORCONFIG_H
 
 #include "Debug.h"
+#include "OpaqueConstruct.h"
 #include "toml.hpp"
+#include <cctype>
 #include <string>
-
-// default configuration (defined in OpaqueConstruct.h)
-extern const std::string OPAQUE_CONSTANT_ALGORITHM_MOV;
-extern const std::string OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV;
 
 /* =========================
  * CONFIGURATION FILE STRINGS
@@ -167,12 +165,19 @@ struct ROPfuscatorConfig {
       // Opaque predicates algorithm
       if (default_keys.contains(CONFIG_OPA_PRED_ALGO)) {
         auto op_algo = default_keys.at(CONFIG_OPA_PRED_ALGO).as_string();
+        auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
 
-        dbg_fmt("Setting {} to {} (NOT BEING SET, REALLY)\n",
-                CONFIG_OPA_PRED_ALGO, op_algo);
+        if (parsed_op_algo.empty()) {
+          fmt::print(stderr,
+                     "Could not understand \"{}\" as opaque predicate "
+                     "algorithm. Terminating.\n",
+                     op_algo);
+          exit(-1);
+        }
 
-        // TODO: parse string to extrapolate algorithm
-        // defaultParameter.opaqueConstantAlgorithm = op_algo;
+        dbg_fmt("Setting {} to {}\n", CONFIG_OPA_PRED_ALGO, parsed_op_algo);
+
+        defaultParameter.opaqueConstantAlgorithm = parsed_op_algo;
       }
 
       // Branch divergence enabled
@@ -200,16 +205,67 @@ struct ROPfuscatorConfig {
       if (default_keys.contains(CONFIG_BRANCH_DIV_ALGO)) {
         auto branch_div_algo =
             default_keys.at(CONFIG_BRANCH_DIV_ALGO).as_string();
+        auto parsed_branch_div_algo =
+            parseBranchDivergenceAlgorithm(branch_div_algo);
 
-        dbg_fmt("Setting {} to {} (NOT BEING SET, REALLY)\n",
-                CONFIG_BRANCH_DIV_ALGO, branch_div_algo);
+        if (parsed_branch_div_algo.empty()) {
+          fmt::print(stderr,
+                     "Could not understand \"{}\" as branch divergence "
+                     "algorithm. Terminating.\n",
+                     branch_div_algo);
+          exit(-1);
+        }
 
-        // TODO: parse string to extrapolate algorithm
-        // defaultParameter.opaqueBranchDivergenceAlgorithm =
-        // branch_div_algo;
+        dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_ALGO,
+                parsed_branch_div_algo);
+
+        defaultParameter.opaqueBranchDivergenceAlgorithm =
+            parsed_branch_div_algo;
       }
     }
     // =====================================
+  }
+
+  std::string parseOpaquePredicateAlgorithm(std::string configString) {
+    std::string lowerConfigString = configString;
+
+    // transforming configString to lowercase
+    std::transform(lowerConfigString.begin(), lowerConfigString.end(),
+                   lowerConfigString.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (!lowerConfigString.compare("mov")) {
+      return OPAQUE_CONSTANT_ALGORITHM_MOV;
+    }
+
+    if (!lowerConfigString.compare("multcomp")) {
+      return OPAQUE_CONSTANT_ALGORITHM_MULTCOMP;
+    }
+
+    return "";
+  }
+
+  std::string parseBranchDivergenceAlgorithm(std::string configString) {
+    std::string lowerConfigString = configString;
+
+    // transforming configString to lowercase
+    std::transform(lowerConfigString.begin(), lowerConfigString.end(),
+                   lowerConfigString.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (!lowerConfigString.compare("addreg")) {
+      return OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV;
+    }
+
+    if (!lowerConfigString.compare("rdtsc")) {
+      return OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV;
+    }
+
+    if (!lowerConfigString.compare("negative_stack")) {
+      return OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV;
+    }
+
+    return "";
   }
 };
 
