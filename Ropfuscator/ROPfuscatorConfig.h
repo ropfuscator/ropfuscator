@@ -5,6 +5,7 @@
 #include "OpaqueConstruct.h"
 #include "toml.hpp"
 #include <cctype>
+#include <map>
 #include <string>
 
 /* =========================
@@ -75,11 +76,18 @@ struct GlobalConfig {
 struct ROPfuscatorConfig {
   ObfuscationParameter defaultParameter;
   GlobalConfig globalConfig;
-  // TODO: add data structure here
+  std::map<std::string, ObfuscationParameter> functionsParameter;
 
   ObfuscationParameter getParameter(const std::string &funcname) const {
-    // TODO: return per-function configuration (maybe implement in .cpp?)
-    return defaultParameter;
+    auto iter = functionsParameter.find(funcname);
+
+    // if the function does not have a specified obfuscation parameter
+    // return the default one
+    if (iter == functionsParameter.end()) {
+      return defaultParameter;
+    }
+
+    return iter->second;
   }
 
   void loadFromFile(const std::string &filename) {
