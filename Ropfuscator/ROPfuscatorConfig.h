@@ -77,12 +77,13 @@ struct GlobalConfig {
 struct ROPfuscatorConfig {
   ObfuscationParameter defaultParameter;
   GlobalConfig globalConfig;
-  std::map<std::regex, ObfuscationParameter> functionsParameter;
+  std::map<std::string, ObfuscationParameter> functionsParameter;
 
   ObfuscationParameter getParameter(const std::string &funcname) const {
     for (auto kv : functionsParameter) {
-      auto function_regex = kv.first;
+      auto function_name = kv.first;
       auto function_ob_parameter = kv.second;
+      auto function_regex = std::regex(function_name);
 
       if (std::regex_match(funcname, function_regex)) {
         return function_ob_parameter;
@@ -266,8 +267,8 @@ struct ROPfuscatorConfig {
         }
 
         auto function_ob_parameter = ObfuscationParameter();
-        std::regex function_name_regex(
-            std::string(subsection_data.at(CONFIG_FUNCTION_NAME).as_string()));
+        auto function_name =
+            subsection_data.at(CONFIG_FUNCTION_NAME).as_string();
 
         // Opaque predicates enabled
         if (subsection_data.contains(CONFIG_OPA_PRED_ENABLED)) {
@@ -340,7 +341,7 @@ struct ROPfuscatorConfig {
           }
         }
 
-        // functionsParameter.insert({function_name_regex, function_ob_parameter});
+        functionsParameter.insert({function_name, function_ob_parameter});
       }
     }
     // =====================================
