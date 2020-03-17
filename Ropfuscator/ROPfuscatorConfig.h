@@ -237,6 +237,107 @@ struct ROPfuscatorConfig {
               parsed_branch_div_algo;
         }
       }
+
+      /*
+       * parsing [functions.*] sections
+       */
+      for (auto kv : functions_section.as_table()) {
+        auto subsection_name = kv.first;
+        auto subsection_data = kv.second;
+
+        // ignoring default since it was parsed already
+        if (!subsection_name.compare(CONFIG_FUNCTIONS_DEFAULT)) {
+          continue;
+        }
+
+        dbg_fmt("Parsing: [functions.{}]\n", subsection_name);
+
+        if (!subsection_data.contains(CONFIG_FUNCTION_NAME)) {
+          fmt::print(stderr,
+                     "Subsection {} does not contain a {} entry. Ignoring "
+                     "subsection.\n",
+                     subsection_name, CONFIG_FUNCTION_NAME);
+          continue;
+        }
+
+        auto function_ob_parameter = ObfuscationParameter();
+        auto function_name_regex =
+            subsection_data.at(CONFIG_FUNCTION_NAME).as_string();
+
+        // Opaque predicates enabled
+        if (subsection_data.contains(CONFIG_OPA_PRED_ENABLED)) {
+          auto op_enabled =
+              subsection_data.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
+
+          dbg_fmt("Setting {} flag to {}\n", CONFIG_OPA_PRED_ENABLED,
+                  op_enabled);
+          function_ob_parameter.opaquePredicateEnabled = op_enabled;
+        }
+
+        // Opaque predicates algorithm
+        if (subsection_data.contains(CONFIG_OPA_PRED_ALGO)) {
+          auto op_algo = subsection_data.at(CONFIG_OPA_PRED_ALGO).as_string();
+          auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
+
+          if (parsed_op_algo.empty()) {
+            fmt::print(stderr,
+                       "Could not understand \"{}\" as opaque predicate "
+                       "algorithm. Ignoring.\n",
+                       op_algo);
+          } else {
+            dbg_fmt("Setting {} to {}\n", CONFIG_OPA_PRED_ALGO, parsed_op_algo);
+
+            function_ob_parameter.opaqueConstantAlgorithm = parsed_op_algo;
+          }
+        }
+
+        // Branch divergence enabled
+        if (subsection_data.contains(CONFIG_BRANCH_DIV_ENABLED)) {
+          auto branch_div_enabled =
+              subsection_data.at(CONFIG_BRANCH_DIV_ENABLED).as_boolean();
+
+          dbg_fmt("Setting {} flag to {}\n", CONFIG_BRANCH_DIV_ENABLED,
+                  branch_div_enabled);
+
+          function_ob_parameter.opaqueBranchDivergenceEnabled =
+              branch_div_enabled;
+        }
+
+        // Branch divergence max depth
+        if (subsection_data.contains(CONFIG_BRANCH_DIV_MAX)) {
+          auto branch_div_max =
+              subsection_data.at(CONFIG_BRANCH_DIV_MAX).as_integer();
+
+          dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_MAX, branch_div_max);
+
+          function_ob_parameter.opaqueBranchDivergenceMaxBranches =
+              branch_div_max;
+        }
+
+        // Branch divergence algorithm
+        if (subsection_data.contains(CONFIG_BRANCH_DIV_ALGO)) {
+          auto branch_div_algo =
+              subsection_data.at(CONFIG_BRANCH_DIV_ALGO).as_string();
+          auto parsed_branch_div_algo =
+              parseBranchDivergenceAlgorithm(branch_div_algo);
+
+          if (parsed_branch_div_algo.empty()) {
+            fmt::print(stderr,
+                       "Could not understand \"{}\" as branch divergence "
+                       "algorithm. Ignoring.\n",
+                       branch_div_algo);
+          } else {
+            dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_ALGO,
+                    parsed_branch_div_algo);
+
+            function_ob_parameter.opaqueBranchDivergenceAlgorithm =
+                parsed_branch_div_algo;
+          }
+        }
+
+        functionsParameter.insert(std::pair<std::string, ObfuscationParameter>(
+            function_name_regex, function_ob_parameter));
+      }
     }
     // =====================================
   }
