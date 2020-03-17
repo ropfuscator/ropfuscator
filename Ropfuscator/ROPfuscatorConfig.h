@@ -112,7 +112,7 @@ struct ROPfuscatorConfig {
     defaultParameter = ObfuscationParameter();
 
     /* =====================================
-     * applying [general] section, if present
+     * parsing [general] section, if present
      */
     if (configuration_data.contains(CONFIG_GENERAL_SECTION)) {
       toml::value general_section =
@@ -147,88 +147,95 @@ struct ROPfuscatorConfig {
         globalConfig.searchSegmentForGadget = search_segment;
       }
     }
-    // =====================================
 
     /* =====================================
-     * applying [functions.default] section, if present
-     * note: these settings will be overridden if multiple [functions.default]
-     * sections are defined! TODO: fixme
+     * parsing [functions] section, if present
      */
-    if (configuration_data.contains(CONFIG_FUNCTIONS_SECTION) &&
-        configuration_data.at(CONFIG_FUNCTIONS_SECTION)
-                .count(CONFIG_FUNCTIONS_DEFAULT) != 0) {
+    if (configuration_data.contains(CONFIG_FUNCTIONS_SECTION)) {
       auto functions_section =
           toml::find(configuration_data, CONFIG_FUNCTIONS_SECTION);
-      auto default_keys =
-          toml::find(functions_section, CONFIG_FUNCTIONS_DEFAULT);
 
-      // Opaque predicates enabled
-      if (default_keys.contains(CONFIG_OPA_PRED_ENABLED)) {
-        auto op_enabled = default_keys.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
+      /*
+       * parsing [functions.default]
+       * note: these settings will be overridden if multiple
+       * [functions.default] sections are defined! TODO: fixme
+       */
+      if (functions_section.count(CONFIG_FUNCTIONS_DEFAULT)) {
+        auto default_keys =
+            toml::find(functions_section, CONFIG_FUNCTIONS_DEFAULT);
 
-        dbg_fmt("Setting {} flag to {}\n", CONFIG_OPA_PRED_ENABLED, op_enabled);
-        defaultParameter.opaquePredicateEnabled = op_enabled;
-      }
+        dbg_fmt("Found [functions.default] section.\n");
 
-      // Opaque predicates algorithm
-      if (default_keys.contains(CONFIG_OPA_PRED_ALGO)) {
-        auto op_algo = default_keys.at(CONFIG_OPA_PRED_ALGO).as_string();
-        auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
+        // Opaque predicates enabled
+        if (default_keys.contains(CONFIG_OPA_PRED_ENABLED)) {
+          auto op_enabled =
+              default_keys.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
 
-        if (parsed_op_algo.empty()) {
-          fmt::print(stderr,
-                     "Could not understand \"{}\" as opaque predicate "
-                     "algorithm. Terminating.\n",
-                     op_algo);
-          exit(-1);
+          dbg_fmt("Setting {} flag to {}\n", CONFIG_OPA_PRED_ENABLED,
+                  op_enabled);
+          defaultParameter.opaquePredicateEnabled = op_enabled;
         }
 
-        dbg_fmt("Setting {} to {}\n", CONFIG_OPA_PRED_ALGO, parsed_op_algo);
+        // Opaque predicates algorithm
+        if (default_keys.contains(CONFIG_OPA_PRED_ALGO)) {
+          auto op_algo = default_keys.at(CONFIG_OPA_PRED_ALGO).as_string();
+          auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
 
-        defaultParameter.opaqueConstantAlgorithm = parsed_op_algo;
-      }
+          if (parsed_op_algo.empty()) {
+            fmt::print(stderr,
+                       "Could not understand \"{}\" as opaque predicate "
+                       "algorithm. Terminating.\n",
+                       op_algo);
+            exit(-1);
+          }
 
-      // Branch divergence enabled
-      if (default_keys.contains(CONFIG_BRANCH_DIV_ENABLED)) {
-        auto branch_div_enabled =
-            default_keys.at(CONFIG_BRANCH_DIV_ENABLED).as_boolean();
+          dbg_fmt("Setting {} to {}\n", CONFIG_OPA_PRED_ALGO, parsed_op_algo);
 
-        dbg_fmt("Setting {} flag to {}\n", CONFIG_BRANCH_DIV_ENABLED,
-                branch_div_enabled);
-
-        defaultParameter.opaqueBranchDivergenceEnabled = branch_div_enabled;
-      }
-
-      // Branch divergence max depth
-      if (default_keys.contains(CONFIG_BRANCH_DIV_MAX)) {
-        auto branch_div_max =
-            default_keys.at(CONFIG_BRANCH_DIV_MAX).as_integer();
-
-        dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_MAX, branch_div_max);
-
-        defaultParameter.opaqueBranchDivergenceMaxBranches = branch_div_max;
-      }
-
-      // Branch divergence algorithm
-      if (default_keys.contains(CONFIG_BRANCH_DIV_ALGO)) {
-        auto branch_div_algo =
-            default_keys.at(CONFIG_BRANCH_DIV_ALGO).as_string();
-        auto parsed_branch_div_algo =
-            parseBranchDivergenceAlgorithm(branch_div_algo);
-
-        if (parsed_branch_div_algo.empty()) {
-          fmt::print(stderr,
-                     "Could not understand \"{}\" as branch divergence "
-                     "algorithm. Terminating.\n",
-                     branch_div_algo);
-          exit(-1);
+          defaultParameter.opaqueConstantAlgorithm = parsed_op_algo;
         }
 
-        dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_ALGO,
-                parsed_branch_div_algo);
+        // Branch divergence enabled
+        if (default_keys.contains(CONFIG_BRANCH_DIV_ENABLED)) {
+          auto branch_div_enabled =
+              default_keys.at(CONFIG_BRANCH_DIV_ENABLED).as_boolean();
 
-        defaultParameter.opaqueBranchDivergenceAlgorithm =
-            parsed_branch_div_algo;
+          dbg_fmt("Setting {} flag to {}\n", CONFIG_BRANCH_DIV_ENABLED,
+                  branch_div_enabled);
+
+          defaultParameter.opaqueBranchDivergenceEnabled = branch_div_enabled;
+        }
+
+        // Branch divergence max depth
+        if (default_keys.contains(CONFIG_BRANCH_DIV_MAX)) {
+          auto branch_div_max =
+              default_keys.at(CONFIG_BRANCH_DIV_MAX).as_integer();
+
+          dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_MAX, branch_div_max);
+
+          defaultParameter.opaqueBranchDivergenceMaxBranches = branch_div_max;
+        }
+
+        // Branch divergence algorithm
+        if (default_keys.contains(CONFIG_BRANCH_DIV_ALGO)) {
+          auto branch_div_algo =
+              default_keys.at(CONFIG_BRANCH_DIV_ALGO).as_string();
+          auto parsed_branch_div_algo =
+              parseBranchDivergenceAlgorithm(branch_div_algo);
+
+          if (parsed_branch_div_algo.empty()) {
+            fmt::print(stderr,
+                       "Could not understand \"{}\" as branch divergence "
+                       "algorithm. Terminating.\n",
+                       branch_div_algo);
+            exit(-1);
+          }
+
+          dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_ALGO,
+                  parsed_branch_div_algo);
+
+          defaultParameter.opaqueBranchDivergenceAlgorithm =
+              parsed_branch_div_algo;
+        }
       }
     }
     // =====================================
