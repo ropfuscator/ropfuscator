@@ -6,6 +6,7 @@
 #include "toml.hpp"
 #include <cctype>
 #include <map>
+#include <regex>
 #include <string>
 
 /* =========================
@@ -76,18 +77,20 @@ struct GlobalConfig {
 struct ROPfuscatorConfig {
   ObfuscationParameter defaultParameter;
   GlobalConfig globalConfig;
-  std::map<std::string, ObfuscationParameter> functionsParameter;
+  std::map<std::regex, ObfuscationParameter> functionsParameter;
 
   ObfuscationParameter getParameter(const std::string &funcname) const {
-    auto iter = functionsParameter.find(funcname);
+    for (auto kv : functionsParameter) {
+      auto function_regex = kv.first;
+      auto function_ob_parameter = kv.second;
 
-    // if the function does not have a specified obfuscation parameter
-    // return the default one
-    if (iter == functionsParameter.end()) {
-      return defaultParameter;
+      if (std::regex_match(funcname, function_regex)) {
+        return function_ob_parameter;
+      }
     }
 
-    return iter->second;
+    dbg_fmt("Returning default obfuscation parameter for {}\n", funcname);
+    return defaultParameter;
   }
 
   void loadFromFile(const std::string &filename) {
@@ -99,11 +102,12 @@ struct ROPfuscatorConfig {
       configuration_data = toml::parse(filename);
     } catch (const std::runtime_error &e) {
       // TODO: better output
-      printf("Error while parsing configuration file:\n %s", e.what());
+      fmt::print(stderr, "Error while parsing configuration file:\n {}",
+                 e.what());
       exit(-1);
     } catch (const toml::syntax_error &e) {
       // TODO: better output
-      printf("Syntax error in configuration file:\n %s", e.what());
+      fmt::print(stderr, "Syntax error in configuration file:\n {}", e.what());
       exit(-1);
     }
 
@@ -252,6 +256,7 @@ struct ROPfuscatorConfig {
 
         dbg_fmt("Parsing: [functions.{}]\n", subsection_name);
 
+        // ignoring subsection if it doesn't have a name entry
         if (!subsection_data.contains(CONFIG_FUNCTION_NAME)) {
           fmt::print(stderr,
                      "Subsection {} does not contain a {} entry. Ignoring "
@@ -261,8 +266,8 @@ struct ROPfuscatorConfig {
         }
 
         auto function_ob_parameter = ObfuscationParameter();
-        auto function_name_regex =
-            subsection_data.at(CONFIG_FUNCTION_NAME).as_string();
+        std::regex function_name_regex(
+            std::string(subsection_data.at(CONFIG_FUNCTION_NAME).as_string()));
 
         // Opaque predicates enabled
         if (subsection_data.contains(CONFIG_OPA_PRED_ENABLED)) {
@@ -335,8 +340,7 @@ struct ROPfuscatorConfig {
           }
         }
 
-        functionsParameter.insert(std::pair<std::string, ObfuscationParameter>(
-            function_name_regex, function_ob_parameter));
+        // functionsParameter.insert({function_name_regex, function_ob_parameter});
       }
     }
     // =====================================
