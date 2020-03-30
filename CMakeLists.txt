@@ -31,6 +31,7 @@ set(ROPFUSCATOR_SOURCES
         Ropfuscator/LivenessAnalysis.cpp
         Ropfuscator/OpaqueConstruct.cpp
         Ropfuscator/Debug.cpp
+        Ropfuscator/ROPfuscatorConfig.cpp
         )
 
 set(sources
