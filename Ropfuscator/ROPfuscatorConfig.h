@@ -1,9 +1,7 @@
 #ifndef ROPFUSCATORCONFIG_H
 #define ROPFUSCATORCONFIG_H
 
-#include "Debug.h"
 #include "OpaqueConstruct.h"
-#include "toml.hpp"
 #include <cctype>
 #include <map>
 #include <regex>
