@@ -265,8 +265,8 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   // =====================================
 }
 
-std::string
-ROPfuscatorConfig::parseOpaquePredicateAlgorithm(std::string configString) {
+std::string ROPfuscatorConfig::parseOpaquePredicateAlgorithm(
+    const std::string &configString) {
   std::string lowerConfigString = configString;
 
   // transforming configString to lowercase
@@ -285,8 +285,8 @@ ROPfuscatorConfig::parseOpaquePredicateAlgorithm(std::string configString) {
   return "";
 }
 
-std::string
-ROPfuscatorConfig::parseBranchDivergenceAlgorithm(std::string configString) {
+std::string ROPfuscatorConfig::parseBranchDivergenceAlgorithm(
+    const std::string &configString) {
   std::string lowerConfigString = configString;
 
   // transforming configString to lowercase
