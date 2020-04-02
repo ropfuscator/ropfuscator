@@ -2,9 +2,9 @@
 
 ObfuscationParameter
 ROPfuscatorConfig::getParameter(const std::string &funcname) const {
-  for (auto kv : functionsParameter) {
-    auto function_name = kv.first;
-    auto function_ob_parameter = kv.second;
+  for (auto &kv : functionsParameter) {
+    auto &function_name = kv.first;
+    auto &function_ob_parameter = kv.second;
     auto function_regex = std::regex(function_name);
 
     if (std::regex_match(funcname, function_regex)) {
