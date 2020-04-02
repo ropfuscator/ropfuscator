@@ -82,8 +82,8 @@ struct ROPfuscatorConfig {
 
   void loadFromFile(const std::string &filename);
 
+private:
   std::string parseOpaquePredicateAlgorithm(std::string configString);
-
   std::string parseBranchDivergenceAlgorithm(std::string configString);
 };
 
