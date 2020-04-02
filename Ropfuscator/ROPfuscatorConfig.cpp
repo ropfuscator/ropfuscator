@@ -1,4 +1,6 @@
 #include "ROPfuscatorConfig.h"
+#include "Debug.h"
+#include "toml.hpp"
 
 ObfuscationParameter
 ROPfuscatorConfig::getParameter(const std::string &funcname) const {
