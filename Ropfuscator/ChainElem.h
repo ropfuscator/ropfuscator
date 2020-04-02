@@ -114,10 +114,23 @@ struct ChainElem {
     if (A.type != B.type)
       return false;
 
-    if (A.type == Type::GADGET)
-      return (A.microgadget == B.microgadget);
-
-    return (A.value == B.value);
+    switch (A.type) {
+    case Type::GADGET:
+      return A.microgadget == B.microgadget;
+    case Type::IMM_VALUE:
+      return A.value == B.value;
+    case Type::IMM_GLOBAL:
+      return A.global == B.global && A.value == B.value;
+    case Type::JMP_BLOCK:
+      return A.jmptarget == B.jmptarget;
+    case Type::JMP_FALLTHROUGH:
+      return true;
+    case Type::ESP_PUSH:
+      return A.esp_id == B.esp_id;
+    case Type::ESP_OFFSET:
+      return A.esp_id == B.esp_id && A.value == B.value;
+    }
+    return false;
   }
 
   friend std::ostream &operator<<(std::ostream &os, const ChainElem &e) {

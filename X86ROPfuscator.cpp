@@ -5,6 +5,7 @@
 // This module is simply the frontend of ROPfuscator for LLVM.
 //
 
+#include "Ropfuscator/ROPfuscatorConfig.h"
 #include "Ropfuscator/ROPfuscatorCore.h"
 #include "X86.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -25,13 +26,9 @@ static cl::opt<bool>
     ROPfPassDisabled("fno-ropfuscator",
                      cl::desc("Disable code obfuscation via ROP chains"));
 
-static cl::opt<bool> OpaquePredicatesEnabled(
-    "fopaque-predicates",
-    cl::desc("Enable the injection of opaque predicates"));
-
-static cl::opt<std::string> CustomLibraryPath(
-    "use-custom-lib",
-    cl::desc("Specify a custom library which gadget must be extracted from"),
+static cl::opt<std::string> RopfuscatorConfigFile(
+    "ropfuscator-config",
+    cl::desc("Specify a configuration file path for obfuscation"),
     cl::NotHidden, cl::Optional, cl::ValueRequired);
 
 // ----------------------------------------------------------------
@@ -58,15 +55,18 @@ public:
     return false;
   }
 
-  bool doInitialization(Module &) override {
-    if (!ROPfPassDisabled) {
-      ropfuscator = new ROPfuscatorCore();
-
-      ropfuscator->opaquePredicateEnabled = OpaquePredicatesEnabled;
-      if (!CustomLibraryPath.empty()) {
-        ropfuscator->libcPath = CustomLibraryPath.getValue();
-      }
+  bool doInitialization(Module &module) override {
+    if (ROPfPassDisabled) {
+      return false;
     }
+
+    ROPfuscatorConfig config;
+
+    if (!RopfuscatorConfigFile.empty()) {
+      config.loadFromFile(RopfuscatorConfigFile);
+    }
+
+    ropfuscator = new ROPfuscatorCore(module, config);
 
     return true;
   }
@@ -82,7 +82,7 @@ public:
 
 private:
   ROPfuscatorCore *ropfuscator;
-};
+}; // namespace
 
 char X86ROPfuscator::ID = 0;
 } // namespace

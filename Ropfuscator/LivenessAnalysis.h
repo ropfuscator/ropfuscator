@@ -25,14 +25,12 @@
 
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include <capstone/capstone.h>
-#include <capstone/x86.h>
 #include <map>
 #include <vector>
 
 // ScratchRegMap - associative map to bind a specific MachineInstr to a list of
 // available scratch registers
-typedef std::map<llvm::MachineInstr *, std::vector<x86_reg>> ScratchRegMap;
+typedef std::map<llvm::MachineInstr *, std::vector<unsigned int>> ScratchRegMap;
 
 void addReg(llvm::MachineInstr &MI, int reg, ScratchRegMap &regs);
 
