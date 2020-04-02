@@ -1,37 +1,32 @@
 #include "LivenessAnalysis.h"
 #include "../X86.h"
 #include "../X86Subtarget.h"
-#include "CapstoneLLVMAdpt.h"
 #include "Debug.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <capstone/capstone.h>
-#include <capstone/x86.h>
 #include <map>
 
 using namespace llvm;
 using namespace std;
 
 void addReg(MachineInstr &MI, int reg,
-            map<MachineInstr *, vector<x86_reg>> &regs) {
+            map<MachineInstr *, vector<unsigned int>> &regs) {
   auto it = regs.find(&MI);
 
-  // IMPORTANT: Here the register representation is converted from LLVM to
-  // capstone and stored in the map.
   if (it != regs.end()) {
-    it->second.push_back(convertToCapstoneReg(reg));
+    it->second.push_back(reg);
   } else
     assert(false && "No matching MachineInstr found in regs map!");
 
   return;
 }
 
-map<MachineInstr *, vector<x86_reg>>
+map<MachineInstr *, vector<unsigned int>>
 performLivenessAnalysis(MachineBasicBlock &MBB) {
-  map<MachineInstr *, vector<x86_reg>> regs;
-  vector<x86_reg> emptyVect;
+  map<MachineInstr *, vector<unsigned int>> regs;
+  vector<unsigned int> emptyVect;
 
   const MachineFunction *MF = MBB.getParent();
   const TargetRegisterInfo &TRI = *MF->getSubtarget().getRegisterInfo();

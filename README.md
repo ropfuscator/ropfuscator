@@ -34,13 +34,11 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 - `ninja`
 - `libfmt`, version `5.X`
 - `pkg-config`
-- `libcapstone-dev`
-- `binutils-dev`
 - `cmake`, version `>= 3.13`
 
 ### Prerequisites installation (Ubuntu & Debian)
 
-    sudo apt install cmake ninja-build pkg-config libcapstone-dev binutils-dev libfmt-dev
+    sudo apt install cmake ninja-build pkg-config libfmt-dev
 
 ## Build
 
@@ -60,7 +58,7 @@ Make sure to be able to clone this repository first and then run:
     git reset --hard origin/master
     popd
     mkdir build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -GNinja ..
+    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -DLLVM_ENABLE_EH=On -DLLVM_ENABLE_RTTI=On -GNinja ..
     ninja llc
 
 ### Project configuration

@@ -4,10 +4,16 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
-#include "CapstoneLLVMAdpt.h"
+#include "../InstPrinter/X86IntelInstPrinter.h"
 #include "ChainElem.h"
 #include "Debug.h"
 #include "ROPEngine.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDisassembler/MCDisassembler.h"
+#include "llvm/Object/ELF.h"
+#include "llvm/Support/TargetRegistry.h"
 
 #include <assert.h>
 #include <fmt/format.h>
@@ -20,11 +26,8 @@
 using namespace std;
 using namespace llvm;
 
-#include "llvm/Object/ELF.h"
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
-
-static const bool searchSegmentForGadget = true;
 
 class ELFParser {
 public:
@@ -61,6 +64,7 @@ public:
   }
 
   const uint8_t *base() const { return elf->base(); }
+  size_t size() const { return elf->getBufSize(); }
 
   std::vector<ELF32LE::Phdr> getCodeSegments() {
     std::vector<ELF32LE::Phdr> rv;
@@ -252,26 +256,16 @@ private:
   }
 };
 
-BinaryAutopsy::BinaryAutopsy(string path) : elf(new ELFParser(path)) {
+BinaryAutopsy::BinaryAutopsy(const GlobalConfig &config, const Module &module,
+                             const TargetMachine &target, MCContext &context)
+    : module(module), target(target), context(context), config(config),
+      elf(new ELFParser(config.libraryPath)) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
   srand(time(nullptr));
   isModuleSymbolAnalysed = false;
 
   dissect();
-}
-
-// workaround for LLVM build problem ???
-const std::error_category &llvm::object::object_category() {
-  struct _object_error_category : public std::error_category {
-    const char *name() const noexcept override { return "llvm.object"; }
-    std::string message(int ev) const override {
-      return "ELF object parse error";
-    }
-  };
-
-  static const _object_error_category instance;
-
-  return instance;
+  analyseUsedSymbols();
 }
 
 BinaryAutopsy::~BinaryAutopsy() {}
@@ -281,22 +275,18 @@ void BinaryAutopsy::dissect() {
   dumpSegments();
   dumpDynamicSymbols();
   dumpGadgets();
-  applyGadgetFilters();
   buildXchgGraph();
 }
 
 BinaryAutopsy *BinaryAutopsy::instance = 0;
 
-BinaryAutopsy *BinaryAutopsy::getInstance(string path) {
+BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &config,
+                                          llvm::MachineFunction &MF) {
   if (instance == nullptr) {
-    instance = new BinaryAutopsy(path);
+    instance = new BinaryAutopsy(config, *MF.getFunction().getParent(),
+                                 MF.getTarget(), MF.getContext());
   }
 
-  return instance;
-}
-
-BinaryAutopsy *BinaryAutopsy::getInstance() {
-  assert(instance != nullptr && "No pre-existing instance of Binary Autopsy.");
   return instance;
 }
 
@@ -348,6 +338,7 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
   // dbg_fmt("[*] Scanning for symbols... \n");
   auto symbols = elf->getDynamicSymbols();
+  std::set<std::string> symbolNames;
 
   // Scan for all the symbols
   for (size_t i = 0; i < symbols.size(); i++) {
@@ -396,17 +387,17 @@ void BinaryAutopsy::dumpDynamicSymbols() {
 
       // we cannot use multiple versions of the same symbol, so we discard any
       // duplicate.
-      bool alreadyPresent = false;
-
-      for (auto &s : Symbols) {
-        if (symbolName == s.Label) {
-          alreadyPresent = true;
-          break;
+      if (symbolNames.find(symbolName) == symbolNames.end()) {
+        symbolNames.insert(symbolName);
+        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
+      } else {
+        // multi-versioned symbol
+        if (config.avoidMultiversionSymbol) {
+          Symbols.erase(std::remove_if(
+              Symbols.begin(), Symbols.end(),
+              [&](const Symbol &s) { return s.Label == symbolName; }));
         }
       }
-
-      if (!alreadyPresent)
-        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
     }
   }
 
@@ -416,15 +407,15 @@ void BinaryAutopsy::dumpDynamicSymbols() {
   }
 }
 
-void BinaryAutopsy::analyseUsedSymbols(const llvm::Module *module) {
+void BinaryAutopsy::analyseUsedSymbols() {
   isModuleSymbolAnalysed = true;
   std::set<std::string> names;
 
-  for (const auto &f : module->getFunctionList()) {
+  for (const auto &f : module.getFunctionList()) {
     names.insert(f.getName().str());
   }
 
-  for (const auto &g : module->getGlobalList()) {
+  for (const auto &g : module.getGlobalList()) {
     names.insert(g.getName().str());
   }
 
@@ -443,29 +434,77 @@ const Symbol *BinaryAutopsy::getRandomSymbol() const {
   return &(Symbols.at(i));
 }
 
+extern "C" void LLVMInitializeX86Disassembler();
+
+class DisassemblerHelper {
+  MCDisassembler *disasm;
+  X86IntelInstPrinter *printer;
+  ArrayRef<uint8_t> data;
+
+public:
+  DisassemblerHelper(const TargetMachine &target, MCContext &context,
+                     const ELFParser &elf) {
+    LLVMInitializeX86Disassembler();
+    disasm = target.getTarget().createMCDisassembler(
+        *target.getMCSubtargetInfo(), context);
+    printer = new X86IntelInstPrinter(*target.getMCAsmInfo(),
+                                      *target.getMCInstrInfo(),
+                                      *target.getMCRegisterInfo());
+    data = ArrayRef<uint8_t>(elf.base(), elf.size());
+  }
+
+  ~DisassemblerHelper() { delete printer; }
+
+  void disassemble(uint64_t address, size_t &size, MCInst *result,
+                   size_t &count) {
+    size_t i = 0;
+    size_t pos = 0;
+    uint64_t readsize = 0;
+    for (i = 0, pos = 0; i < count && pos < size; i++, pos += readsize) {
+      auto status = disasm->getInstruction(
+          result[i], readsize, data.slice(address + pos, size - pos),
+          address + pos, llvm::nulls(), llvm::nulls());
+      if (status != MCDisassembler::DecodeStatus::Success) {
+        // disassemble error
+        count = 0;
+        size = 0;
+        return;
+      }
+    }
+    count = i;
+    size = pos;
+  }
+
+  std::string formatInstr(const MCInst &instr) {
+    std::string result;
+    raw_string_ostream os(result);
+    printer->printInstruction(&instr, os);
+    os.flush();
+    if (!result.empty() && result[0] == '\t') {
+      result = result.substr(1);
+    }
+    return result;
+  }
+};
+
 void BinaryAutopsy::dumpGadgets() {
-  uint8_t ret[] = "\xc3";
-
-  // capstone stuff
-  csh handle;
-  cs_insn *instructions;
-
   // Dumps sections if it wasn't already done
   if (Sections.empty())
     dumpSections();
 
-  // Initizialises capstone engine
-  cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
-  cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
+  DisassemblerHelper disasm(target, context, *elf);
+
+  // map to check duplication
+  std::map<std::string, std::shared_ptr<Microgadget>> gadgetMap;
 
   const uint8_t *buf = elf->base();
 
-  for (auto &s : (searchSegmentForGadget ? Segments : Sections)) {
+  for (auto &s : (config.searchSegmentForGadget ? Segments : Sections)) {
     int cnt = 0;
 
     // Scan for RET instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length); i++) {
-      if (buf[i] == *ret) {
+      if (buf[i] == (uint8_t)'\xc3') { // ret
         size_t offset = i + 1;
         const uint8_t *cur_pos = buf + offset;
 
@@ -480,23 +519,33 @@ void BinaryAutopsy::dumpGadgets() {
           if (firstbyte == 0xf2 || firstbyte == 0xf3)
             continue;
 
-          size_t count = cs_disasm(handle, cur_pos - depth, depth,
-                                   offset - depth, 2, &instructions);
+          uint64_t addr = offset - depth;
+
+          MCInst instructions[2];
+          size_t count = 2;
+          size_t size = depth;
+          disasm.disassemble(addr, size, instructions, count);
 
           // Valid gadgets must have two instructions, and the
           // last one must be a RET
-          if (count == 2 && instructions[1].id == X86_INS_RET) {
-
+          if (count == 2 && instructions[1].getOpcode() == X86::RETL &&
+              // exclude PREFIX RET
+              instructions[0].getOpcode() != X86::DATA16_PREFIX &&
+              instructions[0].getOpcode() != X86::LOCK_PREFIX &&
+              instructions[0].getOpcode() != X86::REP_PREFIX &&
+              instructions[0].getOpcode() != X86::REPNE_PREFIX) {
             // Each gadget is identified with its mnemonic
             // and operators (ugly but straightforward :P)
-            string asm_instr;
-            for (size_t j = 0; j < count - 1; j++) {
-              asm_instr = fmt::format("{} {};", instructions[j].mnemonic,
-                                      instructions[j].op_str);
-            }
+            string asm_instr = disasm.formatInstr(instructions[0]);
 
-            if (!findGadget(asm_instr)) {
-              Microgadgets.push_back(Microgadget(instructions, asm_instr));
+            auto it = gadgetMap.find(asm_instr);
+            if (it != gadgetMap.end()) {
+              it->second->addresses.push_back(addr);
+            } else {
+              shared_ptr<Microgadget> gadget(
+                  new Microgadget(instructions, count, addr, asm_instr));
+              addGadget(gadget);
+              gadgetMap.emplace(asm_instr, gadget);
 
               cnt++;
             }
@@ -506,20 +555,26 @@ void BinaryAutopsy::dumpGadgets() {
     }
 
     // scan for indirect jmp instructions
-    for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length) - 1;
-         i++) {
+    for (uint64_t addr = s.Address; addr < (uint64_t)(s.Address + s.Length) - 1;
+         addr++) {
 
-      if (buf[i] == 0xff && buf[i + 1] >= 0xe0 && buf[i + 1] < 0xe8) {
-        size_t count = cs_disasm(handle, &buf[i], 2, i, 1, &instructions);
+      if (buf[addr] == 0xff && buf[addr + 1] >= 0xe0 && buf[addr + 1] < 0xe8) {
+        MCInst inst;
+        size_t count = 1;
+        size_t size = 2;
+        disasm.disassemble(addr, size, &inst, count);
+        // Valid gadgets must have just one instruction of JMP register
+        if (count == 1 && inst.getOpcode() == X86::JMP32r) {
+          string asm_instr = disasm.formatInstr(inst);
 
-        // Valid gadgets must have two instructions, and the
-        // last one must be a RET
-        if (count == 1 && instructions[0].id == X86_INS_JMP) {
-          string asm_instr = fmt::format("{} {};", instructions[0].mnemonic,
-                                         instructions[0].op_str);
-
-          if (!findGadget(asm_instr)) {
-            Microgadgets.push_back(Microgadget(instructions, asm_instr));
+          auto it = gadgetMap.find(asm_instr);
+          if (it != gadgetMap.end()) {
+            it->second->addresses.push_back(addr);
+          } else {
+            std::shared_ptr<Microgadget> gadget(
+                new Microgadget(&inst, 1, addr, asm_instr));
+            addGadget(gadget);
+            gadgetMap.emplace(asm_instr, gadget);
 
             cnt++;
           }
@@ -530,57 +585,19 @@ void BinaryAutopsy::dumpGadgets() {
   }
 }
 
-const Microgadget *BinaryAutopsy::findGadget(string asmInstr) const {
-  // Legacy: lookup by asm_instr string
-  if (Microgadgets.empty()) {
+const Microgadget *BinaryAutopsy::findGadget(GadgetType type, unsigned int reg1,
+                                             unsigned int reg2) const {
+  auto it = GadgetPrimitives.find(GadgetType::XCHG);
+  if (it == GadgetPrimitives.end() || it->second.empty()) {
     return nullptr;
   }
 
-  for (auto &g : Microgadgets) {
-    if (g.asmInstr.compare(asmInstr) == 0)
-      return &g;
+  for (auto &g : it->second) {
+    if (g->reg1 == reg1 && g->reg2 == reg2) {
+      return g.get();
+    }
   }
-
   return nullptr;
-}
-
-const Microgadget *BinaryAutopsy::findGadget(x86_insn insn, x86_reg op_a,
-                                             x86_reg op_b) const {
-  for (auto &gadget : Microgadgets) {
-    auto gdt_op_a = gadget.getOp(0);
-    auto gdt_op_b = gadget.getOp(1);
-
-    // same instruction opcode, first operand is a register and equal to op_a
-    bool condition_1 = gadget.getID() == insn && gdt_op_a.type == X86_OP_REG &&
-                       gdt_op_a.reg == op_a;
-
-    // if operand 1 is present and is a register than it has to be equal to op_b
-    bool condition_2 = op_b == X86_REG_INVALID ||
-                       (gdt_op_b.type == X86_OP_REG && gdt_op_b.reg == op_b);
-
-    if (condition_1 && condition_2)
-      return &gadget;
-  }
-
-  return nullptr;
-}
-
-std::vector<const Microgadget *>
-BinaryAutopsy::findAllGadgets(x86_insn insn, x86_op_type op0,
-                              x86_op_type op1) const {
-  std::vector<const Microgadget *> res;
-
-  if (Microgadgets.empty()) {
-    return res;
-  }
-
-  for (auto &gadget : Microgadgets) {
-    if (gadget.getID() == insn && op0 == gadget.getOp(0).type &&
-        (op1 == 0 || op1 == gadget.getOp(1).type))
-      res.push_back(&gadget);
-  }
-
-  return res;
 }
 
 void BinaryAutopsy::buildXchgGraph() {
@@ -590,9 +607,8 @@ void BinaryAutopsy::buildXchgGraph() {
   xgraph = XchgGraph();
 
   // search for all the "xchg reg, reg" gadgets
-  auto XchgGadgets = findAllGadgets(X86_INS_XCHG, X86_OP_REG, X86_OP_REG);
-
-  if (XchgGadgets.empty()) {
+  auto it = GadgetPrimitives.find(GadgetType::XCHG);
+  if (it == GadgetPrimitives.end() || it->second.empty()) {
     DEBUG_WITH_TYPE(
         XCHG_GRAPH,
         dbg_fmt("[XchgGraph]\t"
@@ -601,9 +617,9 @@ void BinaryAutopsy::buildXchgGraph() {
     return;
   }
 
-  for (auto &g : XchgGadgets) {
-    auto edge_a = g->getOp(0).reg;
-    auto edge_b = g->getOp(1).reg;
+  for (auto &g : it->second) {
+    auto edge_a = g->reg1;
+    auto edge_b = g->reg2;
 
     xgraph.addEdge(edge_a, edge_b);
 
@@ -612,169 +628,208 @@ void BinaryAutopsy::buildXchgGraph() {
   }
 }
 
-void BinaryAutopsy::applyGadgetFilters() {
-  int excluded_count = 0;
-
-  for (auto g = Microgadgets.begin(); g != Microgadgets.end();) {
-    auto op_a = g->getOp(0);
-    auto op_b = g->getOp(1);
-
-    // gadgets with ESP as operand, since we cannot deal with the
-    // stack pointer using just microgadgets.
-    bool condition_1 =
-        ((op_a.type == X86_OP_REG && op_a.reg == X86_REG_ESP) ||
-         (op_b.type == X86_OP_REG && op_b.reg == X86_REG_ESP) ||
-         (op_a.type == X86_OP_MEM && op_a.mem.base == X86_REG_ESP) ||
-         (op_b.type == X86_OP_MEM && op_b.mem.base == X86_REG_ESP));
-
-    // gadgets with memory operands having index and segment
-    // registers, or invalid base register, or a displacement value
-    bool condition_2 =
-        (op_a.type == X86_OP_MEM &&
-         (op_a.mem.base == X86_REG_INVALID ||
-          op_a.mem.index != X86_REG_INVALID ||
-          op_a.mem.segment != X86_REG_INVALID || op_a.mem.disp != 0));
-
-    bool condition_3 =
-        (op_b.type == X86_OP_MEM &&
-         (op_b.mem.base == X86_REG_INVALID ||
-          op_b.mem.index != X86_REG_INVALID ||
-          op_b.mem.segment != X86_REG_INVALID || op_b.mem.disp != 0));
-
-    if (condition_1 || condition_2 || condition_3) {
-      DEBUG_WITH_TYPE(GADGET_FILTER,
-                      dbg_fmt("[GadgetFilter]\tExcluded: {}\n", g->asmInstr));
-
-      g = Microgadgets.erase(g);
-      excluded_count++;
-    } else {
-      ++g;
-    }
-  }
-
+void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
   // Categorise the gadgets in primitives
-  for (auto &gadget : Microgadgets) {
-    cs_x86_op op_a = gadget.getOp(0);
-    cs_x86_op op_b = gadget.getOp(1);
+  const MCInst &inst = gadget->Instr[0];
 
-    switch (gadget.getID()) {
-    // pop REG: init
-    case X86_INS_POP: {
-      if (op_a.type == X86_OP_REG)
-        GadgetPrimitives["init"].push_back(gadget);
-      break;
-    }
-    // add REG1, REG2: add
-    case X86_INS_ADD: {
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
-        // Register-register
-        if (op_a.reg != op_b.reg)
-          GadgetPrimitives["add"].push_back(gadget);
-        else
-          GadgetPrimitives["add_1"].push_back(gadget);
-      }
-      break;
-    }
-    // sub REG1, REG2: sub
-    case X86_INS_SUB: {
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
-        if (op_a.reg != op_b.reg)
-          GadgetPrimitives["sub"].push_back(gadget);
-        else
-          GadgetPrimitives["sub_1"].push_back(gadget);
-      }
-      break;
-    }
-    // and REG1, REG2: and
-    case X86_INS_AND: {
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
-        if (op_a.reg != op_b.reg)
-          GadgetPrimitives["and"].push_back(gadget);
-        else
-          GadgetPrimitives["and_1"].push_back(gadget);
-      }
-      break;
-    }
-    // xor REG1, REG2: xor_1, xor_2
-    case X86_INS_XOR: {
-      // Register-register
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG) {
-        if (op_a.reg == op_b.reg)
-          GadgetPrimitives["xor_1"].push_back(gadget);
-        else
-          GadgetPrimitives["xor_2"].push_back(gadget);
-      }
-      break;
-    }
-    // mov REG1, REG2: copy
-    case X86_INS_MOV: {
-      // Register-register: copy
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
-        GadgetPrimitives["copy"].push_back(gadget);
-      // Register-memory: load
-      else if (op_a.type == X86_OP_REG && op_b.type == X86_OP_MEM) {
-        if (op_a.reg == op_b.mem.base)
-          // data is loaded in the same register of the source
-          GadgetPrimitives["load_1"].push_back(gadget);
-        else
-          // data is loaded onto another register
-          GadgetPrimitives["load_2"].push_back(gadget);
-        // Register-memory: store
-      } else if (op_a.type == X86_OP_MEM && op_b.type == X86_OP_REG)
-        GadgetPrimitives["store"].push_back(gadget);
-      break;
-    }
-    // xchg REG1, REG2: xchg
-    case X86_INS_XCHG: {
-      // Register-register
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
-        GadgetPrimitives["xchg"].push_back(gadget);
-      break;
-    }
-    // cmove REG1, REG2: cmove
-    case X86_INS_CMOVE: {
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
-        GadgetPrimitives["cmove"].push_back(gadget);
-      break;
-    }
-    // cmovb REG1, REG2: cmovb
-    case X86_INS_CMOVB: {
-      if (op_a.type == X86_OP_REG && op_b.type == X86_OP_REG)
-        GadgetPrimitives["cmovb"].push_back(gadget);
-      break;
-    }
-    // push REG1; ret: jmp
-    case X86_INS_PUSH: {
-      if (op_a.type == X86_OP_REG)
-        GadgetPrimitives["jmp"].push_back(gadget);
-      break;
-    }
-    // jmp REG1: jmp
-    case X86_INS_JMP: {
-      if (op_a.type == X86_OP_REG)
-        GadgetPrimitives["jmp"].push_back(gadget);
-      break;
-    }
-    default:
-      continue;
+  bool espUsed = false;
+  // gadgets with ESP as operand, since we cannot deal with the
+  // stack pointer using just microgadgets.
+  for (unsigned int i = 0; i < inst.getNumOperands(); i++) {
+    const auto &operand = inst.getOperand(i);
+    if (operand.isReg() && operand.getReg() == X86::ESP) {
+      espUsed = true;
     }
   }
+  if (espUsed) {
+    return;
+  }
 
-  DEBUG_WITH_TYPE(GADGET_FILTER,
-                  dbg_fmt("[GadgetFilter]\t{} gadgets have been excluded.\n",
-                          excluded_count));
+  switch (inst.getOpcode()) {
+  // pop REG: init
+  case X86::POP32r:
+  case X86::POP32rmr: {
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = X86::NoRegister;
+    gadget->Type = GadgetType::INIT;
+    GadgetPrimitives[GadgetType::INIT].push_back(gadget);
+    break;
+  }
+  // add REG1, REG2: add
+  case X86::ADD32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::ADD;
+      GadgetPrimitives[GadgetType::ADD].push_back(gadget);
+    } else {
+      gadget->Type = GadgetType::ADD_1;
+      GadgetPrimitives[GadgetType::ADD_1].push_back(gadget);
+    }
+    break;
+  }
+  // sub REG1, REG2: sub
+  case X86::SUB32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::SUB;
+      GadgetPrimitives[GadgetType::SUB].push_back(gadget);
+    } else {
+      gadget->Type = GadgetType::SUB_1;
+      GadgetPrimitives[GadgetType::SUB_1].push_back(gadget);
+    }
+    break;
+  }
+  // and REG1, REG2: and
+  case X86::AND32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::AND;
+      GadgetPrimitives[GadgetType::AND].push_back(gadget);
+    } else {
+      gadget->Type = GadgetType::AND_1;
+      GadgetPrimitives[GadgetType::AND_1].push_back(gadget);
+    }
+    break;
+  }
+  // xor REG1, REG2: xor_1, xor_2
+  case X86::XOR32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::XOR;
+      GadgetPrimitives[GadgetType::XOR].push_back(gadget);
+    } else {
+      gadget->Type = GadgetType::XOR_1;
+      GadgetPrimitives[GadgetType::XOR_1].push_back(gadget);
+    }
+    break;
+  }
+  // mov REG1, REG2: copy
+  case X86::MOV32rr: {
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = inst.getOperand(1).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::COPY;
+      GadgetPrimitives[GadgetType::COPY].push_back(gadget);
+    }
+    break;
+  }
+  // mov REG, MEM: load
+  case X86::MOV32rm: {
+    // mov reg0, reg5:[reg1 + imm_scale2 * reg3 + imm_disp4]
+    bool hasScaleReg = inst.getOperand(3).isReg() &&
+                       inst.getOperand(3).getReg() != X86::NoRegister;
+    bool hasSegmentReg = inst.getOperand(5).isReg() &&
+                         inst.getOperand(5).getReg() != X86::NoRegister;
+    bool hasDisplacement =
+        !inst.getOperand(4).isImm() || inst.getOperand(4).getImm() != 0;
+    if (hasScaleReg || hasSegmentReg || hasDisplacement) {
+      break;
+    }
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = inst.getOperand(1).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::LOAD;
+      GadgetPrimitives[GadgetType::LOAD].push_back(gadget);
+    } else {
+      gadget->Type = GadgetType::LOAD_1;
+      GadgetPrimitives[GadgetType::LOAD_1].push_back(gadget);
+    }
+    break;
+  }
+  // mov MEM, REG: store
+  case X86::MOV32mr: {
+    // mov reg4:[reg0 + imm_scale1 * reg2 + imm_disp3], reg5
+    bool hasScaleReg = inst.getOperand(2).isReg() &&
+                       inst.getOperand(2).getReg() != X86::NoRegister;
+    bool hasSegmentReg = inst.getOperand(4).isReg() &&
+                         inst.getOperand(4).getReg() != X86::NoRegister;
+    bool hasDisplacement =
+        !inst.getOperand(3).isImm() || inst.getOperand(3).getImm() != 0;
+    if (hasScaleReg || hasSegmentReg || hasDisplacement) {
+      break;
+    }
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = inst.getOperand(5).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::STORE;
+      GadgetPrimitives[GadgetType::STORE].push_back(gadget);
+    }
+    // mov [eax], eax is useless in most cases so we just ignore it
+    break;
+  }
+  // xchg eax, REG2: xchg
+  case X86::XCHG32ar: {
+    gadget->reg1 = X86::EAX;
+    gadget->reg2 = inst.getOperand(1).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::XCHG;
+      GadgetPrimitives[GadgetType::XCHG].push_back(gadget);
+    }
+    break;
+  }
+  // xchg REG1, REG2: xchg
+  case X86::XCHG32rr: {
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = inst.getOperand(1).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::XCHG;
+      GadgetPrimitives[GadgetType::XCHG].push_back(gadget);
+    }
+    break;
+  }
+  // cmove REG1, REG2: cmove
+  case X86::CMOVE32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::CMOVE;
+      GadgetPrimitives[GadgetType::CMOVE].push_back(gadget);
+    }
+    break;
+  }
+  // cmovb REG1, REG2: cmovb
+  case X86::CMOVB32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    if (gadget->reg1 != gadget->reg2) {
+      gadget->Type = GadgetType::CMOVB;
+      GadgetPrimitives[GadgetType::CMOVB].push_back(gadget);
+    }
+    break;
+  }
+  // push REG1; ret: jmp
+  // jmp REG1: jmp
+  case X86::PUSH32r:
+  case X86::PUSH32rmr:
+  case X86::JMP32r: {
+    gadget->reg1 = inst.getOperand(0).getReg();
+    gadget->reg2 = X86::NoRegister;
+    gadget->Type = GadgetType::JMP;
+    GadgetPrimitives[GadgetType::JMP].push_back(gadget);
+    break;
+  }
+  default:
+    // gadget->Type == GadgetType::UNDEFINED;
+    // GadgetPrimitives[GadgetType::UNDEFINED].push_back(gadget);
+    break;
+  }
 }
 
-bool BinaryAutopsy::areExchangeable(x86_reg a, x86_reg b) const {
+bool BinaryAutopsy::areExchangeable(unsigned int a, unsigned int b) const {
   int pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
-                                            x86_reg op0, x86_reg op1) const {
-  // Note: everytime we need to operate on op0 and op1, we need to check which
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, GadgetType type,
+                                            unsigned int reg1,
+                                            unsigned int reg2) const {
+  // Note: everytime we need to operate on reg1 and reg2, we need to check which
   // is the actual register that holds that operand.
   ROPChain result;
   const Microgadget *found = nullptr;
@@ -788,16 +843,16 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
 
   // Attempt #1: find a primitive gadget having the same operands
   for (auto &gadget : gadgets) {
-    if (extractReg(gadget.getOp(0)) == getEffectiveReg(state, op0) &&
-        (op1 == X86_REG_INVALID ||
-         extractReg(gadget.getOp(1)) == getEffectiveReg(state, op1))) {
-      found = &gadget;
+    if (gadget->reg1 == getEffectiveReg(state, reg1) &&
+        (reg1 == X86::NoRegister ||
+         gadget->reg2 == getEffectiveReg(state, reg2))) {
+      found = gadget.get();
       break;
     }
   }
 
   // we cannot exchange registers in jmp gadget; just fail
-  if (!found && type == "jmp") {
+  if (!found && type == GadgetType::JMP) {
     return result;
   }
 
@@ -809,38 +864,35 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, string type,
   // Attempt #2: find a primitive gadget that has at least operands
   // exchangeable with the ones required. A proper xchg chain will be
   // generated.
-  x86_reg gadget_op0, gadget_op1;
 
   for (auto &gadget : gadgets) {
-    gadget_op0 = extractReg(gadget.getOp(0));
-    gadget_op1 = extractReg(gadget.getOp(1));
 
     // check if given op0 and op1 are respectively exchangeable with
     // op0 and op1 of the gadget
-    if (areExchangeable(getEffectiveReg(state, op0), gadget_op0) &&
-        ((op1 == X86_REG_INVALID) // only if op1 is present
-         ^ areExchangeable(getEffectiveReg(state, op1), gadget_op1))) {
+    if (areExchangeable(getEffectiveReg(state, reg1), gadget->reg1) &&
+        ((reg2 == X86::NoRegister) // only if op1 is present
+         ^ areExchangeable(getEffectiveReg(state, reg2), gadget->reg2))) {
 
-      if (op1 != X86_REG_INVALID) {
-        if ((getEffectiveReg(state, op0) == gadget_op1 &&
-             getEffectiveReg(state, op1) == gadget_op0) ||
-            (getEffectiveReg(state, op0) == gadget_op0 &&
-             getEffectiveReg(state, op1) == gadget_op1) ||
-            (getEffectiveReg(state, op0) == getEffectiveReg(state, op1) &&
-             gadget_op0 == gadget_op1)) {
+      if (reg2 != X86::NoRegister) {
+        if ((getEffectiveReg(state, reg1) == gadget->reg2 &&
+             getEffectiveReg(state, reg2) == gadget->reg1) ||
+            (getEffectiveReg(state, reg1) == gadget->reg1 &&
+             getEffectiveReg(state, reg2) == gadget->reg2) ||
+            (getEffectiveReg(state, reg1) == getEffectiveReg(state, reg2) &&
+             gadget->reg1 == gadget->reg2)) {
           DEBUG_WITH_TYPE(XCHG_CHAIN, dbg_fmt("\t\tavoiding double xchg\n"));
         } else {
           auto xchgChain1 =
-              exchangeRegs(state, getEffectiveReg(state, op1), gadget_op1);
+              exchangeRegs(state, getEffectiveReg(state, reg2), gadget->reg2);
           result.append(xchgChain1);
         }
       }
 
       auto xchgChain0 =
-          exchangeRegs(state, getEffectiveReg(state, op0), gadget_op0);
+          exchangeRegs(state, getEffectiveReg(state, reg1), gadget->reg1);
       result.append(xchgChain0);
 
-      result.emplace_back(ChainElem::fromGadget(&gadget));
+      result.emplace_back(ChainElem::fromGadget(gadget.get()));
       break;
     }
   }
@@ -853,12 +905,10 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
 
   for (auto &edge : path) {
     // in XCHG instructions the operands order doesn't matter
-    auto found =
-        findGadget(X86_INS_XCHG, (x86_reg)edge.first, (x86_reg)edge.second);
+    auto found = findGadget(GadgetType::XCHG, edge.first, edge.second);
 
     if (!found)
-      found =
-          findGadget(X86_INS_XCHG, (x86_reg)edge.second, (x86_reg)edge.first);
+      found = findGadget(GadgetType::XCHG, edge.second, edge.first);
 
     result.emplace_back(ChainElem::fromGadget(found));
   }
@@ -866,12 +916,12 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, x86_reg reg0,
-                                     x86_reg reg1) const {
+ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, unsigned int reg1,
+                                     unsigned int reg2) const {
   ROPChain result;
 
-  if (reg0 != reg1) {
-    XchgPath path = xgraph.getPath(state, reg0, reg1);
+  if (reg1 != reg2) {
+    XchgPath path = xgraph.getPath(state, reg1, reg2);
     result = buildXchgChain(path);
   }
 
@@ -883,7 +933,22 @@ ROPChain BinaryAutopsy::undoXchgs(XchgState &state) const {
   return buildXchgChain(path);
 }
 
-x86_reg BinaryAutopsy::getEffectiveReg(const XchgState &state,
-                                       x86_reg reg) const {
-  return (x86_reg)state.searchLogicalReg(reg);
+unsigned int BinaryAutopsy::getEffectiveReg(const XchgState &state,
+                                            unsigned int reg) const {
+  return state.searchLogicalReg(reg);
+}
+
+void BinaryAutopsy::debugPrintGadgets() const {
+  auto regInfo = target.getMCRegisterInfo();
+  for (auto &kv : GadgetPrimitives) {
+    dbg_fmt("Gadgets of type {}:\n", (int)kv.first);
+    for (auto &g : kv.second) {
+      dbg_fmt("  {}\t{}#{}, {}#{}\t@", g->asmInstr, regInfo->getName(g->reg1),
+              g->reg1, regInfo->getName(g->reg2), g->reg2);
+      for (uint64_t addr : g->addresses) {
+        dbg_fmt(" 0x{:x}", addr);
+      }
+      dbg_fmt("\n");
+    }
+  }
 }

@@ -1,4 +1,4 @@
-add_custom_target(ropfuscator-examples)
+add_custom_target(ropfuscator-evaluation)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
@@ -29,12 +29,11 @@ foreach (filename ${files})
         target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
     endif ()
 
-
     #######################
     # standard binaries
     #######################
 
-    add_dependencies(ropfuscator-examples ${exec_name})
+    add_dependencies(ropfuscator-evaluation ${exec_name})
 
     add_custom_command(
             OUTPUT
@@ -55,7 +54,7 @@ foreach (filename ${files})
     # ROPfuscated binaries
     #######################
 
-    add_dependencies(ropfuscator-examples ${ropfuscated_exec_name})
+    add_dependencies(ropfuscator-evaluation ${ropfuscated_exec_name})
     target_link_libraries(${ropfuscated_exec_name} c)
 
     add_custom_command(
@@ -70,7 +69,7 @@ foreach (filename ${files})
             COMMAND
             $<TARGET_FILE:llc>
             ARGS
-            ${ROPF_ASM_FLAGS_ROPFBIN} ${ropfuscated_exec_name}.bc -ropfuscator-config=${CMAKE_CURRENT_SOURCE_DIR}/../ropfuscator-default.conf -o ${ropfuscated_exec_name}.s
+            ${ROPF_ASM_FLAGS_ROPFBIN} ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s
     )
 endforeach ()
 

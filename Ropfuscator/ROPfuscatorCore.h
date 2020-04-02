@@ -16,6 +16,8 @@
 #include <map>
 #endif
 
+#include "ROPfuscatorConfig.h"
+
 // forward declaration
 class BinaryAutopsy;
 class ROPChain;
@@ -23,19 +25,19 @@ namespace llvm {
 class MachineFunction;
 class MachineBasicBlock;
 class MachineInstr;
+class Module;
 class X86InstrInfo;
 } // namespace llvm
 
 class ROPfuscatorCore {
 public:
-  ROPfuscatorCore();
+  explicit ROPfuscatorCore(llvm::Module &module,
+                           const ROPfuscatorConfig &config);
   ~ROPfuscatorCore();
   void obfuscateFunction(llvm::MachineFunction &MF);
 
-  bool opaquePredicateEnabled;
-  std::string libcPath;
-
 private:
+  ROPfuscatorConfig config;
   BinaryAutopsy *BA;
   const llvm::X86InstrInfo *TII;
 
@@ -45,7 +47,8 @@ private:
 #endif
 
   void insertROPChain(const ROPChain &chain, llvm::MachineBasicBlock &MBB,
-                      llvm::MachineInstr &MI, int chainID);
+                      llvm::MachineInstr &MI, int chainID,
+                      const ObfuscationParameter &param);
 };
 
 #endif
