@@ -15,7 +15,6 @@ arg = claripy.BVS('input', 8*16, explicit_name=True)
 
 state = proj.factory.full_init_state(args=[progpath, arg], mode='tracing')
 state.options.add(angr.options.USE_SYSTEM_TIMES)
-state.options.add(angr.options.LAZY_SOLVES)
 simgr = proj.factory.simulation_manager(state)
 
 simgr.explore(find=lambda s: len(s.posix.dumps(1)) > 0)
