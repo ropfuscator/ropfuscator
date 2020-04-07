@@ -93,6 +93,14 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
 
       dbg_fmt("Found [functions.default] section.\n");
 
+      // Obfuscation enabled
+      if (default_keys.contains(CONFIG_OBF_ENABLED)) {
+        auto obf_enabled = default_keys.at(CONFIG_OBF_ENABLED).as_boolean();
+
+        dbg_fmt("Setting {} flag to {}\n", CONFIG_OBF_ENABLED, obf_enabled);
+        defaultParameter.obfuscationEnabled = obf_enabled;
+      }
+
       // Opaque predicates enabled
       if (default_keys.contains(CONFIG_OPA_PRED_ENABLED)) {
         auto op_enabled = default_keys.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
