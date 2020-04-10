@@ -31,8 +31,8 @@ measure_time() {
 
 for target in $TARGETS; do
     for config in $CONFIGS; do
-	measure_time 5 $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve-default.$target.py $BIN_DIR/eval.$target.$config
-	measure_time 5 $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve-trace.$target.py $BIN_DIR/eval.$target.$config
+	measure_time 5 $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve.$target.py $BIN_DIR/eval.$target.$config symbolic DFS eager
+	measure_time 5 $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve.$target.py $BIN_DIR/eval.$target.$config tracing DFS eager
     done
 done
 
