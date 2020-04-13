@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#pragma GCC optimize ("O0")
+#pragma clang optimize off
+
 int check(const char *s) {
   int i = 0;
   i += (s[0] == 'H');

@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#pragma GCC optimize ("O0")
+#pragma clang optimize off
+
 int check(const char *s) {
   if (s[0] != 'H') return 0;
   if (s[1] != 'e') return 0;
