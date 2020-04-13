@@ -4,7 +4,7 @@ file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/src_*/*.c")
 file(GLOB configfiles "${CMAKE_CURRENT_SOURCE_DIR}/../../configs/*.conf")
 
 set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS})
-set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS})
+set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS} -O2 -mno-sse)
 
 foreach (filename ${files})
     get_filename_component(src_dir ${filename} DIRECTORY)
