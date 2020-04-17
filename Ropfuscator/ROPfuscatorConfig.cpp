@@ -73,6 +73,16 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       dbg_fmt("Setting {} flag to {}\n", CONFIG_SEARCH_SEGMENT, search_segment);
       globalConfig.searchSegmentForGadget = search_segment;
     }
+
+    // Print instruction statistics
+    if (general_section.contains(CONFIG_PRINT_INSTR_STAT)) {
+      auto print_instr_stat =
+          general_section.at(CONFIG_PRINT_INSTR_STAT).as_boolean();
+
+      dbg_fmt("Setting {} flag to {}\n", CONFIG_PRINT_INSTR_STAT,
+              print_instr_stat);
+      globalConfig.printInstrStat = print_instr_stat;
+    }
   }
 
   /* =====================================

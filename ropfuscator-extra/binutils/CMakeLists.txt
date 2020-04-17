@@ -45,4 +45,13 @@ foreach (filename ${files})
             ARGS
             -fno-ropfuscator ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc -o ${exec_name}.s
     )
+
+    add_custom_target(
+            ${ropfuscated_exec_name}-instrstat
+            DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc llc
+            COMMAND
+            $<TARGET_FILE:llc>
+            ${ROPF_ASM_FLAGS_ROPFBIN} ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.bc -o ${ropfuscated_exec_name}-instrstat.s -ropfuscator-config ${CMAKE_CURRENT_SOURCE_DIR}/../evaluation/instrstat.conf
+    )
 endforeach ()
