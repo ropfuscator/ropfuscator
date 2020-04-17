@@ -20,6 +20,7 @@
 #define CONFIG_SEARCH_SEGMENT "search_segment_for_gadget"
 #define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
 #define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
+#define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
 
 // functions section
 #define CONFIG_FUNCTION_NAME "name"
@@ -65,10 +66,12 @@ struct GlobalConfig {
   // not used; if set to false, only one version of those symbols is used. (angr
   // will not work correctly if this is set to false)
   bool avoidMultiversionSymbol;
+  // print instruction obfuscated status
+  bool printInstrStat;
 
   GlobalConfig()
       : libraryPath(), searchSegmentForGadget(true),
-        avoidMultiversionSymbol(false) {}
+        avoidMultiversionSymbol(false), printInstrStat(false) {}
 };
 
 struct ROPfuscatorConfig {

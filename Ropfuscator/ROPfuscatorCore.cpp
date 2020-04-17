@@ -77,11 +77,12 @@ struct ROPfuscatorCore::ROPChainStatEntry {
       "stat: ropfuscated {0} / total {6}\n[not-implemented: {1} | "
       "no-register: {2} | no-gadget: {3} "
       "| unsupported: {4} | unsupported-esp: {5}]";
-  static constexpr const char *DEBUG_FMT_SIMPLE = "{0} {1} {2} {3} {4} {5} {6}";
+  static constexpr const char *DEBUG_FMT_SIMPLE =
+      "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}";
 
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const ROPChainStatEntry &entry) {
-    fmt::print(os, DEBUG_FMT_NORMAL, entry[ROPChainStatus::OK],
+  std::ostream &print_to(std::ostream &os, const char *fmt) const {
+    const ROPChainStatEntry &entry = *this;
+    fmt::print(os, fmt, entry[ROPChainStatus::OK],
                entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
                entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
                entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
@@ -89,6 +90,22 @@ struct ROPfuscatorCore::ROPChainStatEntry {
                entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER],
                entry.total());
     return os;
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const ROPChainStatEntry &entry) {
+    return entry.print_to(os, DEBUG_FMT_NORMAL);
+  }
+
+  std::string to_string(const char *fmt) const {
+    std::stringstream ss;
+    print_to(ss, fmt);
+    return ss.str();
+  }
+
+  static std::string header_string(const char *fmt) {
+    return fmt::format(fmt, "ropfuscated", "not-implemented", "no-register",
+                       "no-gadget", "unsupported", "unsupported-esp", "total");
   }
 };
 #endif
@@ -155,10 +172,14 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  for (auto &kv : instr_stat) {
-    DEBUG_WITH_TYPE(OBF_STATS, dbg_fmt("{} = {} : {}\n", kv.first,
-                                       TII->getName(kv.first), kv.second));
-    (void)kv; // suppress unused warnings
+  if (config.globalConfig.printInstrStat) {
+    dbg_fmt(
+        "{}\t{}\t{}\n", "op-id", "op-name",
+        ROPChainStatEntry::header_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+    for (auto &kv : instr_stat) {
+      dbg_fmt("{}\t{}\t{}\n", kv.first, TII->getName(kv.first),
+              kv.second.to_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+    }
   }
 #endif
 }
