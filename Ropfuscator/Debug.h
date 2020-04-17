@@ -11,6 +11,7 @@
 #define LIVENESS_ANALYSIS "liveness_analysis"
 #define PROCESSED_INSTR "processed_instr"
 #define OBF_STATS "obf_stats"
+#define OBF_CONFIG "obf_config"
 
 // not working
 #define SECTIONS "sections"

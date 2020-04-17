@@ -1,6 +1,20 @@
 #include "ROPfuscatorConfig.h"
 #include "Debug.h"
-#include "toml.hpp"
+//#include "toml.hpp"
+
+#define TOML_HAVE_FAILWITH_REPLACEMENT
+
+namespace toml {
+template <typename... Args>[[noreturn]] void failwith(Args &&... args) {
+  std::stringstream ss;
+  int _dummy[] = {(ss << args, 0)...};
+  (void)_dummy;
+  dbg_fmt("TOML parse error: {}\n", ss.str());
+  exit(1);
+}
+} // namespace toml
+
+#include "toml/toml.h"
 
 ObfuscationParameter
 ROPfuscatorConfig::getParameter(const std::string &funcname) const {
@@ -14,70 +28,60 @@ ROPfuscatorConfig::getParameter(const std::string &funcname) const {
     }
   }
 
-  dbg_fmt("Returning default obfuscation parameter for {}\n", funcname);
+  DEBUG_WITH_TYPE(
+      OBF_CONFIG,
+      dbg_fmt("Returning default obfuscation parameter for {}\n", funcname));
   return defaultParameter;
 }
 
 void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   dbg_fmt("Loading configuration from file {}.\n", filename);
 
-  toml::value configuration_data;
-
-  try {
-    configuration_data = toml::parse(filename);
-  } catch (const std::runtime_error &e) {
-    // TODO: better output
+  toml::ParseResult parseResult = toml::parseFile(filename);
+  if (!parseResult.valid()) {
     fmt::print(stderr, "Error while parsing configuration file:\n {}",
-               e.what());
-    exit(-1);
-  } catch (const toml::syntax_error &e) {
-    // TODO: better output
-    fmt::print(stderr, "Syntax error in configuration file:\n {}", e.what());
+               parseResult.errorReason);
     exit(-1);
   }
+
+  const toml::Value &configuration_data = parseResult.value;
 
   // setting default values
   globalConfig = GlobalConfig();
   defaultParameter = ObfuscationParameter();
 
-  /* =====================================
-   * parsing [general] section, if present
-   */
-  if (configuration_data.contains(CONFIG_GENERAL_SECTION)) {
-    toml::value general_section =
-        toml::find(configuration_data, CONFIG_GENERAL_SECTION);
+  // =====================================
+  // parsing [general] section, if present
+  if (auto *general_section = configuration_data.find(CONFIG_GENERAL_SECTION)) {
 
     // Custom library path
-    if (general_section.contains(CONFIG_CUSTOM_LIB_PATH)) {
-      auto library_path =
-          general_section.at(CONFIG_CUSTOM_LIB_PATH).as_string();
+    if (auto *library_path_v = general_section->find(CONFIG_CUSTOM_LIB_PATH)) {
+      std::string library_path = library_path_v->as<std::string>();
 
       dbg_fmt("Setting library path to {}\n", library_path);
       globalConfig.libraryPath = library_path;
     }
 
     // Avoid multiversion symbols
-    if (general_section.contains(CONFIG_AVOID_MULTIVER)) {
-      auto avoid_multiver =
-          general_section.at(CONFIG_AVOID_MULTIVER).as_boolean();
+    if (auto *avoid_multiver_v = general_section->find(CONFIG_AVOID_MULTIVER)) {
+      bool avoid_multiver = avoid_multiver_v->as<bool>();
 
       dbg_fmt("Setting {} flag to {}\n", CONFIG_AVOID_MULTIVER, avoid_multiver);
       globalConfig.avoidMultiversionSymbol = avoid_multiver;
     }
 
     // Search in segment
-    if (general_section.contains(CONFIG_SEARCH_SEGMENT)) {
-      auto search_segment =
-          general_section.at(CONFIG_SEARCH_SEGMENT).as_boolean();
+    if (auto *search_segment_v = general_section->find(CONFIG_SEARCH_SEGMENT)) {
+      bool search_segment = search_segment_v->as<bool>();
 
       dbg_fmt("Setting {} flag to {}\n", CONFIG_SEARCH_SEGMENT, search_segment);
       globalConfig.searchSegmentForGadget = search_segment;
     }
 
     // Print instruction statistics
-    if (general_section.contains(CONFIG_PRINT_INSTR_STAT)) {
-      auto print_instr_stat =
-          general_section.at(CONFIG_PRINT_INSTR_STAT).as_boolean();
+    if (auto *print_instr_stat_v =
+            general_section->find(CONFIG_PRINT_INSTR_STAT)) {
+      auto print_instr_stat = print_instr_stat_v->as<bool>();
 
       dbg_fmt("Setting {} flag to {}\n", CONFIG_PRINT_INSTR_STAT,
               print_instr_stat);
@@ -85,44 +89,45 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     }
   }
 
-  /* =====================================
-   * parsing [functions] section, if present
-   */
-  if (configuration_data.contains(CONFIG_FUNCTIONS_SECTION)) {
-    auto functions_section =
-        toml::find(configuration_data, CONFIG_FUNCTIONS_SECTION);
+  // =====================================
+  // parsing [functions] section, if present
+  if (auto *functions_section =
+          configuration_data.find(CONFIG_FUNCTIONS_SECTION)) {
 
-    /*
-     * parsing [functions.default]
-     * note: these settings will be overridden if multiple
-     * [functions.default] sections are defined! TODO: fixme
-     */
-    if (functions_section.count(CONFIG_FUNCTIONS_DEFAULT)) {
-      auto default_keys =
-          toml::find(functions_section, CONFIG_FUNCTIONS_DEFAULT);
+    if (!functions_section->is<toml::Table>()) {
+      // error
+      dbg_fmt("[functions] should be a section.\n");
+      exit(-1);
+    }
+
+    // parsing [functions.default]
+    // note: these settings will be overridden if multiple
+    // [functions.default] sections are defined! TODO: fixme
+    if (auto *default_keys =
+            functions_section->find(CONFIG_FUNCTIONS_DEFAULT)) {
 
       dbg_fmt("Found [functions.default] section.\n");
 
       // Obfuscation enabled
-      if (default_keys.contains(CONFIG_OBF_ENABLED)) {
-        auto obf_enabled = default_keys.at(CONFIG_OBF_ENABLED).as_boolean();
+      if (auto *obf_enabled_v = default_keys->find(CONFIG_OBF_ENABLED)) {
+        bool obf_enabled = obf_enabled_v->as<bool>();
 
         dbg_fmt("Setting {} flag to {}\n", CONFIG_OBF_ENABLED, obf_enabled);
         defaultParameter.obfuscationEnabled = obf_enabled;
       }
 
       // Opaque predicates enabled
-      if (default_keys.contains(CONFIG_OPA_PRED_ENABLED)) {
-        auto op_enabled = default_keys.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
+      if (auto *op_enabled_v = default_keys->find(CONFIG_OPA_PRED_ENABLED)) {
+        bool op_enabled = op_enabled_v->as<bool>();
 
         dbg_fmt("Setting {} flag to {}\n", CONFIG_OPA_PRED_ENABLED, op_enabled);
         defaultParameter.opaquePredicateEnabled = op_enabled;
       }
 
       // Opaque predicates algorithm
-      if (default_keys.contains(CONFIG_OPA_PRED_ALGO)) {
-        auto op_algo = default_keys.at(CONFIG_OPA_PRED_ALGO).as_string();
-        auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
+      if (auto *op_algo_v = default_keys->find(CONFIG_OPA_PRED_ALGO)) {
+        std::string op_algo = op_algo_v->as<std::string>();
+        std::string parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
 
         if (parsed_op_algo.empty()) {
           fmt::print(stderr,
@@ -138,9 +143,9 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       // Branch divergence enabled
-      if (default_keys.contains(CONFIG_BRANCH_DIV_ENABLED)) {
-        auto branch_div_enabled =
-            default_keys.at(CONFIG_BRANCH_DIV_ENABLED).as_boolean();
+      if (auto *branch_div_enabled_v =
+              default_keys->find(CONFIG_BRANCH_DIV_ENABLED)) {
+        bool branch_div_enabled = branch_div_enabled_v->as<bool>();
 
         dbg_fmt("Setting {} flag to {}\n", CONFIG_BRANCH_DIV_ENABLED,
                 branch_div_enabled);
@@ -149,19 +154,19 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       // Branch divergence max depth
-      if (default_keys.contains(CONFIG_BRANCH_DIV_MAX)) {
-        auto branch_div_max =
-            default_keys.at(CONFIG_BRANCH_DIV_MAX).as_integer();
+      if (auto *branch_div_max_v = default_keys->find(CONFIG_BRANCH_DIV_MAX)) {
+        int branch_div_max = branch_div_max_v->as<int>();
 
         dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_MAX, branch_div_max);
 
-        defaultParameter.opaqueBranchDivergenceMaxBranches = branch_div_max;
+        defaultParameter.opaqueBranchDivergenceMaxBranches =
+            static_cast<unsigned int>(branch_div_max);
       }
 
       // Branch divergence algorithm
-      if (default_keys.contains(CONFIG_BRANCH_DIV_ALGO)) {
-        auto branch_div_algo =
-            default_keys.at(CONFIG_BRANCH_DIV_ALGO).as_string();
+      if (auto *branch_div_algo_v =
+              default_keys->find(CONFIG_BRANCH_DIV_ALGO)) {
+        std::string branch_div_algo = branch_div_algo_v->as<std::string>();
         auto parsed_branch_div_algo =
             parseBranchDivergenceAlgorithm(branch_div_algo);
 
@@ -181,22 +186,20 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
     }
 
-    /*
-     * parsing [functions.*] sections
-     */
-    for (auto kv : functions_section.as_table()) {
-      auto subsection_name = kv.first;
-      auto subsection_data = kv.second;
+    // parsing [functions.*] sections
+    for (auto &kv : functions_section->as<toml::Table>()) {
+      const std::string &subsection_name = kv.first;
+      const toml::Value &subsection_data = kv.second;
 
       // ignoring default since it was parsed already
-      if (!subsection_name.compare(CONFIG_FUNCTIONS_DEFAULT)) {
+      if (subsection_name == CONFIG_FUNCTIONS_DEFAULT) {
         continue;
       }
 
       dbg_fmt("Parsing: [functions.{}]\n", subsection_name);
 
       // ignoring subsection if it doesn't have a name entry
-      if (!subsection_data.contains(CONFIG_FUNCTION_NAME)) {
+      if (!subsection_data.find(CONFIG_FUNCTION_NAME)) {
         fmt::print(stderr,
                    "Subsection {} does not contain a {} entry. Ignoring "
                    "subsection.\n",
@@ -205,21 +208,27 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       auto function_ob_parameter = ObfuscationParameter();
-      auto function_name = subsection_data.at(CONFIG_FUNCTION_NAME).as_string();
+      std::string function_name;
+      if (auto *function_name_v = subsection_data.find(CONFIG_FUNCTION_NAME)) {
+        function_name = function_name_v->as<std::string>();
+      } else {
+        dbg_fmt("Warning: section [functions.{}] should include {}\n",
+                subsection_name, CONFIG_FUNCTION_NAME);
+        continue;
+      }
 
       // Opaque predicates enabled
-      if (subsection_data.contains(CONFIG_OPA_PRED_ENABLED)) {
-        auto op_enabled =
-            subsection_data.at(CONFIG_OPA_PRED_ENABLED).as_boolean();
+      if (auto *op_enabled_v = subsection_data.find(CONFIG_OPA_PRED_ENABLED)) {
+        bool op_enabled = op_enabled_v->as<bool>();
 
         dbg_fmt("Setting {} flag to {}\n", CONFIG_OPA_PRED_ENABLED, op_enabled);
         function_ob_parameter.opaquePredicateEnabled = op_enabled;
       }
 
       // Opaque predicates algorithm
-      if (subsection_data.contains(CONFIG_OPA_PRED_ALGO)) {
-        auto op_algo = subsection_data.at(CONFIG_OPA_PRED_ALGO).as_string();
-        auto parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
+      if (auto *op_algo_v = subsection_data.find(CONFIG_OPA_PRED_ALGO)) {
+        std::string op_algo = op_algo_v->as<std::string>();
+        std::string parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
 
         if (parsed_op_algo.empty()) {
           fmt::print(stderr,
@@ -234,9 +243,9 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       // Branch divergence enabled
-      if (subsection_data.contains(CONFIG_BRANCH_DIV_ENABLED)) {
-        auto branch_div_enabled =
-            subsection_data.at(CONFIG_BRANCH_DIV_ENABLED).as_boolean();
+      if (auto *branch_div_enabled_v =
+              subsection_data.find(CONFIG_BRANCH_DIV_ENABLED)) {
+        bool branch_div_enabled = branch_div_enabled_v->as<bool>();
 
         dbg_fmt("Setting {} flag to {}\n", CONFIG_BRANCH_DIV_ENABLED,
                 branch_div_enabled);
@@ -246,9 +255,9 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       // Branch divergence max depth
-      if (subsection_data.contains(CONFIG_BRANCH_DIV_MAX)) {
-        auto branch_div_max =
-            subsection_data.at(CONFIG_BRANCH_DIV_MAX).as_integer();
+      if (auto *branch_div_max_v =
+              subsection_data.find(CONFIG_BRANCH_DIV_MAX)) {
+        int branch_div_max = branch_div_max_v->as<int>();
 
         dbg_fmt("Setting {} to {}\n", CONFIG_BRANCH_DIV_MAX, branch_div_max);
 
@@ -257,10 +266,10 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
       }
 
       // Branch divergence algorithm
-      if (subsection_data.contains(CONFIG_BRANCH_DIV_ALGO)) {
-        auto branch_div_algo =
-            subsection_data.at(CONFIG_BRANCH_DIV_ALGO).as_string();
-        auto parsed_branch_div_algo =
+      if (auto *branch_div_algo_v =
+              subsection_data.find(CONFIG_BRANCH_DIV_ALGO)) {
+        std::string branch_div_algo = branch_div_algo_v->as<std::string>();
+        std::string parsed_branch_div_algo =
             parseBranchDivergenceAlgorithm(branch_div_algo);
 
         if (parsed_branch_div_algo.empty()) {
