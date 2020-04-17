@@ -2,9 +2,7 @@
 #define ROPFUSCATORCONFIG_H
 
 #include "OpaqueConstruct.h"
-#include <cctype>
 #include <map>
-#include <regex>
 #include <string>
 
 /* =========================
@@ -82,10 +80,6 @@ struct ROPfuscatorConfig {
   ObfuscationParameter getParameter(const std::string &funcname) const;
 
   void loadFromFile(const std::string &filename);
-
-private:
-  std::string parseOpaquePredicateAlgorithm(const std::string &configString);
-  std::string parseBranchDivergenceAlgorithm(const std::string &configString);
 };
 
 #endif
