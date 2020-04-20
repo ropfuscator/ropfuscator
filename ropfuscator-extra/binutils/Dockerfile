@@ -29,6 +29,8 @@ RUN mkdir -p /opt/binutils-bc
 
 ENV CC="wllvm -m32" \
     CXX="wllvm++ -m32" \
+    CFLAGS="-m32 -O0" \
+    CXXFLAGS="-m32 -O0" \
     LLVM_COMPILER=clang \
     development=false
 
