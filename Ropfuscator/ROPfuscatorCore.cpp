@@ -294,20 +294,22 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     espoffset -= 4;
   }
 
+  auto asChainLabel = as.label(chainLabel);
+  auto asResumeLabel = as.label(resumeLabel);
   if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
     // jmp funcName_chain_X
     // (omitted since it would be redundant)
   } else {
     // call funcName_chain_X
-    as.call(as.label(chainLabel));
+    as.call(asChainLabel);
     // jmp resume_funcName_chain_X
-    as.jmp(as.label(resumeLabel));
+    as.jmp(asResumeLabel);
     resumeLabelRequired = true;
     espoffset -= 4;
   }
 
   // funcName_chain_X:
-  as.inlineasm(chainLabel + ":");
+  as.putLabel(asChainLabel);
 
   // ROP Chain
   // Pushes each chain element on the stack in reverse order
@@ -384,8 +386,9 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
       // symbols have the same name. We do this exclusively when the
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
-      if (sym->Version != "Base") {
-        as.inlineasm(sym->SymVerDirective);
+      if (!sym->isUsed && sym->Version != "Base") {
+        as.inlineasm(sym->getSymverDirective());
+        sym->isUsed = true;
       }
 
       // push $symbol
@@ -489,7 +492,7 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
   if (resumeLabelRequired) {
     // If the label is inserted when ROP chain terminates with jump,
     // AsmPrinter::isBlockOnlyReachableByFallthrough() doesn't work correctly
-    as.inlineasm(resumeLabel + ":");
+    as.putLabel(asResumeLabel);
   }
 
   // restore eflags, if eflags should be restored AFTER chain execution

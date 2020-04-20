@@ -3,6 +3,7 @@
 
 #include "../X86TargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/MC/MCContext.h"
 #include <fmt/format.h>
 
 namespace llvm {
@@ -12,10 +13,6 @@ class GlobalValue;
 class X86AssembleHelper {
 public:
   typedef unsigned int llvm_reg_t;
-  static std::string newLabelName() {
-    static int label_id;
-    return fmt::format(".L_ROPF_ASM_{}", label_id++);
-  }
 
   struct Imm {
     uint64_t imm;
@@ -32,14 +29,11 @@ public:
     }
   };
 
-  struct ExternalLabel {
-    const std::string label;
+  struct Label {
+    llvm::MCSymbol *symbol;
 
     void add(llvm::MachineInstrBuilder &builder) const {
-      auto external_symbol =
-          builder.getInstr()->getMF()->createExternalSymbolName(label);
-
-      builder.addExternalSymbol(external_symbol);
+      builder.addSym(symbol);
     }
   };
 
@@ -72,7 +66,7 @@ public:
 
   X86AssembleHelper(llvm::MachineBasicBlock &block,
                     llvm::MachineBasicBlock::iterator position)
-      : block(block), position(position),
+      : block(block), position(position), ctx(block.getParent()->getContext()),
         TII(block.getParent()->getTarget().getMCInstrInfo()) {}
 
   // --- operand builder ---
@@ -85,8 +79,10 @@ public:
           int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
-  ExternalLabel label() const { return {newLabelName()}; }
-  ExternalLabel label(const std::string label) const { return {label}; }
+  Label label() const { return {ctx.createTempSymbol()}; }
+  Label label(const std::string label) const {
+    return {ctx.getOrCreateSymbol(label)};
+  }
   BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
 
   // --- instruction builder ---
@@ -104,7 +100,7 @@ public:
   void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
-  void add(Mem m, ExternalLabel i) const { _instr(llvm::X86::ADD32mi, m, i); }
+  void add(Mem m, Label i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
   void imul(Reg r, Imm i) const { _instrd(llvm::X86::IMUL32rri, r, i); }
   void imul(Reg r1, Reg r2, Imm i) const {
@@ -132,27 +128,30 @@ public:
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
-  void push(ExternalLabel i) const { _instr(llvm::X86::PUSHi32, i); }
+  void push(Label i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(BasicBlockRef l) const { _instr(llvm::X86::PUSHi32, l); }
   void pop(Reg r) const { _instr(llvm::X86::POP32r, r); }
   void pushf() const { _instr(llvm::X86::PUSHF32); }
   void popf() const { _instr(llvm::X86::POPF32); }
   void ret() const { _instr(llvm::X86::RETL); }
   void rdtsc() const { _instr(llvm::X86::RDTSC); }
-  void call(ExternalLabel l) const { _instr(llvm::X86::CALLpcrel32, l); }
-  void jmp(ExternalLabel l) const { _instr(llvm::X86::JMP_1, l); }
+  void call(Label l) const { _instr(llvm::X86::CALLpcrel32, l); }
+  void jmp(Label l) const { _instr(llvm::X86::JMP_1, l); }
   void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
-  void je(ExternalLabel l) const { _instr(llvm::X86::JE_1, l); }
+  void je(Label l) const { _instr(llvm::X86::JE_1, l); }
   void je(BasicBlockRef l) const { _instr(llvm::X86::JE_1, l); }
-  void ja(ExternalLabel l) const { _instr(llvm::X86::JA_1, l); }
+  void ja(Label l) const { _instr(llvm::X86::JA_1, l); }
   void ja(BasicBlockRef l) const { _instr(llvm::X86::JA_1, l); }
-  void jb(ExternalLabel l) const { _instr(llvm::X86::JB_1, l); }
+  void jb(Label l) const { _instr(llvm::X86::JB_1, l); }
   void jb(BasicBlockRef l) const { _instr(llvm::X86::JB_1, l); }
   void lea(Reg r, Mem m) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);
     m.add(builder);
   }
+  // Don't use this function unless really necessary;
+  // LLVM will create assembly parser for each inline assembly code,
+  // which will heavily slow down the build process.
   void inlineasm(std::string str) const {
     auto external_symbol = block.getParent()->createExternalSymbolName(str);
 
@@ -160,11 +159,12 @@ public:
         .addExternalSymbol(external_symbol)
         .addImm(0);
   }
-  void putLabel(ExternalLabel label) { inlineasm(label.label + ":"); }
+  void putLabel(Label label) { _instr(llvm::TargetOpcode::GC_LABEL, label); }
 
 private:
   llvm::MachineBasicBlock &block;
   llvm::MachineBasicBlock::iterator position;
+  llvm::MCContext &ctx;
   const llvm::MCInstrInfo *TII;
 
   void _instr(unsigned int opcode) const {

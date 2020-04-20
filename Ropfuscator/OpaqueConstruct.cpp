@@ -676,7 +676,7 @@ private:
 
   void compileAux(X86AssembleHelper &as, const X86AssembleHelper::Reg &target,
                   const X86AssembleHelper::Reg &tmpreg,
-                  const X86AssembleHelper::ExternalLabel &endLabel, uint32_t m,
+                  const X86AssembleHelper::Label &endLabel, uint32_t m,
                   uint32_t n, uint32_t flag, bool &labelUsed) const {
     if (n == 1) {
       as.mov(target, as.imm(values[m]));
@@ -875,7 +875,7 @@ private:
 
   void compileAux(X86AssembleHelper &as, uint32_t pos, uint32_t N,
                   unsigned int targetreg, bool &endLabelUsed,
-                  const X86AssembleHelper::ExternalLabel &endLabel) const {
+                  const X86AssembleHelper::Label &endLabel) const {
     if (N == 1) {
       uint32_t xorval = inputvalues[pos] ^ outputvalues[pos];
       as.lxor(as.reg(targetreg), as.imm(xorval));
@@ -911,7 +911,6 @@ private:
         uint32_t mid =
             Math::randrange(inputvalues[pos + n2 - 1], inputvalues[pos + n2]);
         auto label1 = as.label();
-        auto label2 = as.label();
         // test if input < mid
         as.cmp(as.reg(targetreg), as.imm(mid));
         as.jb(label1);

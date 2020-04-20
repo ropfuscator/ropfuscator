@@ -17,22 +17,22 @@ struct Symbol {
   // ensure compatibility with binaries using old ABI versions.
   std::string Version;
 
-  // SymVerDirective - it is just an inline asm directive we need to place to
-  // force the static linker to pick the right symbol version during the
-  // compilation.
-  std::string SymVerDirective;
-
   // Address - offset relative to the analysed binary file. When we'll reference
   // a gadget in memory we'll use this as base address.
   uint64_t Address;
 
+  mutable bool isUsed;
+
   // Constructor
   Symbol(std::string label, std::string version, uint64_t address)
-      : Label(label), Version(version), Address(address) {
-    SymVerDirective = fmt::format(".symver {},{}@{}", Label, Label, Version);
-  }
+      : Label(label), Version(version), Address(address), isUsed(false) {}
 
-  // TODO: free heap for Label, Version, SymVerDirective
+  // SymVerDirective - it is just an inline asm directive we need to place to
+  // force the static linker to pick the right symbol version during the
+  // compilation.
+  std::string getSymverDirective() const {
+    return fmt::format(".symver {},{}@{}", Label, Label, Version);
+  }
 };
 
 #endif
