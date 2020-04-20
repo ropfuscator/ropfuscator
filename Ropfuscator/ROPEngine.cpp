@@ -303,6 +303,7 @@ ROPEngine::handleArithmeticRR(MachineInstr *MI,
 
   switch (MI->getOpcode()) {
   case X86::ADD32rr:
+  case X86::ADD32rr_DB:
     gadget_type = (src1 == src2) ? GadgetType::ADD_1 : GadgetType::ADD;
     break;
   case X86::SUB32rr:
@@ -614,6 +615,28 @@ ROPEngine::handleMov32rr(MachineInstr *MI,
 }
 
 ROPChainStatus
+ROPEngine::handleMov32ri(MachineInstr *MI,
+                         std::vector<unsigned int> &scratchRegs) {
+  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  // extract operands
+  unsigned int dst = MI->getOperand(0).getReg();
+  ChainElem imm_elem;
+
+  if (!convertOperandToChainPushImm(MI->getOperand(1), imm_elem))
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  ROPChainBuilder builder(BA, scratchRegs);
+
+  builder.append(GadgetType::INIT, dst).append(imm_elem);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+
+  return builder.build(state, chain);
+}
+
+ROPChainStatus
 ROPEngine::handleCmp32mi(MachineInstr *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // skip scaled-index addressing mode since we cannot handle them
@@ -644,6 +667,26 @@ ROPEngine::handleCmp32mi(MachineInstr *MI,
     builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
   builder.append(GadgetType::SUB, SCRATCH_1, SCRATCH_2);
+  builder.reorder();
+  builder.normalInstrFlag = true;
+
+  return builder.build(state, chain);
+}
+
+ROPChainStatus
+ROPEngine::handleCmp32rr(MachineInstr *MI,
+                         std::vector<unsigned int> &scratchRegs) {
+  // extract operands
+  if (MI->getOperand(0).getReg() == 0)
+    return ROPChainStatus::ERR_UNSUPPORTED;
+
+  unsigned int reg1 = MI->getOperand(0).getReg();
+  unsigned int reg2 = MI->getOperand(1).getReg();
+
+  ROPChainBuilder builder(BA, scratchRegs);
+
+  builder.append(GadgetType::COPY, SCRATCH_1, reg1);
+  builder.append(GadgetType::SUB, SCRATCH_1, reg2);
   builder.reorder();
   builder.normalInstrFlag = true;
 
@@ -855,6 +898,7 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
   case X86::ADD32rr:
   case X86::SUB32rr:
   case X86::AND32rr:
+  case X86::ADD32rr_DB:
     status = handleArithmeticRR(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
@@ -873,6 +917,10 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     status = handleCmp32mi(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
+  case X86::CMP32rr:
+    status = handleCmp32rr(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
+    break;
   case X86::CMP32ri:
   case X86::CMP32ri8:
     status = handleCmp32ri(&MI, scratchRegs);
@@ -886,22 +934,24 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     status = handleLea32r(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
-  case X86::MOV32rm: {
+  case X86::MOV32rm:
     status = handleMov32rm(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
-  }
-  case X86::MOV32mr: {
+  case X86::MOV32mr:
     status = handleMov32mr(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
-  }
   case X86::MOV32mi:
     status = handleMov32mi(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   case X86::MOV32rr:
     status = handleMov32rr(&MI, scratchRegs);
+    flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
+    break;
+  case X86::MOV32ri:
+    status = handleMov32ri(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_AFTER_EXEC;
     break;
   case X86::JMP_1:

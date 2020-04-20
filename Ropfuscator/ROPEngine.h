@@ -124,7 +124,11 @@ class ROPEngine {
                                std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleMov32rr(llvm::MachineInstr *,
                                std::vector<unsigned int> &scratchRegs);
+  ROPChainStatus handleMov32ri(llvm::MachineInstr *,
+                               std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCmp32mi(llvm::MachineInstr *,
+                               std::vector<unsigned int> &scratchRegs);
+  ROPChainStatus handleCmp32rr(llvm::MachineInstr *,
                                std::vector<unsigned int> &scratchRegs);
   ROPChainStatus handleCmp32ri(llvm::MachineInstr *,
                                std::vector<unsigned int> &scratchRegs);
