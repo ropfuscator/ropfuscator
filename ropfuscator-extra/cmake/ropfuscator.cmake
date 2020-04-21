@@ -1,7 +1,7 @@
 set(CMAKE_CXX_STANDARD 17)
 
 set(ROPFUSCATOR_SOURCES
-  X86ROPfuscator.cpp
+  Ropfuscator/X86ROPfuscatorPass.cpp
   Ropfuscator/ROPfuscatorCore.cpp
   Ropfuscator/ROPEngine.cpp
   Ropfuscator/BinAutopsy.cpp

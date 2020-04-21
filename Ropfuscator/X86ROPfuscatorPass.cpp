@@ -5,8 +5,8 @@
 // This module is simply the frontend of ROPfuscator for LLVM.
 //
 
-#include "Ropfuscator/ROPfuscatorConfig.h"
-#include "Ropfuscator/ROPfuscatorCore.h"
+#include "ROPfuscatorConfig.h"
+#include "ROPfuscatorCore.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
