@@ -1,3 +1,6 @@
 [submodule "ropfuscator-extra/include/tinytoml"]
 	path = ropfuscator-extra/include/tinytoml
 	url = https://github.com/mayah/tinytoml
+[submodule "ropfuscator-extra/include/fmt"]
+	path = ropfuscator-extra/include/fmt
+	url = https://github.com/fmtlib/fmt

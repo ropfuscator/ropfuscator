@@ -8,7 +8,7 @@ set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS} -O2 -mno-sse)
 
 foreach (filename ${files})
     get_filename_component(src_dir ${filename} DIRECTORY)
-    get_filename_component(exec_name ${filename} NAME_WLE)
+    get_filename_component(exec_name ${filename} NAME_WE)
 
     #######################
     # options handling
@@ -25,7 +25,7 @@ foreach (filename ${files})
     #######################
 
     foreach (configfile ${configfiles})
-        get_filename_component(config ${configfile} NAME_WLE)
+        get_filename_component(config ${configfile} NAME_WE)
         set(ropfuscated_exec_name "eval.${exec_name}.${config}")
 
         add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra ASM)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -fpie")

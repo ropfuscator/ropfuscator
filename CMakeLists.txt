@@ -96,28 +96,7 @@ if (CURRENT_LLVM_TARGET)
         target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
 endif ()
 
-include_directories(ropfuscator-extra/include/tinytoml/include)
-
 # libfmt
-find_library(FMT fmt)
-
-if (FMT)
-	target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE ${FMT})
-else()
-	find_package(fmt QUIET)
-
-	if (fmt_FOUND)
-		target_link_libraries(${CURRENT_LLVM_TARGET} LINK_TARGET fmt)
-	else()
-		if (PKG_CONFIG_FOUND)
-			pkg_search_module(fmt fmt)
-			if (fmt_FOUND)
-				target_link_libraries(${CURRENT_LLVM_TARGET} LINK_TARGET fmt)
-			else()
-				message(FATAL_ERROR "libfmt NOT found. Please install libfmt headers.")
-			endif()
-		else()
-			message("libfmt not found. Please install libfmt headers and/or pkg-config.")
-		endif()
-	endif()
-endif()
+include_directories(ropfuscator-extra/include/fmt/include)
+# tinytoml
+include_directories(ropfuscator-extra/include/tinytoml/include)
