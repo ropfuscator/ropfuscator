@@ -1,8 +1,6 @@
 // Symbol - entry of the dynamic symbol table. We use them as references
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <sstream>
-#include <string.h>
 #include <string>
 
 #ifndef SYMBOL_H

@@ -12,9 +12,9 @@
 #ifndef ROPENGINE_H
 #define ROPENGINE_H
 
-#include "../X86.h"
-#include "../X86InstrBuilder.h"
-#include "../X86TargetMachine.h"
+#include "../../X86.h"
+#include "../../X86InstrBuilder.h"
+#include "../../X86TargetMachine.h"
 #include "ChainElem.h"
 #include "LivenessAnalysis.h"
 #include "XchgGraph.h"

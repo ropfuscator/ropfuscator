@@ -7,11 +7,11 @@
 //
 
 #include "ROPfuscatorCore.h"
-#include "../X86.h"
-#include "../X86MachineFunctionInfo.h"
-#include "../X86RegisterInfo.h"
-#include "../X86Subtarget.h"
-#include "../X86TargetMachine.h"
+#include "../../X86.h"
+#include "../../X86MachineFunctionInfo.h"
+#include "../../X86RegisterInfo.h"
+#include "../../X86Subtarget.h"
+#include "../../X86TargetMachine.h"
 #include "BinAutopsy.h"
 #include "Debug.h"
 #include "LivenessAnalysis.h"

@@ -1,6 +1,6 @@
 #include "LivenessAnalysis.h"
-#include "../X86.h"
-#include "../X86Subtarget.h"
+#include "../../X86.h"
+#include "../../X86Subtarget.h"
 #include "Debug.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"

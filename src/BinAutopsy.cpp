@@ -4,7 +4,7 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
-#include "../InstPrinter/X86IntelInstPrinter.h"
+#include "../../InstPrinter/X86IntelInstPrinter.h"
 #include "ChainElem.h"
 #include "Debug.h"
 #include "ROPEngine.h"
