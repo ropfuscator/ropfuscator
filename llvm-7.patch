@@ -5,7 +5,7 @@
    )
  
 -add_llvm_target(X86CodeGen ${sources})
-+include(ropfuscator-extra/cmake/ropfuscator.cmake)
++include(ropfuscator/cmake/ropfuscator.cmake)
  
  add_subdirectory(AsmParser)
  add_subdirectory(Disassembler)

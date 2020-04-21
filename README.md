@@ -52,13 +52,8 @@ Make sure to be able to clone this repository first and then run:
     tar -xf cfe-7.0.0.src.tar.xz && rm cfe-7.0.0.src.tar.xz
     popd
     pushd lib/Target/X86
-    git init
-    git remote add origin git@bitbucket.org:s2lab/ropfuscator.git
-    git fetch --all
-    git reset --hard origin/master
-    git submodule init
-    git submodule update
-    patch < ropfuscator-extra/llvm-7.patch
+    git clone --recursive git@bitbucket.org:s2lab/ropfuscator.git
+    patch < ropfuscator/llvm-7.patch
     popd
     mkdir build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -GNinja ..

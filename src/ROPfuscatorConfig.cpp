@@ -16,7 +16,7 @@ template <typename... Args>[[noreturn]] void failwith(Args &&... args) {
 }
 } // namespace toml
 
-#include "toml/toml.h"
+#include <toml/toml.h>
 
 template <typename T>
 static inline bool parseOption(const toml::Value &section,
