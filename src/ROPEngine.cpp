@@ -786,6 +786,28 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
   GadgetType cmov_type;
   bool reverse;
 
+#if LLVM_VERSION_MAJOR >= 9
+  switch (MI->getOperand(1).getImm()) {
+  case X86::COND_E:
+    cmov_type = GadgetType::CMOVE;
+    reverse = false;
+    break;
+  case X86::COND_NE:
+    cmov_type = GadgetType::CMOVE;
+    reverse = true;
+    break;
+  case X86::COND_B:
+    cmov_type = GadgetType::CMOVB;
+    reverse = false;
+    break;
+  case X86::COND_AE:
+    cmov_type = GadgetType::CMOVB;
+    reverse = true;
+    break;
+  default:
+    return ROPChainStatus::ERR_UNSUPPORTED;
+  }
+#else
   switch (MI->getOpcode()) {
   case X86::JE_1:
     cmov_type = GadgetType::CMOVE;
@@ -806,6 +828,7 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *MI,
   default:
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
+#endif
 
   ROPChainBuilder builder(BA, scratchRegs);
 
@@ -961,10 +984,14 @@ ROPChainStatus ROPEngine::ropify(MachineInstr &MI,
     status = handleJmp1(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
+#if LLVM_VERSION_MAJOR >= 9
+  case X86::JCC_1:
+#else
   case X86::JE_1:
   case X86::JNE_1:
   case X86::JB_1:
   case X86::JAE_1:
+#endif
     status = handleJcc1(&MI, scratchRegs);
     flagSave = FlagSaveMode::SAVE_BEFORE_EXEC;
     break;
