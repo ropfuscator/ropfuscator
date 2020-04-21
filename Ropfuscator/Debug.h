@@ -3,6 +3,7 @@
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#define FMT_HEADER_ONLY
 #include <fmt/ostream.h>
 #include <iosfwd>
 
