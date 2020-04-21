@@ -1,7 +1,7 @@
 #ifndef X86ASSEMBLEHELPER_H
 #define X86ASSEMBLEHELPER_H
 
-#include "../../X86TargetMachine.h"
+#include "X86TargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCContext.h"
 #define FMT_HEADER_ONLY

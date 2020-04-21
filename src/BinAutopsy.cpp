@@ -4,7 +4,6 @@
 // ==============================================================================
 
 #include "BinAutopsy.h"
-#include "../../InstPrinter/X86IntelInstPrinter.h"
 #include "ChainElem.h"
 #include "Debug.h"
 #include "ROPEngine.h"
@@ -14,6 +13,12 @@
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/TargetRegistry.h"
+
+#if LLVM_VERSION_MAJOR >= 9
+#include "MCTargetDesc/X86IntelInstPrinter.h"
+#else
+#include "InstPrinter/X86IntelInstPrinter.h"
+#endif
 
 #include <assert.h>
 #define FMT_HEADER_ONLY

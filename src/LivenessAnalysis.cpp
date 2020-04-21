@@ -1,7 +1,7 @@
 #include "LivenessAnalysis.h"
-#include "../../X86.h"
-#include "../../X86Subtarget.h"
 #include "Debug.h"
+#include "X86.h"
+#include "X86Subtarget.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Support/Debug.h"
@@ -10,6 +10,12 @@
 
 using namespace llvm;
 using namespace std;
+
+#if LLVM_VERSION_MAJOR >= 8
+typedef MCPhysReg reg_type;
+#else
+typedef unsigned int reg_type;
+#endif
 
 void addReg(MachineInstr &MI, int reg,
             map<MachineInstr *, vector<unsigned int>> &regs) {
@@ -44,7 +50,7 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
       }
     }
 
-    SmallVector<pair<unsigned, const MachineOperand *>, 2> Clobbers;
+    SmallVector<pair<reg_type, const MachineOperand *>, 2> Clobbers;
 
     LiveRegs.stepForward(*MI, Clobbers);
   }
