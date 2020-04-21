@@ -787,6 +787,24 @@ void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
     }
     break;
   }
+#if LLVM_VERSION_MAJOR >= 9
+  case X86::CMOV32rr: {
+    gadget->reg1 = inst.getOperand(1).getReg();
+    gadget->reg2 = inst.getOperand(2).getReg();
+    X86::CondCode cond = (X86::CondCode)inst.getOperand(3).getImm();
+    if (gadget->reg1 != gadget->reg2) {
+      if (cond == X86::COND_E) {
+        gadget->Type = GadgetType::CMOVE;
+      } else if (cond == X86::COND_B) {
+        gadget->Type = GadgetType::CMOVB;
+      } else {
+        break;
+      }
+      GadgetPrimitives[gadget->Type].push_back(gadget);
+    }
+    break;
+  }
+#else
   // cmove REG1, REG2: cmove
   case X86::CMOVE32rr: {
     gadget->reg1 = inst.getOperand(1).getReg();
@@ -807,6 +825,7 @@ void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
     }
     break;
   }
+#endif
   // push REG1; ret: jmp
   // jmp REG1: jmp
   case X86::PUSH32r:

@@ -94,7 +94,6 @@ public:
   void mov(Mem m, Reg r) const { _instr(llvm::X86::MOV32mr, m, r); }
   void mov(Mem m, Imm i) const { _instr(llvm::X86::MOV32mi, m, i); }
   void mov(Mem m, ImmGlobal i) const { _instr(llvm::X86::MOV32mi, m, i); }
-  void cmove(Reg r1, Reg r2) const { _instrd(llvm::X86::CMOVE32rr, r1, r2); }
   void add(Reg r1, Reg r2) const { _instrd(llvm::X86::ADD32rr, r1, r2); }
   void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
@@ -105,12 +104,11 @@ public:
   void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
   void imul(Reg r, Imm i) const { _instrd(llvm::X86::IMUL32rri, r, i); }
   void imul(Reg r1, Reg r2, Imm i) const {
-    _instrd(llvm::X86::IMUL32rri, r1, r2, i);
+    _instrd0(llvm::X86::IMUL32rri, r1, r2, i);
   }
   void mul(Reg r) const { _instr(llvm::X86::MUL32r, r); }
   void cmp(Reg r, Imm i) const { _instr(llvm::X86::CMP32ri, r, i); }
   void cmp(Reg r1, Reg r2) const { _instr(llvm::X86::CMP32rr, r1, r2); }
-  void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
   void movzx(Reg r1, Reg r2) const { _instr(llvm::X86::MOVZX32rr8, r1, r2); }
   void land(Reg r1, Reg r2) const { _instrd(llvm::X86::AND32rr, r1, r2); }
   void land(Reg r, Imm i) const { _instrd(llvm::X86::AND32ri, r, i); }
@@ -139,12 +137,43 @@ public:
   void call(Label l) const { _instr(llvm::X86::CALLpcrel32, l); }
   void jmp(Label l) const { _instr(llvm::X86::JMP_1, l); }
   void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
+
+#if LLVM_VERSION_MAJOR >= 9
+  void cmove(Reg r1, Reg r2) const {
+    _instrd(llvm::X86::CMOV32rr, r1, r2, imm(llvm::X86::COND_E));
+  }
+  void sete(Reg r) const {
+    _instr(llvm::X86::SETCCr, r, imm(llvm::X86::COND_E));
+  }
+  void je(Label l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
+  }
+  void je(BasicBlockRef l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
+  }
+  void ja(Label l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_A));
+  }
+  void ja(BasicBlockRef l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_A));
+  }
+  void jb(Label l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_B));
+  }
+  void jb(BasicBlockRef l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_B));
+  }
+#else
+  void cmove(Reg r1, Reg r2) const { _instrd(llvm::X86::CMOVE32rr, r1, r2); }
+  void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
   void je(Label l) const { _instr(llvm::X86::JE_1, l); }
   void je(BasicBlockRef l) const { _instr(llvm::X86::JE_1, l); }
   void ja(Label l) const { _instr(llvm::X86::JA_1, l); }
   void ja(BasicBlockRef l) const { _instr(llvm::X86::JA_1, l); }
   void jb(Label l) const { _instr(llvm::X86::JB_1, l); }
   void jb(BasicBlockRef l) const { _instr(llvm::X86::JB_1, l); }
+#endif
+
   void lea(Reg r, Mem m) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(llvm::X86::LEA32r), r.reg);
@@ -195,6 +224,16 @@ private:
   template <typename T2, typename T3>
   void _instrd(unsigned int opcode, Reg operand1, T2 operand2,
                T3 operand3) const {
+    auto builder =
+        BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
+    operand1.add(builder);
+    operand2.add(builder);
+    operand3.add(builder);
+  }
+
+  template <typename T2, typename T3>
+  void _instrd0(unsigned int opcode, Reg operand1, T2 operand2,
+                T3 operand3) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand2.add(builder);
