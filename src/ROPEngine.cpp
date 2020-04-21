@@ -3,6 +3,9 @@
 #include "Debug.h"
 #include "Microgadget.h"
 #include "Symbol.h"
+#include "X86.h"
+#include "X86InstrBuilder.h"
+#include "X86TargetMachine.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
 using std::string;

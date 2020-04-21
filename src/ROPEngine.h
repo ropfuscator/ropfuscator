@@ -12,12 +12,10 @@
 #ifndef ROPENGINE_H
 #define ROPENGINE_H
 
-#include "../../X86.h"
-#include "../../X86InstrBuilder.h"
-#include "../../X86TargetMachine.h"
 #include "ChainElem.h"
 #include "LivenessAnalysis.h"
 #include "XchgGraph.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include <string>
 #include <tuple>
 #include <vector>

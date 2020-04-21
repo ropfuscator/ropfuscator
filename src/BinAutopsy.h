@@ -31,7 +31,11 @@
 #include "ROPfuscatorConfig.h"
 #include "Section.h"
 #include "Symbol.h"
+#include "X86Subtarget.h"
 #include "XchgGraph.h"
+#include "llvm/IR/Module.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/Target/TargetMachine.h"
 #include <map>
 #include <memory>
 #include <string>
