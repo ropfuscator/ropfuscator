@@ -7,7 +7,6 @@
 
 #include "Ropfuscator/ROPfuscatorConfig.h"
 #include "Ropfuscator/ROPfuscatorCore.h"
-#include "X86.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
@@ -16,6 +15,12 @@
 
 #define X86_ROPFUSCATOR_PASS_NAME "x86-ropfuscator"
 #define X86_ROPFUSCATOR_PASS_DESC "Obfuscate machine code through ROP chains"
+
+namespace llvm {
+// ROPfuscator Machine Pass
+void initializeX86ROPfuscatorPass(PassRegistry &);
+FunctionPass *createX86ROPfuscatorPass();
+} // namespace llvm
 
 using namespace llvm;
 
@@ -82,7 +87,7 @@ public:
 
 private:
   ROPfuscatorCore *ropfuscator;
-}; // namespace
+};
 
 char X86ROPfuscator::ID = 0;
 } // namespace
