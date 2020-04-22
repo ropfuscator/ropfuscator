@@ -24,17 +24,17 @@ ROPfuscator is an LLVM backend extension that aims to perform code obfuscation t
 
 - Dependence on the specific version of `libc` used at compile time.  
     To avoid this, you can potentially use a library that will be distributed along with the binary.
-- Support is currently limited to x86 platforms.
-- Only the following instructions are currently supported: `ADD32ri(8)`, `SUB32ri(8)`, `INC32r`, `DEC32r`, `MOV32rm` and `MOV32mr`.
+- Support is currently limited to 32bit x86 platform.
+- Programs should be built as PIE without PIC (with `-pie` in linking, and without `-fpic` in compiling).
 
 -------
 
 ## Prerequisites
 
 - `ninja`
-- `libfmt`, version `5.X`
 - `pkg-config`
-- `cmake`, version `>= 3.13`
+- `cmake`, version `>= 3.00`
+- external libraries (`libfmt==5.2.1`, `tinytoml==0.4`) included in thirdparty/
 
 ### Prerequisites installation (Ubuntu & Debian)
 
@@ -53,7 +53,7 @@ Make sure to be able to clone this repository first and then run:
     popd
     pushd lib/Target/X86
     git clone --recursive git@bitbucket.org:s2lab/ropfuscator.git
-    patch < ropfuscator/llvm-7.patch
+    patch < ropfuscator/patch/llvm-7.patch
     popd
     mkdir build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -DBUILD_SHARED_LIBS=ON -GNinja ..
@@ -74,7 +74,7 @@ Once the project is compiled, we can create a symbolic link to our custom versio
 
 Make sure that `$(HOME)/.local/bin/` is set in your `PATH` environment variable.
 
-## Recompiling LLC
+### Recompiling LLC
 
 Since ROPfuscator is a `MachineFunctionPass`, we have to recompile `llc` (LLVM system compiler) each time we modify the pass.
 Luckily we're using `ninja-build`, so we don't have to recompile the whole backend; doing this is just a matter of seconds by running:
@@ -87,31 +87,33 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 
 1. Convert the source code file to obfuscate in LLVM IR:
 
-        clang -O0 -S -emit-llvm example.c
+        clang [ -m32 ] -O0 -S -emit-llvm example.c
 
-    this will create a new file `example.ll`.
+    - `-m32`: compile in 32-bit mode on 64-bit host (you will need to have `gcc-multilib` installed for this)
+
+    This will create a new file `example.ll`.
 
 2. Compile using our custom LLVM `llc` tool:
 
         ropf-llc example.ll [ -march=x86 ]
 
-    - `-march=x86`: compile in 32-bit mode from a x64 platform  
+    - `-march=x86`: compile in 32-bit mode on 64-bit host
 
     The output is an asm `example.s` file.
 
 3. Assemble and link:
 
-        [ LD_RUN_PATH='$ORIGIN/' ] gcc example1.s -o example [ -m32 ] [ -lc | -L. -l:libcustom.so ]
+        [ LD_RUN_PATH='$ORIGIN/' ] gcc -pie example1.s -o example [ -m32 ] [ -lc | -L. -l:libcustom.so ]
 
 
-    - `-m32`: compile in 32-bit mode from a x64 platform (you will need to have `gcc-multilib` installed for this)
+    - `-m32`: compile in 32-bit mode on 64-bit host (you will need to have `gcc-multilib` installed for this)
 
     - `-lc`: only if you used `libc` to extract gadgets and symbols during the linking phase. This will enforce the static linker to resolve the symbols we injected using only `libc`.
 
     - `-L. -l:libcustom.so`: only if you used a custom library. 
     - `LD_RUN_PATH`: only if you used a custom library. Enforce the dynamic loader to look for the needed libraries in the specified path first. This will ensure that the loader will load your library first, as soon as it is shipped along with the binary.
 
-    Note: we use `gcc` only because, in its default behaviour, it doesn't use **lazy binding** to resolve symbols. This is crucial since we need to have all the symbols resolved as soon as the program has been loaded in memory.
+    Note: we have to use `-pie` to avoid **lazy binding** (aka PLT) to resolve symbols. This is crucial since we need direct function addresses of `libc` rather than the address of PLT entry, to compute gadget address. `gcc` has default compile option `-pie` while `clang` doesn't, so be careful if you are using `clang` instead to link the program. Also note that you should not use `-fpic` in compiling source file to bitcode.
 
 ## Compiling the examples
 
@@ -123,13 +125,28 @@ The compiled examples will be found in the `bin/` directory.
 
 -------
 
-### Known issues
+## Docker Build
 
-- When compiling a program on a 64-bit platform, the custom `llc` compiler may disrupt the correct functioning of library calls.
-It seems to be caused by the fact that certain integer parameter values are pushed onto the stack as if they were 64-bit types, even if we're compiling using the `-march=x86` switch.
-This happens even if the ROPfuscator pass is disabled (naively by putting a `return false` at the beginning of `runOnMachineFunction()`).  
-    An example of this behaviour can be observed in `example7`.
-The program has been compiled with plain `clang` compiler once, and with our custom `llc` but with ROPfuscator pass disabled.
-Setting up a breakpoint on the `fseek` call (in `count_characters` function) we have this:
+ROPfuscator supports docker build with [Dockerfile](docker/Dockerfile.llvm7).
 
-![Imgur](https://i.imgur.com/qmW6LPj.png)
+    sh docker/build.sh
+
+It will define the following tags:
+
+- `ropfuscator:prebuild-llvm-7`: just before building ropfuscator
+- `ropfuscator:build-llvm-7`: after building ropfuscator
+- `ropfuscator:llvm-7`: ropfuscator binary (without build files)
+
+In `ropfuscator:llvm-7` image, you can use `clang-7` and `llc` to run ROPfuscator.
+
+    # (If there are multiple source files)
+    # compile
+    clang-7 -m32 -c -emit-llvm foo.c
+    clang-7 -m32 -c -emit-llvm bar.c
+    # bitcode link
+    llvm-link-7 -o out.bc foo.bc bar.bc
+    # obfuscate and build executable
+    clang-7 -m32 -pie -o out out.bc
+
+    # compile, link, obfuscate (if there is only one source file)
+    clang-7 -m32 -pie main.c

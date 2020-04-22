@@ -1,0 +1,112 @@
+############################################################
+### PREBUILD STAGE #########################################
+############################################################
+
+FROM ubuntu:18.04 as prebuild
+
+RUN apt-get update && apt-get install -y \
+    clang-9 \
+    cmake \
+    gcc-multilib \
+    g++-multilib \
+    ninja-build \
+    patch \
+    && rm -rf /var/lib/apt/lists/*
+
+############################################################
+### retrieve LLVM source tree
+
+ADD http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz /usr/local/src
+ADD http://releases.llvm.org/7.0.0/cfe-7.0.0.src.tar.xz /usr/local/src
+
+WORKDIR /usr/local/src
+RUN tar -xf llvm-7.0.0.src.tar.xz && rm llvm-7.0.0.src.tar.xz
+
+WORKDIR /usr/local/src/llvm-7.0.0.src/tools
+RUN tar -xf ../../cfe-7.0.0.src.tar.xz && rm ../../cfe-7.0.0.src.tar.xz
+
+############################################################
+### add ropfuscator (essential files for build)
+
+WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86/ropfuscator/
+COPY cmake/ropfuscator-buildonly.cmake ./cmake/ropfuscator.cmake
+COPY src/ ./src/
+COPY patch/llvm-7.patch ./
+COPY thirdparty/fmt/include/ ./thirdparty/fmt/include/
+COPY thirdparty/tinytoml/include/ ./thirdparty/tinytoml/include/
+
+WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86
+RUN patch < ropfuscator/llvm-7.patch && rm ropfuscator/llvm-7.patch
+
+############################################################
+### configure LLVM + ropfuscator
+
+WORKDIR /usr/local/src/ropfuscator-build
+RUN cmake \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=clang-9 \
+    -DCMAKE_CXX_COMPILER=clang++-9 \
+    -DLLVM_TARGETS_TO_BUILD=X86 \
+    -GNinja \
+    /usr/local/src/llvm-7.0.0.src
+
+
+############################################################
+### BUILD STAGE ############################################
+############################################################
+
+FROM ubuntu:18.04 as build
+
+RUN apt-get update && apt-get install -y \
+    clang-9 \
+    cmake \
+    gcc-multilib \
+    g++-multilib \
+    ninja-build \
+    patch \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=prebuild /usr/local/src/ /usr/local/src/
+
+############################################################
+### build LLVM + ropfuscator
+
+WORKDIR /usr/local/src/ropfuscator-build
+RUN ninja llc clang
+RUN strip -s bin/llc bin/clang
+
+############################################################
+### add ropfuscator (extra files)
+
+WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86/ropfuscator/
+COPY cmake/ropfuscator.cmake ./cmake/ropfuscator.cmake
+COPY CMakeLists.txt ./
+COPY examples/ ./examples/
+COPY evaluation/ ./evaluation/
+COPY binutils/ ./binutils/
+COPY configs/ ./configs/
+COPY testcase/ ./testcase/
+
+# reload CMakeLists.txt
+WORKDIR /usr/local/src/ropfuscator-build
+RUN ninja build.ninja
+
+
+############################################################
+### RELEASE IMAGE ##########################################
+############################################################
+
+FROM ubuntu:18.04 as runtime
+
+RUN apt-get update && apt-get install -y \
+    clang-7 \
+    cmake \
+    gcc-multilib \
+    g++-multilib \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /usr/local/src/ropfuscator-build/bin/llc /usr/local/bin/
+COPY --from=build /usr/local/src/ropfuscator-build/bin/clang-7 /usr/local/bin/
+
+RUN ln -s /usr/lib/clang /usr/local/lib/clang
