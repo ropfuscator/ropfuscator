@@ -467,9 +467,15 @@ public:
     size_t pos = 0;
     uint64_t readsize = 0;
     for (i = 0, pos = 0; i < count && pos < size; i++, pos += readsize) {
+#if LLVM_VERSION_MAJOR >= 10
+      auto status = disasm->getInstruction(
+          result[i], readsize, data.slice(address + pos, size - pos),
+          address + pos, llvm::nulls());
+#else
       auto status = disasm->getInstruction(
           result[i], readsize, data.slice(address + pos, size - pos),
           address + pos, llvm::nulls(), llvm::nulls());
+#endif
       if (status != MCDisassembler::DecodeStatus::Success) {
         // disassemble error
         count = 0;
@@ -484,7 +490,11 @@ public:
   std::string formatInstr(const MCInst &instr) {
     std::string result;
     raw_string_ostream os(result);
+#if LLVM_VERSION_MAJOR >= 10
+    printer->printInstruction(&instr, 0, os);
+#else
     printer->printInstruction(&instr, os);
+#endif
     os.flush();
     if (!result.empty() && result[0] == '\t') {
       result = result.substr(1);
