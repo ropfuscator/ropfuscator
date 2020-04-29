@@ -29,15 +29,21 @@ See `ropfuscator-extra/configs`.
 
 |Program name                 |Taken from                |Challenge goal                                |
 |-----------------------------|--------------------------|----------------------------------------------|
-|`defcon-quals-2016-amadhj`   |DEFCON CTF Qualifier 2016 |Find an input (from stdin) to print flag      |
 |`defcon-quals-2016-baby-re`  |DEFCON CTF Qualifier 2016 |Find an input (from stdin) to print flag      |
 |`defcon-quals-2017-magic`    |DEFCON CTF Qualifier 2017 |Find an input (from stdin) to print "sum is"  |
 |`google-ctf-2018-gatekeeper` |Google CTF 2018           |Find an input (from stdin) to print "Correct" |
 |`crackme1`                   |(ourselves)               |Find a command line argument to print "OK"    |
 |`crackme2`                   |(ourselves)               |Find a command line argument to print "OK"    |
 
-- build
+- build binary
   ```
   cmake ropfuscator-evaluation-crackme
+  ```
+- attack scripts \
+  see `ropfuscator/evaluation/crackme/attack/`.
+- run evaluation
+  ```
+  ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-orig.sh
+  ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-ctf.sh
   ```
 
