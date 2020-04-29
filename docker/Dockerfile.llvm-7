@@ -28,7 +28,7 @@ RUN tar -xf ../../cfe-7.0.0.src.tar.xz && rm ../../cfe-7.0.0.src.tar.xz
 ############################################################
 ### add ropfuscator (essential files for build)
 
-WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86/ropfuscator/
+WORKDIR /usr/local/src/ropfuscator/
 COPY cmake/ropfuscator-buildonly.cmake ./cmake/ropfuscator.cmake
 COPY src/ ./src/
 COPY patch/llvm-7.patch ./
@@ -36,12 +36,13 @@ COPY thirdparty/fmt/include/ ./thirdparty/fmt/include/
 COPY thirdparty/tinytoml/include/ ./thirdparty/tinytoml/include/
 
 WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86
+RUN ln -s ../../../../ropfuscator .
 RUN patch < ropfuscator/llvm-7.patch && rm ropfuscator/llvm-7.patch
 
 ############################################################
 ### configure LLVM + ropfuscator
 
-WORKDIR /usr/local/src/ropfuscator-build
+WORKDIR /usr/local/src/build-ropfuscator
 RUN cmake \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_BUILD_TYPE=Release \
@@ -72,14 +73,13 @@ COPY --from=prebuild /usr/local/src/ /usr/local/src/
 ############################################################
 ### build LLVM + ropfuscator
 
-WORKDIR /usr/local/src/ropfuscator-build
+WORKDIR /usr/local/src/build-ropfuscator
 RUN ninja llc clang
-RUN strip -s bin/llc bin/clang
 
 ############################################################
 ### add ropfuscator (extra files)
 
-WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86/ropfuscator/
+WORKDIR /usr/local/src/ropfuscator/
 COPY cmake/ropfuscator.cmake ./cmake/ropfuscator.cmake
 COPY CMakeLists.txt ./
 COPY examples/ ./examples/
@@ -89,8 +89,10 @@ COPY configs/ ./configs/
 COPY testcase/ ./testcase/
 
 # reload CMakeLists.txt
-WORKDIR /usr/local/src/ropfuscator-build
-RUN ninja build.ninja
+RUN touch /usr/local/src/llvm-7.0.0.src/lib/Target/X86/CMakeLists.txt
+WORKDIR /usr/local/src/build-ropfuscator
+RUN ninja llc clang
+RUN strip -s bin/llc bin/clang
 
 
 ############################################################
@@ -106,7 +108,7 @@ RUN apt-get update && apt-get install -y \
     g++-multilib \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /usr/local/src/ropfuscator-build/bin/llc /usr/local/bin/
-COPY --from=build /usr/local/src/ropfuscator-build/bin/clang-7 /usr/local/bin/
+COPY --from=build /usr/local/src/build-ropfuscator/bin/llc /usr/local/bin/
+COPY --from=build /usr/local/src/build-ropfuscator/bin/clang-7 /usr/local/bin/
 
 RUN ln -s /usr/lib/clang /usr/local/lib/clang
