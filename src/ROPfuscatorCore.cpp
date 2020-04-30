@@ -374,8 +374,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         sym->isUsed = true;
       }
 
-      // push $symbol
-      as.push(as.label(sym->Label));
       if (param.opaquePredicateEnabled) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
@@ -387,11 +385,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         opaqueConstant->compile(as, 0);
         // adjust eax to be relativeAddr
         adjuster->compile(as, 0);
-        // add [esp], eax
-        as.add(as.mem(X86::ESP), as.reg(X86::EAX));
+        // add eax, $symbol
+        as.add(as.reg(X86::EAX), as.addOffset(as.label(sym->Label), 0));
+        // push eax
+        as.push(as.reg(X86::EAX));
       } else {
-        // add [esp], $offset
-        as.add(as.mem(X86::ESP), as.imm(offsets[0]));
+        // push $symbol+offset
+        as.push(as.addOffset(as.label(sym->Label), offsets[0]));
       }
       break;
     }
