@@ -92,6 +92,7 @@ public:
   void add(Reg r1, Reg r2) const { _instrd(llvm::X86::ADD32rr, r1, r2); }
   void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
+  void add(Reg r, Label i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
@@ -229,10 +230,14 @@ private:
   llvm::GlobalValue *_createGV(std::string name) const {
     auto *module = const_cast<llvm::Module *>(
         block.getParent()->getFunction().getParent());
-    auto *voidT = llvm::Type::getVoidTy(module->getContext());
-    return new llvm::GlobalVariable(*module, voidT, true,
+    auto *gv = module->getGlobalVariable(name, true);
+    if (!gv) {
+      auto *voidT = llvm::Type::getVoidTy(module->getContext());
+      gv = new llvm::GlobalVariable(*module, voidT, true,
                                     llvm::GlobalValue::ExternalLinkage, nullptr,
                                     name);
+    }
+    return gv;
   }
 };
 
