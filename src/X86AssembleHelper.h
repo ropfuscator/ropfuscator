@@ -6,6 +6,7 @@
 #include "llvm/MC/MCContext.h"
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <string>
 
 namespace llvm {
 class GlobalValue;
@@ -35,14 +36,6 @@ public:
 
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addSym(symbol);
-    }
-  };
-
-  struct BasicBlockRef {
-    llvm::MachineBasicBlock *label;
-
-    void add(llvm::MachineInstrBuilder &builder) const {
-      builder.addMBB(label);
     }
   };
 
@@ -80,11 +73,13 @@ public:
           int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
-  Label label() const { return {ctx.createTempSymbol()}; }
+  Label label() const { return label(_newLabelName()); }
   Label label(const std::string label) const {
     return {ctx.getOrCreateSymbol(label)};
   }
-  BasicBlockRef label(llvm::MachineBasicBlock *label) const { return {label}; }
+  ImmGlobal addOffset(Label label, int64_t offset) const {
+    return imm(_createGV(label.symbol->getName()), offset);
+  }
 
   // --- instruction builder ---
   void mov(Reg r1, Reg r2) const { _instr(llvm::X86::MOV32rr, r1, r2); }
@@ -128,7 +123,6 @@ public:
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(Label i) const { _instr(llvm::X86::PUSHi32, i); }
-  void push(BasicBlockRef l) const { _instr(llvm::X86::PUSHi32, l); }
   void pop(Reg r) const { _instr(llvm::X86::POP32r, r); }
   void pushf() const { _instr(llvm::X86::PUSHF32); }
   void popf() const { _instr(llvm::X86::POPF32); }
@@ -136,7 +130,6 @@ public:
   void rdtsc() const { _instr(llvm::X86::RDTSC); }
   void call(Label l) const { _instr(llvm::X86::CALLpcrel32, l); }
   void jmp(Label l) const { _instr(llvm::X86::JMP_1, l); }
-  void jmp(BasicBlockRef l) const { _instr(llvm::X86::JMP_1, l); }
 
 #if LLVM_VERSION_MAJOR >= 9
   void cmove(Reg r1, Reg r2) const {
@@ -148,30 +141,18 @@ public:
   void je(Label l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
   }
-  void je(BasicBlockRef l) const {
-    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
-  }
   void ja(Label l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_A));
   }
-  void ja(BasicBlockRef l) const {
-    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_A));
-  }
   void jb(Label l) const {
-    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_B));
-  }
-  void jb(BasicBlockRef l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_B));
   }
 #else
   void cmove(Reg r1, Reg r2) const { _instrd(llvm::X86::CMOVE32rr, r1, r2); }
   void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
   void je(Label l) const { _instr(llvm::X86::JE_1, l); }
-  void je(BasicBlockRef l) const { _instr(llvm::X86::JE_1, l); }
   void ja(Label l) const { _instr(llvm::X86::JA_1, l); }
-  void ja(BasicBlockRef l) const { _instr(llvm::X86::JA_1, l); }
   void jb(Label l) const { _instr(llvm::X86::JB_1, l); }
-  void jb(BasicBlockRef l) const { _instr(llvm::X86::JB_1, l); }
 #endif
 
   void lea(Reg r, Mem m) const {
@@ -238,6 +219,20 @@ private:
         BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand2.add(builder);
     operand3.add(builder);
+  }
+
+  static std::string _newLabelName() {
+    static int n = 0;
+    return ".Ltmp_ropfuscator_" + std::to_string(++n);
+  }
+
+  llvm::GlobalValue *_createGV(std::string name) const {
+    auto *module = const_cast<llvm::Module *>(
+        block.getParent()->getFunction().getParent());
+    auto *voidT = llvm::Type::getVoidTy(module->getContext());
+    return new llvm::GlobalVariable(*module, voidT, true,
+                                    llvm::GlobalValue::ExternalLinkage, nullptr,
+                                    name);
   }
 };
 

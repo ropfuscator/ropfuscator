@@ -94,6 +94,14 @@ static void parseFunctionOptions(const toml::Value &config,
   parseOption(config, tomlSect, CONFIG_OPA_PRED_ENABLED,
               funcParam.opaquePredicateEnabled);
 
+  // Obfuscation of immediate operand enabled
+  parseOption(config, tomlSect, CONFIG_OPA_OBF_IMM_OPERAND,
+              funcParam.obfuscateImmediateOperand);
+
+  // Obfuscation of branch target enabled
+  parseOption(config, tomlSect, CONFIG_OPA_OBF_BRANCH_TARGET,
+              funcParam.obfuscateBranchTarget);
+
   // Opaque predicates algorithm
   std::string op_algo;
   if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
