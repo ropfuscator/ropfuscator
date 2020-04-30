@@ -19,6 +19,7 @@
 #define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
 #define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
 #define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
+#define CONFIG_USE_CHAIN_LABEL "use_chain_label"
 
 // functions section
 #define CONFIG_FUNCTION_NAME "name"
@@ -66,10 +67,13 @@ struct GlobalConfig {
   bool avoidMultiversionSymbol;
   // print instruction obfuscated status
   bool printInstrStat;
+  // use chain label
+  bool useChainLabel;
 
   GlobalConfig()
       : libraryPath(), searchSegmentForGadget(true),
-        avoidMultiversionSymbol(false), printInstrStat(false) {}
+        avoidMultiversionSymbol(false), printInstrStat(false),
+        useChainLabel(false) {}
 };
 
 struct ROPfuscatorConfig {

@@ -153,11 +153,7 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
                                      MachineInstr &MI, int chainID,
                                      const ObfuscationParameter &param) {
-  std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
-
-  generateChainLabels(chainLabel, resumeLabel, MBB.getParent()->getName(),
-                      chainID);
 
   bool isLastInstrInBlock = MI.getNextNode() == nullptr;
   bool resumeLabelRequired = false;
@@ -261,8 +257,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     espoffset -= 4;
   }
 
-  auto asChainLabel = as.label(chainLabel);
-  auto asResumeLabel = as.label(resumeLabel);
   if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
     // jmp funcName_chain_X
     // (omitted since it would be redundant)
@@ -272,6 +266,18 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
     // instead, we put ROP chain
     chain.emplace_back(ChainElem::createJmpFallthrough());
+  }
+
+  X86AssembleHelper::Label asChainLabel, asResumeLabel;
+  if (config.globalConfig.useChainLabel) {
+    std::string chainLabel, resumeLabel;
+    generateChainLabels(chainLabel, resumeLabel, MBB.getParent()->getName(),
+                        chainID);
+    asChainLabel = as.label(chainLabel);
+    asResumeLabel = as.label(resumeLabel);
+  } else {
+    asChainLabel = as.label();
+    asResumeLabel = as.label();
   }
 
   // funcName_chain_X:
@@ -406,7 +412,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
           as.push(as.label(targetMBB));
         }
       } else {
-        as.push(as.label(resumeLabel));
+        as.push(asResumeLabel);
         resumeLabelRequired = true;
       }
       break;
