@@ -33,17 +33,15 @@
 
 using namespace llvm;
 
-#if __GNUC__
-#if __x86_64__ || __ppc64__
-#define ARCH_64
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib32", "/usr/lib32",
-                                             "/usr/local/lib32"};
-#else
-#define ARCH_32
-const std::string POSSIBLE_LIBC_FOLDERS[] = {"/lib", "/usr/lib",
-                                             "/usr/local/lib"};
-#endif
-#endif
+const std::string POSSIBLE_LIBC_FOLDERS[] = {
+    "/lib/i386-linux-gnu",
+    "/usr/lib/i386-linux-gnu",
+    "/lib32",
+    "/usr/lib32",
+    "/usr/local/lib",
+    "/lib",
+    "/usr/lib",
+};
 
 const bool obfuscateImmediateOperand = true;
 
@@ -110,57 +108,25 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 };
 #endif
 
-static bool findLibcRecursive(const llvm::Twine &path, std::string &libraryPath,
-                              int current_depth) {
-  if (current_depth == 0) {
-    return false;
-  }
-
-  std::error_code ec;
-  auto dir_it = llvm::sys::fs::directory_iterator(path, ec);
-  auto dir_end = llvm::sys::fs::directory_iterator();
-
-  // searching for libc in regular files only
-  while (!ec && dir_it != dir_end) {
-    auto st = dir_it->status();
-    if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
-        llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
-      libraryPath = dir_it->path();
-      // dbg_fmt("libc found here: {}\n", libraryPath);
-
-      return true;
-    }
-    dir_it.increment(ec);
-  }
-
-  // could not find libc, recursing into directories
-  dir_it = llvm::sys::fs::directory_iterator(path, ec);
-
-  while (!ec && dir_it != dir_end) {
-    auto st = dir_it->status();
-    if (st && st->type() == llvm::sys::fs::file_type::directory_file) {
-      // recurse into dir
-      // dbg_fmt("recursing into: {}\n", dir_it->path());
-      if (findLibcRecursive(dir_it->path(), libraryPath, current_depth - 1))
-        return true;
-    }
-    dir_it.increment(ec);
-  }
-
-  return false;
-}
-
 static std::string findLibcPath() {
   std::string libraryPath;
   int maxrecursedepth = 3;
 
-  for (auto &folder : POSSIBLE_LIBC_FOLDERS) {
-    if (findLibcRecursive(folder, libraryPath, maxrecursedepth)) {
-      dbg_fmt("[*] Using library path: {}\n", libraryPath);
-      return libraryPath;
+  for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
+    // searching for libc in regular files only
+    std::error_code ec;
+    for (auto dir_it = llvm::sys::fs::directory_iterator(dir, ec),
+              dir_end = llvm::sys::fs::directory_iterator();
+         !ec && dir_it != dir_end; dir_it.increment(ec)) {
+      auto st = dir_it->status();
+      if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
+          llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
+        libraryPath = dir_it->path();
+        dbg_fmt("[*] Using library path: {}\n", libraryPath);
+        return libraryPath;
+      }
     }
   }
-
   return "";
 }
 
