@@ -46,7 +46,7 @@ private:
   std::map<unsigned, ROPChainStatEntry> instr_stat;
 #endif
 
-  void insertROPChain(const ROPChain &chain, llvm::MachineBasicBlock &MBB,
+  void insertROPChain(ROPChain &chain, llvm::MachineBasicBlock &MBB,
                       llvm::MachineInstr &MI, int chainID,
                       const ObfuscationParameter &param);
 };
