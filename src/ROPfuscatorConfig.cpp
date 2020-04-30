@@ -183,6 +183,10 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     // Print instruction statistics
     parseOption(*general_section, CONFIG_GENERAL_SECTION,
                 CONFIG_PRINT_INSTR_STAT, globalConfig.printInstrStat);
+
+    // Print instruction statistics
+    parseOption(*general_section, CONFIG_GENERAL_SECTION,
+                CONFIG_USE_CHAIN_LABEL, globalConfig.useChainLabel);
   }
 
   // =====================================
