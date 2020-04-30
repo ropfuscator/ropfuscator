@@ -150,9 +150,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
-void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
-                                     MachineBasicBlock &MBB, MachineInstr &MI,
-                                     int chainID,
+void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
+                                     MachineInstr &MI, int chainID,
                                      const ObfuscationParameter &param) {
   std::string chainLabel, resumeLabel;
   auto as = X86AssembleHelper(MBB, MI.getIterator());
@@ -257,6 +256,8 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // flag is saved at the bottom of the stack
     // pushf (EFLAGS register backup)
     as.pushf();
+    // modify isLastInstrInBlock flag, since we will emit popf instruction later
+    isLastInstrInBlock = false;
     espoffset -= 4;
   }
 
@@ -267,11 +268,10 @@ void ROPfuscatorCore::insertROPChain(const ROPChain &chain,
     // (omitted since it would be redundant)
   } else {
     // call funcName_chain_X
-    as.call(asChainLabel);
     // jmp resume_funcName_chain_X
-    as.jmp(asResumeLabel);
-    resumeLabelRequired = true;
-    espoffset -= 4;
+
+    // instead, we put ROP chain
+    chain.emplace_back(ChainElem::createJmpFallthrough());
   }
 
   // funcName_chain_X:
