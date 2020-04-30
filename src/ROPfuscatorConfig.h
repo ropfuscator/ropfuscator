@@ -25,6 +25,8 @@
 #define CONFIG_FUNCTION_NAME "name"
 #define CONFIG_OPA_PRED_ENABLED "opaque_predicates_enabled"
 #define CONFIG_OPA_PRED_ALGO "opaque_predicates_algorithm"
+#define CONFIG_OPA_OBF_IMM_OPERAND "obfuscate_immediate_operand"
+#define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
 #define CONFIG_BRANCH_DIV_ENABLED "branch_divergence_enabled"
 #define CONFIG_BRANCH_DIV_MAX "branch_divergence_max_branches"
 #define CONFIG_BRANCH_DIV_ALGO "branch_divergence_algorithm"
@@ -37,6 +39,12 @@ struct ObfuscationParameter {
   bool obfuscationEnabled;
   /// true if opaque construct is enabled for this function
   bool opaquePredicateEnabled;
+  /// true if obfuscation of immediate operand is enabled for this function
+  /// (only effective if opaquePredicateEnabled == true)
+  bool obfuscateImmediateOperand;
+  /// true if obfuscation of branch address is enabled for this function
+  /// (only effective if opaquePredicateEnabled == true)
+  bool obfuscateBranchTarget;
   /// true if branch divergence is enabled for this function
   bool opaqueBranchDivergenceEnabled;
   /// maximum number of branches in branch divergence
@@ -48,6 +56,7 @@ struct ObfuscationParameter {
 
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicateEnabled(false),
+        obfuscateImmediateOperand(true), obfuscateBranchTarget(true),
         opaqueBranchDivergenceEnabled(false),
         opaqueBranchDivergenceMaxBranches(32),
         opaqueConstantAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),

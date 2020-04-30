@@ -43,8 +43,6 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {
     "/usr/lib",
 };
 
-const bool obfuscateImmediateOperand = true;
-
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID) {
   chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
@@ -109,9 +107,6 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 #endif
 
 static std::string findLibcPath() {
-  std::string libraryPath;
-  int maxrecursedepth = 3;
-
   for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
     // searching for libc in regular files only
     std::error_code ec;
@@ -121,7 +116,7 @@ static std::string findLibcPath() {
       auto st = dir_it->status();
       if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
           llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
-        libraryPath = dir_it->path();
+        std::string libraryPath = dir_it->path();
         dbg_fmt("[*] Using library path: {}\n", libraryPath);
         return libraryPath;
       }
@@ -131,6 +126,12 @@ static std::string findLibcPath() {
 }
 
 // ----------------------------------------------------------------
+
+static void putLabelInMBB(MachineBasicBlock &MBB,
+                          X86AssembleHelper::Label label) {
+  X86AssembleHelper as(MBB, MBB.begin());
+  as.putLabel(label);
+}
 
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
                                  const ROPfuscatorConfig &config)
@@ -161,10 +162,23 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   int espoffset = 0;
 
   // stack layout:
-  // 1. saved-regs (and flags, if FlagSaveMode == SAVE_BEFORE_EXEC)
+  // (A) if FlagSaveMode == SAVE_AFTER_EXEC:
+  // 1. saved-regs
   // 2. ROP chain
-  // 3. flags (if FlagSaveMode == SAVE_AFTER_EXEC)
-  // 4. return addr (if jump instruction is not ropfuscated)
+  // 3. flags
+  // 4. return addr
+  //
+  // (B) if FlagSaveMode == SAVE_BEFORE_EXEC or NOT_SAVED:
+  // 1. saved-regs (and flags)
+  // 2. ROP chain
+  // 3. return address
+
+  if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
+    // continuation of the ROP chain (resume address) is already on the chain
+  } else {
+    // push resume address on the chain
+    chain.emplace_back(ChainElem::createJmpFallthrough());
+  }
 
   std::set<unsigned int> savedRegs;
   savedRegs.insert(X86::EFLAGS); // flags are modified generally
@@ -199,7 +213,17 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         break;
       case ChainElem::Type::IMM_VALUE:
       case ChainElem::Type::IMM_GLOBAL:
-        if (obfuscateImmediateOperand) {
+        if (param.obfuscateImmediateOperand) {
+          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+          opaqueConstants.push_back(opaqueConstant);
+          auto clobbered = opaqueConstant->getClobberedRegs();
+          savedRegs.insert(clobbered.begin(), clobbered.end());
+        }
+        break;
+      case ChainElem::Type::JMP_BLOCK:
+      case ChainElem::Type::JMP_FALLTHROUGH:
+        if (param.obfuscateBranchTarget) {
           auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
               OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
           opaqueConstants.push_back(opaqueConstant);
@@ -216,9 +240,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   // EMIT PROLOGUE
 
   // save registers (and flags if necessary) on top of the stack
-  int regSavedOffset = 4 * (chain.size() + 1);
-  if (chain.hasUnconditionalJump || chain.hasConditionalJump)
-    regSavedOffset -= 4;
+  int regSavedOffset = 4 * chain.size();
   if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC)
     regSavedOffset += 4;
   if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
@@ -257,17 +279,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     espoffset -= 4;
   }
 
-  if (chain.hasUnconditionalJump || chain.hasConditionalJump) {
-    // jmp funcName_chain_X
-    // (omitted since it would be redundant)
-  } else {
-    // call funcName_chain_X
-    // jmp resume_funcName_chain_X
-
-    // instead, we put ROP chain
-    chain.emplace_back(ChainElem::createJmpFallthrough());
-  }
-
   X86AssembleHelper::Label asChainLabel, asResumeLabel;
   if (config.globalConfig.useChainLabel) {
     std::string chainLabel, resumeLabel;
@@ -290,7 +301,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
     case ChainElem::Type::IMM_VALUE: {
       // Push the immediate value onto the stack
-      if (param.opaquePredicateEnabled && obfuscateImmediateOperand) {
+      if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
         uint32_t value =
@@ -311,7 +322,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
-      if (param.opaquePredicateEnabled && obfuscateImmediateOperand) {
+      if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         auto opaqueConstant = opaqueConstants.back();
         opaqueConstants.pop_back();
         uint32_t value =
@@ -386,34 +397,73 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     }
 
     case ChainElem::Type::JMP_BLOCK: {
-      // push label
       MachineBasicBlock *targetMBB = elem->jmptarget;
-      as.push(as.label(targetMBB));
       MBB.addSuccessorWithoutProb(targetMBB);
+      auto targetLabel = as.label();
+      putLabelInMBB(*targetMBB, targetLabel);
+      if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+        auto opaqueConstant = opaqueConstants.back();
+        opaqueConstants.pop_back();
+        uint32_t value =
+            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        // compute opaque constant to eax
+        opaqueConstant->compile(as, 0);
+        // adjust eax to jump target address
+        as.add(as.reg(X86::EAX), as.addOffset(targetLabel, -value));
+        // push eax
+        as.push(as.reg(X86::EAX));
+      } else {
+        // push label
+        as.push(targetLabel);
+      }
       break;
     }
 
     case ChainElem::Type::JMP_FALLTHROUGH: {
       // push label
+      X86AssembleHelper::Label targetLabel = {nullptr};
       if (isLastInstrInBlock) {
-        MachineBasicBlock *targetMBB = nullptr;
         for (auto it = MBB.succ_begin(); it != MBB.succ_end(); ++it) {
           if (MBB.isLayoutSuccessor(*it)) {
-            targetMBB = *it;
+            auto *targetMBB = *it;
+            targetLabel = asResumeLabel;
+            putLabelInMBB(*targetMBB, targetLabel);
             break;
           }
         }
-        if (!targetMBB) {
+      } else {
+        targetLabel = asResumeLabel;
+        resumeLabelRequired = true;
+      }
+      if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+        auto opaqueConstant = opaqueConstants.back();
+        opaqueConstants.pop_back();
+        uint32_t value =
+            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+        if (targetLabel.symbol) {
+          // compute opaque constant to eax
+          opaqueConstant->compile(as, 0);
+          // adjust eax to jump target address
+          as.add(as.reg(X86::EAX), as.addOffset(targetLabel, -value));
+          // push eax
+          as.push(as.reg(X86::EAX));
+          // as.push(asResumeLabel);
+        } else {
           // call or conditional jump at the end of function:
           // probably calling "no-return" functions like exit()
           // so we just put dummy return address here
           as.push(as.imm(0));
-        } else {
-          as.push(as.label(targetMBB));
         }
       } else {
-        as.push(asResumeLabel);
-        resumeLabelRequired = true;
+        if (targetLabel.symbol) {
+          // push label
+          as.push(targetLabel);
+        } else {
+          // call or conditional jump at the end of function:
+          // probably calling "no-return" functions like exit()
+          // so we just put dummy return address here
+          as.push(as.imm(0));
+        }
       }
       break;
     }
