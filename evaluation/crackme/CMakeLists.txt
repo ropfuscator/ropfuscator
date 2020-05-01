@@ -24,6 +24,17 @@ foreach (filename ${files})
     # ROPfuscated binaries
     #######################
 
+    add_custom_command(
+        OUTPUT
+        ${exec_name}.bc
+        DEPENDS
+        ${src_dir}/${exec_name}.c clang
+        COMMAND
+        $<TARGET_FILE:clang>
+        ARGS
+        ${ROPF_IR_FLAGS_ROPFBIN} ${src_dir}/${exec_name}.c -o ${exec_name}.bc
+    )
+
     foreach (configfile ${configfiles})
         get_filename_component(config ${configfile} NAME_WE)
         set(ropfuscated_exec_name "eval.${exec_name}.${config}")
@@ -37,15 +48,11 @@ foreach (filename ${files})
             OUTPUT
             ${ropfuscated_exec_name}.s
             DEPENDS
-            ${src_dir}/${exec_name}.c llc clang ${configfile}
-            COMMAND
-            $<TARGET_FILE:clang>
-            ARGS
-            ${ROPF_IR_FLAGS_ROPFBIN} ${src_dir}/${exec_name}.c -o ${ropfuscated_exec_name}.bc
+            ${exec_name}.bc llc ${configfile}
             COMMAND
             $<TARGET_FILE:llc>
             ARGS
-            ${ROPF_ASM_FLAGS_ROPFBIN} ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s -ropfuscator-config ${configfile}
+            ${ROPF_ASM_FLAGS_ROPFBIN} ${exec_name}.bc -o ${ropfuscated_exec_name}.s -ropfuscator-config ${configfile}
         )
     endforeach ()
 endforeach ()
