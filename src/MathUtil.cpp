@@ -35,6 +35,8 @@ uint64_t Random::range64(uint64_t x, uint64_t y) {
 
 uint32_t Random::rand() { return reng(); }
 
+uint32_t Random::bit() { return range32(0, 1) != 0; }
+
 uint64_t modinv(uint64_t a, uint64_t m) {
   uint64_t g, x, y;
   egcd(a, m, g, x, y);
@@ -147,6 +149,17 @@ class PrimeNumberGeneratorImpl {
   }
 
   static uint64_t mulmod64(uint64_t a, uint64_t b, uint64_t modulus) {
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
+    uint64_t rax, rdx;
+    asm("mulq %3\n\t"
+        "divq %4"
+        : "=a"(rax), "=&d"(rdx)
+        : "a"(a), "rm"(b), "rm"(modulus)
+        : "cc");
+    return rdx;
+#elif defined(__SIZEOF_INT128__)
+    return (__uint128_t)a * b % modulus;
+#else
     if (a == 1)
       return b % modulus;
     if (b == 1)
@@ -166,6 +179,7 @@ class PrimeNumberGeneratorImpl {
       n += (n >= modulus - n) ? n - modulus : n;
     }
     return result;
+#endif
   }
 
   static uint64_t modpow64(uint64_t base, uint64_t exponent, uint64_t modulus) {
