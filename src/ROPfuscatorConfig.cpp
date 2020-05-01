@@ -11,17 +11,21 @@ template <typename... Args>[[noreturn]] void failwith(Args &&... args) {
   // this will expand to ss << args_0, ss << args_1, ...
   int _dummy[] = {(ss << args, 0)...};
   (void)_dummy;
-  dbg_fmt("TOML parse error: {}\n", ss.str());
+  ropf::dbg_fmt("TOML parse error: {}\n", ss.str());
   exit(1);
 }
 } // namespace toml
 
 #include <toml/toml.h>
 
+namespace ropf {
+
+namespace {
+
 template <typename T>
-static inline bool parseOption(const toml::Value &section,
-                               const std::string &sectionname,
-                               const std::string &key, T &ref) {
+inline bool parseOption(const toml::Value &section,
+                        const std::string &sectionname, const std::string &key,
+                        T &ref) {
   if (const toml::Value *v = section.find(key)) {
     if (!v->is<T>()) {
       dbg_fmt("TOML parse warning: {}.{} should have type {}, thus ignored\n",
@@ -38,8 +42,7 @@ static inline bool parseOption(const toml::Value &section,
   }
 }
 
-static std::string
-parseOpaquePredicateAlgorithm(const std::string &configString) {
+std::string parseOpaquePredicateAlgorithm(const std::string &configString) {
   std::string lowerConfigString = configString;
 
   // transforming configString to lowercase
@@ -58,8 +61,7 @@ parseOpaquePredicateAlgorithm(const std::string &configString) {
   return "";
 }
 
-static std::string
-parseBranchDivergenceAlgorithm(const std::string &configString) {
+std::string parseBranchDivergenceAlgorithm(const std::string &configString) {
   std::string lowerConfigString = configString;
 
   // transforming configString to lowercase
@@ -82,9 +84,9 @@ parseBranchDivergenceAlgorithm(const std::string &configString) {
   return "";
 }
 
-static void parseFunctionOptions(const toml::Value &config,
-                                 const std::string &tomlSect,
-                                 ObfuscationParameter &funcParam) {
+void parseFunctionOptions(const toml::Value &config,
+                          const std::string &tomlSect,
+                          ObfuscationParameter &funcParam) {
 
   // Obfuscation enabled
   parseOption(config, tomlSect, CONFIG_OBF_ENABLED,
@@ -137,6 +139,8 @@ static void parseFunctionOptions(const toml::Value &config,
     }
   }
 }
+
+} // namespace
 
 ObfuscationParameter
 ROPfuscatorConfig::getParameter(const std::string &funcname) const {
@@ -253,3 +257,5 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   }
   // =====================================
 }
+
+} // namespace ropf

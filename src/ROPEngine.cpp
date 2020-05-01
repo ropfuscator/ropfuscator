@@ -11,6 +11,8 @@
 using std::string;
 using namespace llvm;
 
+namespace ropf {
+
 class ROPChainBuilder {
   struct ReorderTag {};
 
@@ -146,8 +148,10 @@ private:
   }
 };
 
-static const int SCRATCH_1 = -1;
-static const int SCRATCH_2 = -2;
+namespace {
+const int SCRATCH_1 = -1;
+const int SCRATCH_2 = -2;
+} // namespace
 
 // ------------------------------------------------------------------------
 // ROP Chain
@@ -1041,3 +1045,5 @@ void ROPChain::removeDuplicates() {
     }
   } while (duplicates);
 }
+
+} // namespace ropf

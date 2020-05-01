@@ -7,6 +7,8 @@
 #ifndef CHAINELEM_H
 #define CHAINELEM_H
 
+namespace ropf {
+
 // Generic element to be put in the chain.
 struct ChainElem {
   enum class Type {
@@ -164,5 +166,7 @@ struct ChainElem {
     }
   }
 };
+
+} // namespace ropf
 
 #endif

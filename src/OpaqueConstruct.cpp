@@ -1,238 +1,14 @@
 #include "OpaqueConstruct.h"
 #include "Debug.h"
+#include "MathUtil.h"
 #include "X86AssembleHelper.h"
 #include "X86TargetMachine.h"
 #include <algorithm>
 #include <random>
 
+namespace ropf {
+
 using namespace llvm;
-
-namespace {
-
-class Math {
-
-  static std::random_device rdev;
-  static std::default_random_engine reng;
-  static void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x,
-                   uint64_t &y) {
-    if (a == 0) {
-      g = m;
-      x = 0;
-      y = 1;
-    } else {
-      egcd(m % a, a, g, y, x);
-      x -= (m / a) * y;
-    }
-  }
-
-public:
-  static uint64_t modinv(uint64_t a, uint64_t m) {
-    uint64_t g, x, y;
-    egcd(a, m, g, x, y);
-    return g == 1 ? x % m : 0;
-  }
-  static uint64_t randrange(uint64_t x, uint64_t y) {
-    std::uniform_int_distribution<uint64_t> dist(x, y);
-    return dist(reng);
-  }
-  static uint32_t randrange(uint32_t x, uint32_t y) {
-    std::uniform_int_distribution<uint32_t> dist(x, y);
-    return dist(reng);
-  }
-};
-
-std::random_device Math::rdev;
-std::default_random_engine Math::reng(Math::rdev());
-
-class Matrix {
-  unsigned int M, N;
-  std::vector<uint64_t> data;
-
-public:
-  class View {
-    Matrix &matrix;
-    unsigned int offX, offY, M, N;
-
-  public:
-    View(Matrix &matrix, unsigned int offX, unsigned int offY, unsigned int M,
-         unsigned int N)
-        : matrix(matrix), offX(offX), offY(offY), M(M), N(N) {}
-    uint64_t &at(unsigned int y, unsigned int x) {
-      return matrix.at(y + offY, x + offX);
-    }
-    uint64_t at(unsigned int y, unsigned int x) const {
-      return matrix.at(y + offY, x + offX);
-    }
-    uint64_t &operator[](const std::pair<unsigned int, unsigned int> &index) {
-      return at(index.first, index.second);
-    }
-    uint64_t
-    operator[](const std::pair<unsigned int, unsigned int> &index) const {
-      return at(index.first, index.second);
-    }
-    unsigned int width() const { return M; }
-    unsigned int height() const { return N; }
-    View &operator=(const View &other) {
-      assert(width() == other.width() && height() == other.height());
-      for (unsigned int i = 0; i < height(); i++) {
-        for (unsigned int j = 0; j < width(); j++) {
-          at(i, j) = other.at(i, j);
-        }
-      }
-      return *this;
-    }
-    View &operator=(const Matrix &other) {
-      return *this = const_cast<Matrix &>(other).view();
-    }
-    template <typename UnaOp> Matrix op(UnaOp op) const {
-      Matrix result(width(), height());
-      for (unsigned int i = 0; i < height(); i++) {
-        for (unsigned int j = 0; j < width(); j++) {
-          result.at(i, j) = op(at(i, j));
-        }
-      }
-      return result;
-    }
-    template <typename BinOp> Matrix op(const View &other, BinOp op) const {
-      assert(width() == other.width() && height() == other.height());
-      Matrix result(width(), height());
-      for (unsigned int i = 0; i < height(); i++) {
-        for (unsigned int j = 0; j < width(); j++) {
-          result.at(i, j) = op(at(i, j), other.at(i, j));
-        }
-      }
-      return result;
-    }
-    Matrix mult(const View &other) const {
-      assert(width() == other.height());
-      Matrix result(other.width(), height());
-      for (unsigned int i = 0; i < height(); i++) {
-        for (unsigned int j = 0; j < other.width(); j++) {
-          for (unsigned int k = 0; k < width(); k++) {
-            result.at(i, j) += at(i, k) * other.at(k, j);
-          }
-        }
-      }
-      return result;
-    }
-    Matrix operator*(const View &other) const { return mult(other); }
-    Matrix operator*(const Matrix &other) const {
-      return *this * const_cast<Matrix &>(other).view();
-    }
-    Matrix operator+(const View &other) const {
-      return op(other, std::plus<uint64_t>());
-    }
-    Matrix operator+(const Matrix &other) const {
-      return *this + const_cast<Matrix &>(other).view();
-    }
-    Matrix operator-(const View &other) const {
-      return op(other, std::minus<uint64_t>());
-    }
-    Matrix operator-(const Matrix &other) const {
-      return *this - const_cast<Matrix &>(other).view();
-    }
-    Matrix operator-() const { return op(std::negate<uint64_t>()); }
-    Matrix inverse_mod(uint64_t modulus) const {
-      assert(M == N);
-      Matrix result(N, N);
-      if (N == 0) {
-        return result;
-      } else if (N == 1) {
-        uint64_t inv = Math::modinv(at(0, 0), modulus);
-        if (inv == 0) {
-          return Matrix(0, 0); // failure
-        }
-        result.at(0, 0) = inv;
-        return result;
-      } else if (N == 2) {
-        uint64_t det = at(0, 0) * at(1, 1) - at(0, 1) * at(1, 0);
-        uint64_t invdet = Math::modinv(det, modulus);
-        if (invdet == 0) {
-          return Matrix(0, 0); // failure
-        }
-        result.at(0, 0) = uint64_t(invdet * at(1, 1)) % modulus;
-        result.at(0, 1) = uint64_t(invdet * -at(0, 1)) % modulus;
-        result.at(1, 0) = uint64_t(invdet * -at(1, 0)) % modulus;
-        result.at(1, 1) = uint64_t(invdet * at(0, 0)) % modulus;
-        return result;
-      } else {
-        unsigned int n1 = (N + 1) / 2;
-        unsigned int n2 = N - n1;
-        // split matrix
-        View A = view(0, 0, n1, n1);
-        View B = view(n1, 0, n2, n1);
-        View C = view(0, n1, n1, n2);
-        View D = view(n1, n1, n2, n2);
-        Matrix InvA = A.inverse_mod(modulus);
-        if (InvA.width() == 0) {
-          return Matrix(0, 0); // failure
-        }
-        Matrix F = D - C * InvA * B;
-        Matrix InvF = F.view().inverse_mod(modulus);
-        if (InvF.width() == 0) {
-          return Matrix(0, 0); // failure
-        }
-        Matrix G = InvA * B * InvF;
-        Matrix H = C * InvA;
-        result.view(0, 0, n1, n1) = InvA + G * H;
-        result.view(n1, 0, n2, n1) = -G;
-        result.view(0, n1, n1, n2) = -InvF * H;
-        result.view(n1, n1, n2, n2) = InvF;
-        for (unsigned int i = 0; i < N; i++) {
-          for (unsigned int j = 0; j < N; j++) {
-            result.at(i, j) %= modulus;
-          }
-        }
-        return result;
-      }
-    }
-    View view(unsigned int offX, unsigned int offY, unsigned int m,
-              unsigned int n) const {
-      assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
-             n + offY <= N);
-      return View(matrix, this->offX + offX, this->offY + offY, m, n);
-    }
-  };
-  Matrix(unsigned int M, unsigned int N) : M(M), N(N), data(M * N) {}
-  uint64_t &at(unsigned int y, unsigned int x) {
-    assert(x < M && y < N);
-    return data[x + y * M];
-  }
-  uint64_t at(unsigned int y, unsigned int x) const {
-    assert(x < M && y < N);
-    return data[x + y * M];
-  }
-  unsigned int width() { return M; }
-  unsigned int height() { return N; }
-  View view() { return View(*this, 0, 0, M, N); }
-  View view(unsigned int offX, unsigned int offY, unsigned int m,
-            unsigned int n) {
-    assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
-           n + offY <= N);
-    return View(*this, offX, offY, m, n);
-  }
-  Matrix operator+(const View &other) const {
-    return const_cast<Matrix &>(*this).view() + other;
-  }
-  Matrix operator+(const Matrix &other) const {
-    return const_cast<Matrix &>(*this).view() + other;
-  }
-  Matrix operator-(const View &other) const {
-    return const_cast<Matrix &>(*this).view() - other;
-  }
-  Matrix operator-(const Matrix &other) const {
-    return const_cast<Matrix &>(*this).view() - other;
-  }
-  Matrix operator*(const View &other) const {
-    return const_cast<Matrix &>(*this).view() * other;
-  }
-  Matrix operator*(const Matrix &other) const {
-    return const_cast<Matrix &>(*this).view() * other;
-  }
-  Matrix operator-() const { return -const_cast<Matrix &>(*this).view(); }
-};
-
-} // namespace
 
 OpaqueConstruct::~OpaqueConstruct() {}
 
@@ -297,169 +73,6 @@ private:
   uint32_t value;
 };
 
-template <typename RandomGenerator> class PrimeNumberGenerator {
-public:
-  RandomGenerator rng;
-  std::uniform_int_distribution<uint32_t> dist32;
-  std::uniform_int_distribution<uint64_t> dist64;
-
-  uint32_t getRandom32() { return dist32(rng); }
-  uint64_t getRandom64() { return dist64(rng); }
-
-  bool isPrime32(uint32_t n) {
-    if (n < 40) {
-      for (uint32_t x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-        if (n == x) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (n % 2 == 0 || n % 3 == 0) {
-      return false;
-    }
-    for (uint32_t x : {5, 7, 11, 13, 17, 19, 23, 29, 31}) {
-      if (n % x == 0) {
-        return false;
-      }
-    }
-    // Miller-Rabin test
-    uint32_t d = n - 1;
-    int r = 0;
-    while (d % 2 == 0) {
-      d >>= 1;
-      r++;
-    }
-    for (uint32_t a : {2, 7, 61}) {
-      uint32_t x = modpow32(a, d, n);
-      if (x == 1 || x == n - 1) {
-        goto CONTINUE;
-      }
-      for (int j = 0; j < r; j++) {
-        x = (uint32_t)((uint64_t)x * x % n);
-        if (x == n - 1) {
-          goto CONTINUE;
-        }
-      }
-      return false;
-    CONTINUE:;
-    }
-    return true;
-  }
-
-  bool isPrime64(uint64_t n) { // caution: very slow!
-    if (n < 40) {
-      for (uint32_t x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-        if (n == x) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (n % 2 == 0 || n % 3 == 0) {
-      return false;
-    }
-    for (uint32_t x : {5, 7, 11, 13, 17, 19, 23, 29, 31}) {
-      if (n % x == 0) {
-        return false;
-      }
-    }
-    // Miller-Rabin test
-    uint64_t d = n - 1;
-    int r = 0;
-    while (d % 2 == 0) {
-      d >>= 1;
-      r++;
-    }
-    for (uint64_t a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-      uint64_t x = modpow64(a, d, n);
-      if (x == 1 || x == n - 1) {
-        goto CONTINUE;
-      }
-      for (int j = 0; j < r; j++) {
-        x = mulmod64(x, x, n);
-        if (x == n - 1) {
-          goto CONTINUE;
-        }
-      }
-      return false;
-    CONTINUE:;
-    }
-    return true;
-  }
-
-  static uint32_t modpow32(uint32_t base, uint32_t exponent, uint32_t modulus) {
-    uint64_t n = 1;
-    for (uint32_t mask = 0x80000000; mask != 0; mask >>= 1) {
-      n = n * n % modulus;
-      if (exponent & mask) {
-        n = n * base % modulus;
-      }
-    }
-    return static_cast<uint32_t>(n);
-  }
-
-  static uint64_t mulmod64(uint64_t a, uint64_t b, uint64_t modulus) {
-    if (a == 1)
-      return b % modulus;
-    if (b == 1)
-      return a % modulus;
-    if (a < 0x100000000ULL && b < 0x100000000ULL) {
-      return a * b % modulus;
-    }
-    // n < modulus
-    uint64_t result = 0;
-    uint64_t n = b;
-    for (uint64_t x = a; x > 0; x >>= 1) {
-      if (x % 2 != 0) {
-        // result = (result + n) % modulus;
-        result += (n >= modulus - result) ? n - modulus : n;
-      }
-      // n = n * 2 % modulus;
-      n += (n >= modulus - n) ? n - modulus : n;
-    }
-    return result;
-  }
-
-  static uint64_t modpow64(uint64_t base, uint64_t exponent, uint64_t modulus) {
-    uint64_t n = 1;
-    if (base >= modulus) {
-      base %= modulus;
-    }
-    for (uint64_t mask = 0x8000000000000000ULL; mask != 0; mask >>= 1) {
-      n = mulmod64(n, n, modulus);
-      if (exponent & mask) {
-        n = mulmod64(n, base, modulus);
-      }
-    }
-    return n;
-  }
-
-public:
-  PrimeNumberGenerator(RandomGenerator rng)
-      : rng(rng), dist32(0x80000000, 0xffffffff),
-        dist64(0x8000000000000000ULL, 0xffffffffffffffffULL) {}
-  PrimeNumberGenerator()
-      : rng(), dist32(0x80000000, 0xffffffff),
-        dist64(0x8000000000000000ULL, 0xffffffffffffffffULL) {}
-  uint32_t getPrime32() {
-    for (;;) {
-      uint32_t v = getRandom32();
-      if (isPrime32(v)) {
-        return v;
-      }
-    }
-  }
-  uint64_t getPrime64() { // caution: very slow!
-    for (;;) {
-      uint64_t v = getRandom64();
-      if (isPrime64(v)) {
-        return v;
-      }
-    }
-  }
-};
-
 class MultiplyCompareOpaquePredicate : public OpaqueConstruct {
 public:
   MultiplyCompareOpaquePredicate(uint32_t input1, uint32_t input2,
@@ -499,13 +112,14 @@ public:
 
   static std::shared_ptr<MultiplyCompareOpaquePredicate>
   createRandom(bool output) {
-    uint32_t x = rng.getPrime32();
-    uint32_t y = rng.getPrime32();
+    uint32_t x = math::PrimeNumberGenerator::getPrime32();
+    uint32_t y = math::PrimeNumberGenerator::getPrime32();
     uint64_t z = (uint64_t)x * y;
     if (!output) {
       uint64_t v;
       do {
-        v = (uint64_t)rng.getPrime32() * rng.getPrime32();
+        v = (uint64_t)math::PrimeNumberGenerator::getPrime32() *
+            math::PrimeNumberGenerator::getPrime32();
       } while (z == v);
       z = v;
     }
@@ -514,8 +128,6 @@ public:
   }
 
 private:
-  static PrimeNumberGenerator<std::default_random_engine> rng;
-
   uint64_t compvalue;
   OpaqueState inputState, outputState;
 };
@@ -575,10 +187,6 @@ public:
   }
 };
 
-static std::default_random_engine rand_device;
-PrimeNumberGenerator<std::default_random_engine>
-    MultiplyCompareOpaquePredicate::rng;
-
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
     const OpaqueStorage &target, uint32_t value, const std::string &algorithm) {
   if (algorithm == OPAQUE_CONSTANT_ALGORITHM_MOV) {
@@ -609,7 +217,7 @@ public:
 class NegativeStackRandomGeneratorOC : public OpaqueConstruct {
 public:
   void compile(X86AssembleHelper &as, int stackOffset) const override {
-    int offset = -4 * Math::randrange(2u, 32u);
+    int offset = -4 * math::Random::range32(2u, 32u);
     as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
   }
   OpaqueState getInput() const override { return {}; }
@@ -709,7 +317,7 @@ private:
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createOpaqueConstant32(const OpaqueStorage &target,
                                                const std::string &algorithm) {
-  uint32_t value = rand_device();
+  uint32_t value = math::Random::rand();
   return createOpaqueConstant32(target, value, algorithm);
 }
 
@@ -795,7 +403,7 @@ OpaqueConstructFactory::createBranchingOpaqueConstant32(
     const std::string &algorithm) {
   std::set<uint32_t> values;
   while (values.size() < n_choices) {
-    values.insert(rand_device());
+    values.insert(math::Random::rand());
   }
   std::vector<uint32_t> values_v(values.begin(), values.end());
   return createBranchingOpaqueConstant32(target, values_v, algorithm);
@@ -908,8 +516,8 @@ private:
         assert(N >= 3);
         uint32_t n2 = (N + 1) / 2;
         assert(inputvalues[pos + n2 - 1] < inputvalues[pos + n2]);
-        uint32_t mid =
-            Math::randrange(inputvalues[pos + n2 - 1], inputvalues[pos + n2]);
+        uint32_t mid = math::Random::range32(inputvalues[pos + n2 - 1],
+                                             inputvalues[pos + n2]);
         auto label1 = as.label();
         // test if input < mid
         as.cmp(as.reg(targetreg), as.imm(mid));
@@ -930,7 +538,7 @@ private:
   //  Sum_i<-{0..N-2} { params[i]*(input[j]>>(shift+i)) } + params[N-1]
   bool computeParams(uint32_t pos, uint32_t N, std::vector<uint32_t> &params,
                      uint32_t &shift) const {
-    Matrix mat(N, N);
+    math::Matrix mat(N, N);
     for (uint32_t s = 0; s + N < 32 + 2; s++) {
       for (uint32_t i = 0; i < N; i++) {
         for (uint32_t j = 0; j < N - 1; j++) {
@@ -938,13 +546,13 @@ private:
         }
         mat.at(i, N - 1) = 1;
       }
-      Matrix invmat = mat.view().inverse_mod(0x100000000ULL);
+      math::Matrix invmat = mat.view().inverse_mod(0x100000000ULL);
       if (invmat.width() > 0) {
-        Matrix output(1, N);
+        math::Matrix output(1, N);
         for (uint32_t i = 0; i < N; i++) {
           output.at(i, 0) = outputvalues[pos + i];
         }
-        Matrix p = invmat * output;
+        math::Matrix p = invmat * output;
         for (uint32_t i = 0; i < N; i++) {
           params.push_back((uint32_t)p.at(i, 0));
         }
@@ -962,3 +570,5 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createValueAdjustor(
   return std::shared_ptr<OpaqueConstruct>(
       new ValueAdjustingOpaqueConstruct(target, inputvalues, outputvalues));
 }
+
+} // namespace ropf

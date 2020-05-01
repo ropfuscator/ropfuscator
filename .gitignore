@@ -22,21 +22,3 @@ _deps
 # IntelliJ IDEs stuff
 .idea
 cmake-build-debug
-
-# existing LLVM files
-AsmParser/
-CMakeLists.txt
-Disassembler/
-InstPrinter/
-LLVMBuild.txt
-MCTargetDesc/
-README-FPStack.txt
-README-SSE.txt
-README-X86-64.txt
-README.txt
-TargetInfo/
-Utils/
-*.cpp
-*.def
-*.h
-*.td

@@ -6,6 +6,8 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include <ostream>
 
+namespace ropf {
+
 class llvm_raw_ostream_wrapper_ostream : public std::streambuf {
   llvm::raw_ostream &raw_os;
 
@@ -34,12 +36,16 @@ std::ostream &debugs() {
   return debug_stream.os;
 }
 
-std::ostream &llvm::operator<<(std::ostream &os, const llvm::StringRef &s) {
+} // namespace ropf
+
+namespace llvm {
+
+std::ostream &operator<<(std::ostream &os, const llvm::StringRef &s) {
   return os.write(s.data(), s.size());
 }
 
 #define DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(T)                                    \
-  std::ostream &llvm::operator<<(std::ostream &os, const llvm::T &value) {     \
+  std::ostream &operator<<(std::ostream &os, const llvm::T &value) {           \
     llvm::raw_os_ostream raw_os{os};                                           \
     raw_os << value;                                                           \
     return os;                                                                 \
@@ -49,3 +55,5 @@ DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(Error)
 DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(GlobalValue)
 DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(MachineInstr)
 DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(MachineBasicBlock)
+
+} // namespace llvm

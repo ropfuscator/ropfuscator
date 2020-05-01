@@ -20,6 +20,8 @@
 #include <tuple>
 #include <vector>
 
+namespace ropf {
+
 // forward declaration
 class BinaryAutopsy;
 
@@ -154,6 +156,6 @@ public:
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 };
 
-// Generates inline assembly labels that are used in the prologue and epilogue
-// of each ROP chain
+} // namespace ropf
+
 #endif

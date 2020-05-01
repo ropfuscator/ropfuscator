@@ -35,6 +35,8 @@ using namespace llvm;
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
+namespace ropf {
+
 class ELFParser {
 public:
   ELFParser(const std::string &path) {
@@ -987,3 +989,5 @@ void BinaryAutopsy::debugPrintGadgets() const {
     }
   }
 }
+
+} // namespace ropf

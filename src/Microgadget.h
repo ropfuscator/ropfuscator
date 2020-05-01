@@ -4,6 +4,8 @@
 #ifndef MICROGADGET_H
 #define MICROGADGET_H
 
+namespace ropf {
+
 enum class GadgetType {
   UNDEFINED,
   INIT,
@@ -51,5 +53,7 @@ struct Microgadget {
     addresses.push_back(address);
   }
 };
+
+} // namespace ropf
 
 #endif

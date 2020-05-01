@@ -19,8 +19,6 @@
 #include "ROPfuscatorConfig.h"
 
 // forward declaration
-class BinaryAutopsy;
-class ROPChain;
 namespace llvm {
 class MachineFunction;
 class MachineBasicBlock;
@@ -28,6 +26,11 @@ class MachineInstr;
 class Module;
 class X86InstrInfo;
 } // namespace llvm
+
+namespace ropf {
+
+class BinaryAutopsy;
+class ROPChain;
 
 class ROPfuscatorCore {
 public:
@@ -50,5 +53,7 @@ private:
                       llvm::MachineInstr &MI, int chainID,
                       const ObfuscationParameter &param);
 };
+
+} // namespace ropf
 
 #endif

@@ -6,6 +6,8 @@
 #ifndef SYMBOL_H
 #define SYMBOL_H
 
+namespace ropf {
+
 // to locate the needed gadgets.
 struct Symbol {
   // Label - symbol name.
@@ -33,5 +35,7 @@ struct Symbol {
     return fmt::format(".symver {},{}@{}", Label, Label, Version);
   }
 };
+
+} // namespace ropf
 
 #endif

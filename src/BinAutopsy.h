@@ -23,8 +23,6 @@
 #ifndef BINAUTOPSY_H
 #define BINAUTOPSY_H
 
-#define PACKAGE "ropfuscator" /* see https://bugs.gentoo.org/428728 */
-
 #include "ChainElem.h"
 #include "Microgadget.h"
 #include "ROPEngine.h"
@@ -40,6 +38,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+namespace ropf {
 
 // Max bytes before the RET to be examined (RET included!)
 // see BinaryAutopsy::extractGadgets()
@@ -173,5 +173,7 @@ private:
   // Xchg microgadgets
   ROPChain buildXchgChain(XchgPath const &path) const;
 };
+
+} // namespace ropf
 
 #endif

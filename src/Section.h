@@ -3,6 +3,8 @@
 #ifndef SECTION_H
 #define SECTION_H
 
+namespace ropf {
+
 // Section - section data dumped from the ELF header
 struct Section {
   // Label - section name
@@ -16,5 +18,7 @@ struct Section {
   Section(std::string label, uint64_t address, uint64_t length)
       : Label(label), Address(address), Length(length) {}
 };
+
+}
 
 #endif

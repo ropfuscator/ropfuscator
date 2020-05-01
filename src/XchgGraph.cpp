@@ -6,6 +6,8 @@
 
 using namespace std;
 
+namespace ropf {
+
 XchgState::XchgState() {
   // sets up each logical register in the proper physical register.
   for (int i = 0; i < N_REGS; i++) {
@@ -154,3 +156,5 @@ void XchgState::printAll() const {
     dbg_fmt("\t[{}]: {}\n", i, PhysReg[i]);
   }
 }
+
+} // namespace ropf
