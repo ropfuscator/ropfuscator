@@ -180,6 +180,10 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   // parsing [general] section, if present
   if (auto *general_section = configuration_data.find(CONFIG_GENERAL_SECTION)) {
 
+    // Obfuscation enabled
+    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_OBF_ENABLED,
+                globalConfig.obfuscationEnabled);
+
     // Custom library path
     parseOption(*general_section, CONFIG_GENERAL_SECTION,
                 CONFIG_CUSTOM_LIB_PATH, globalConfig.libraryPath);
