@@ -82,18 +82,28 @@ private:
   uint32_t value;
 };
 
+// This opaque predicate executes the following code:
+//   edx:eax = eax(input1) * edx(input2);
+//   dl := edx == compvalue[63:32]
+//   al := eax == compvalue[31:0]
+//   al := al & dl
+// or
+//   edx:eax = eax(input1) * edx(input2);
+//   dl := edx != compvalue[63:32]
+//   al := eax != compvalue[31:0]
+//   al := al | dl
 class MultiplyCompareOpaquePredicate : public OpaqueConstruct {
-public:
+  // Contextual OP
   MultiplyCompareOpaquePredicate(uint32_t input1, uint32_t input2,
-                                 uint64_t compvalue)
-      : compvalue(compvalue) {
+                                 uint64_t compvalue, bool negate)
+      : compvalue(compvalue), negate(negate), isInvariantOp(false) {
     inputState.emplace_back(OpaqueStorage::EAX,
                             OpaqueValue::createConstant(input1));
     inputState.emplace_back(OpaqueStorage::EDX,
                             OpaqueValue::createConstant(input2));
     uint64_t multvalue = (uint64_t)input1 * input2;
-    bool al = multvalue == compvalue;
-    bool dl = (multvalue >> 32) == (compvalue >> 32);
+    bool al = negate ^ (multvalue == compvalue);
+    bool dl = negate ^ ((multvalue >> 32) == (compvalue >> 32));
     outputState.emplace_back(
         OpaqueStorage::EAX,
         OpaqueValue::createConstant((multvalue & 0xffffff00) + (al ? 1 : 0)));
@@ -103,27 +113,57 @@ public:
                                     (dl ? 1 : 0)));
   }
 
+  // Invariant OP
+  MultiplyCompareOpaquePredicate(uint64_t compvalue, bool negate)
+      : compvalue(compvalue), negate(negate), isInvariantOp(true) {
+    inputState.emplace_back(OpaqueStorage::EAX, OpaqueValue::createAny());
+    inputState.emplace_back(OpaqueStorage::EDX, OpaqueValue::createAny());
+    outputState.emplace_back(OpaqueStorage::EAX, OpaqueValue::createAny());
+    outputState.emplace_back(OpaqueStorage::EDX, OpaqueValue::createAny());
+  }
+
+public:
   OpaqueState getInput() const override { return inputState; }
   OpaqueState getOutput() const override { return outputState; }
+  bool isInvariant() const { return isInvariantOp; }
 
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     as.mul(as.reg(X86::EDX)); // edx:eax = eax * edx
     as.cmp(as.reg(X86::EAX), as.imm(compvalue & 0xffffffff));
-    as.sete(as.reg(X86::AL));
-    as.cmp(as.reg(X86::EDX), as.imm((compvalue >> 32) & 0xffffffff));
-    as.sete(as.reg(X86::DL));
-    as.land8(as.reg(X86::AL), as.reg(X86::DL));
+    if (negate) {
+      as.setne(as.reg(X86::AL));
+      as.cmp(as.reg(X86::EDX), as.imm((compvalue >> 32) & 0xffffffff));
+      as.setne(as.reg(X86::DL));
+      as.lor8(as.reg(X86::AL), as.reg(X86::DL));
+    } else {
+      as.sete(as.reg(X86::AL));
+      as.cmp(as.reg(X86::EDX), as.imm((compvalue >> 32) & 0xffffffff));
+      as.sete(as.reg(X86::DL));
+      as.land8(as.reg(X86::AL), as.reg(X86::DL));
+    }
   }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     return {X86::EAX, X86::EDX, X86::EFLAGS};
   }
 
+  // Invariant OP: for all input, generate constant
   static std::shared_ptr<MultiplyCompareOpaquePredicate>
-  createRandom(bool output) {
+  createRandomInvariant(bool output) {
+    uint64_t z = math::PrimeNumberGenerator::getPrime64();
+    bool negate = math::Random::bit();
+    return std::shared_ptr<MultiplyCompareOpaquePredicate>(
+        new MultiplyCompareOpaquePredicate(z, output));
+  }
+
+  // Contextual OP: almost invariant but has different output for some input
+  static std::shared_ptr<MultiplyCompareOpaquePredicate>
+  createRandomContextual(bool output) {
     uint32_t x = math::PrimeNumberGenerator::getPrime32();
     uint32_t y = math::PrimeNumberGenerator::getPrime32();
     uint64_t z = (uint64_t)x * y;
+    bool negate = math::Random::bit();
+    output ^= negate;
     if (!output) {
       uint64_t v;
       do {
@@ -133,11 +173,21 @@ public:
       z = v;
     }
     return std::shared_ptr<MultiplyCompareOpaquePredicate>(
-        new MultiplyCompareOpaquePredicate(x, y, z));
+        new MultiplyCompareOpaquePredicate(x, y, z, negate));
+  }
+
+  // Randomly generate contextual or invariant OP
+  static std::shared_ptr<MultiplyCompareOpaquePredicate>
+  createRandom(bool output) {
+    return math::Random::bit() ? createRandomContextual(output)
+                               : createRandomInvariant(output);
+    // return createRandomContextual(output);
   }
 
 private:
   uint64_t compvalue;
+  bool negate;
+  bool isInvariantOp;
   OpaqueState inputState, outputState;
 };
 
@@ -172,20 +222,34 @@ public:
     uint32_t out_eax = 0;
     uint32_t out_edx = 0;
     for (auto &p : predicates) {
-      uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
-      uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
-      if (out_eax == 0) {
-        as.mov(as.reg(X86::EAX), as.imm(in_eax));
-        as.mov(as.reg(X86::EDX), as.imm(in_edx));
+      // initialise inputs (eax, edx)
+      if (p->isInvariant()) {
+        compileRandomRegs(as, stackOffset);
       } else {
-        as.lxor(as.reg(X86::EAX), as.imm(in_eax ^ out_eax));
-        as.lxor(as.reg(X86::EDX), as.imm(in_edx ^ out_edx));
+        uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
+        uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
+        if (out_eax == 0) {
+          as.mov(as.reg(X86::EAX), as.imm(in_eax));
+          as.mov(as.reg(X86::EDX), as.imm(in_edx));
+        } else {
+          as.lxor(as.reg(X86::EAX), as.imm(in_eax ^ out_eax));
+          as.lxor(as.reg(X86::EDX), as.imm(in_edx ^ out_edx));
+        }
       }
+      // multiply and compare
       p->compile(as, stackOffset);
+      // accumulate the result in ecx
       as.shl(as.reg(X86::ECX));
       as.lor8(as.reg(X86::CL), as.reg(X86::AL));
-      out_eax = *p->getOutput().findValue(OpaqueStorage::EAX);
-      out_edx = *p->getOutput().findValue(OpaqueStorage::EDX);
+      // set next state
+      if (p->isInvariant()) {
+        // eax, edx is random value
+        out_eax = 0;
+        out_edx = 0;
+      } else {
+        out_eax = *p->getOutput().findValue(OpaqueStorage::EAX);
+        out_edx = *p->getOutput().findValue(OpaqueStorage::EDX);
+      }
     }
     switch (target.type) {
     case OpaqueStorage::Type::REG:
@@ -197,6 +261,14 @@ public:
              as.reg(X86::ECX));
       break;
     }
+  }
+
+private:
+  void compileRandomRegs(X86AssembleHelper &as, int stackOffset) const {
+    for (auto reg : {X86::ECX, X86::ESI})
+      as.add(as.reg(X86::EAX), as.reg(reg));
+    for (auto reg : {X86::EBX, X86::EDI})
+      as.add(as.reg(X86::EDX), as.reg(reg));
   }
 };
 

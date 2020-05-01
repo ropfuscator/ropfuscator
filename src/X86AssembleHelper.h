@@ -141,6 +141,9 @@ public:
   void sete(Reg r) const {
     _instr(llvm::X86::SETCCr, r, imm(llvm::X86::COND_E));
   }
+  void setne(Reg r) const {
+    _instr(llvm::X86::SETCCr, r, imm(llvm::X86::COND_NE));
+  }
   void je(Label l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
   }
@@ -153,6 +156,7 @@ public:
 #else
   void cmove(Reg r1, Reg r2) const { _instrd(llvm::X86::CMOVE32rr, r1, r2); }
   void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
+  void setne(Reg r) const { _instr(llvm::X86::SETNEr, r); }
   void je(Label l) const { _instr(llvm::X86::JE_1, l); }
   void ja(Label l) const { _instr(llvm::X86::JA_1, l); }
   void jb(Label l) const { _instr(llvm::X86::JB_1, l); }
