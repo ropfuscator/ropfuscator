@@ -72,6 +72,9 @@ public:
     if (!RopfuscatorConfigFile.empty()) {
       config.loadFromFile(RopfuscatorConfigFile);
     }
+    if (!config.globalConfig.obfuscationEnabled) {
+      return false;
+    }
 
     ropfuscator = new ROPfuscatorCore(module, config);
 

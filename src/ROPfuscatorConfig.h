@@ -68,6 +68,8 @@ struct ObfuscationParameter {
 struct GlobalConfig {
   // [BinaryAutopsy] library path where the gadgets are extracted
   std::string libraryPath;
+  // true if obfuscation is enabled, false if obfuscation is disabled globally
+  bool obfuscationEnabled;
   // [BinaryAutopsy] If set to true, find gadget in code segment instead of code
   // section (which will find more gadgets since code segment is wider)
   bool searchSegmentForGadget;
@@ -81,7 +83,7 @@ struct GlobalConfig {
   bool useChainLabel;
 
   GlobalConfig()
-      : libraryPath(), searchSegmentForGadget(true),
+      : libraryPath(), obfuscationEnabled(true), searchSegmentForGadget(true),
         avoidMultiversionSymbol(false), printInstrStat(false),
         useChainLabel(false) {}
 };
