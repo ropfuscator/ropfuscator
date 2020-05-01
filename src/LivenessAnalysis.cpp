@@ -8,6 +8,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include <map>
 
+namespace ropf {
+
 using namespace llvm;
 using namespace std;
 
@@ -62,3 +64,5 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
 
   return regs;
 }
+
+} // namespace ropf

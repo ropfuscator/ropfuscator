@@ -30,6 +30,8 @@
 #include <utility>
 #include <vector>
 
+namespace ropf {
+
 #define N_REGS 100
 
 typedef std::vector<std::pair<int, int>> XchgPath;
@@ -97,5 +99,7 @@ public:
   // X86_REG_EAX). Returns the proper exchange path.
   XchgPath reorderRegisters(XchgState &state) const;
 };
+
+} // namespace ropf
 
 #endif

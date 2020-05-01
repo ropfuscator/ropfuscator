@@ -12,6 +12,8 @@ namespace llvm {
 class GlobalValue;
 }
 
+namespace ropf {
+
 class X86AssembleHelper {
 public:
   typedef unsigned int llvm_reg_t;
@@ -240,5 +242,7 @@ private:
     return gv;
   }
 };
+
+} // namespace ropf
 
 #endif

@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+namespace ropf {
+
 // algorithms for opaque constant
 const std::string OPAQUE_CONSTANT_ALGORITHM_MOV = "mov";
 const std::string OPAQUE_CONSTANT_ALGORITHM_MULTCOMP = "multcomp";
@@ -211,5 +213,7 @@ public:
   compose(std::shared_ptr<OpaqueConstruct> f,
           std::shared_ptr<OpaqueConstruct> g);
 };
+
+} // namespace ropf
 
 #endif

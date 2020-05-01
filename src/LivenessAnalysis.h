@@ -28,6 +28,8 @@
 #include <map>
 #include <vector>
 
+namespace ropf {
+
 // ScratchRegMap - associative map to bind a specific MachineInstr to a list of
 // available scratch registers
 typedef std::map<llvm::MachineInstr *, std::vector<unsigned int>> ScratchRegMap;
@@ -35,5 +37,7 @@ typedef std::map<llvm::MachineInstr *, std::vector<unsigned int>> ScratchRegMap;
 void addReg(llvm::MachineInstr &MI, int reg, ScratchRegMap &regs);
 
 ScratchRegMap performLivenessAnalysis(llvm::MachineBasicBlock &MBB);
+
+}
 
 #endif

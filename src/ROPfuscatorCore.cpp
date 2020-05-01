@@ -33,6 +33,10 @@
 
 using namespace llvm;
 
+namespace ropf {
+
+namespace {
+
 const std::string POSSIBLE_LIBC_FOLDERS[] = {
     "/lib/i386-linux-gnu",
     "/usr/lib/i386-linux-gnu",
@@ -43,14 +47,26 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {
     "/usr/lib",
 };
 
-void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
-                         StringRef funcName, int chainID) {
-  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
-  resumeLabel = fmt::format("resume_{}", chainLabel);
-
-  // replacing $ with _
-  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
+std::string findLibcPath() {
+  for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
+    // searching for libc in regular files only
+    std::error_code ec;
+    for (auto dir_it = llvm::sys::fs::directory_iterator(dir, ec),
+              dir_end = llvm::sys::fs::directory_iterator();
+         !ec && dir_it != dir_end; dir_it.increment(ec)) {
+      auto st = dir_it->status();
+      if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
+          llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
+        std::string libraryPath = dir_it->path();
+        dbg_fmt("[*] Using library path: {}\n", libraryPath);
+        return libraryPath;
+      }
+    }
+  }
+  return "";
 }
+
+} // namespace
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
@@ -106,32 +122,25 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 };
 #endif
 
-static std::string findLibcPath() {
-  for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
-    // searching for libc in regular files only
-    std::error_code ec;
-    for (auto dir_it = llvm::sys::fs::directory_iterator(dir, ec),
-              dir_end = llvm::sys::fs::directory_iterator();
-         !ec && dir_it != dir_end; dir_it.increment(ec)) {
-      auto st = dir_it->status();
-      if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
-          llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
-        std::string libraryPath = dir_it->path();
-        dbg_fmt("[*] Using library path: {}\n", libraryPath);
-        return libraryPath;
-      }
-    }
-  }
-  return "";
-}
-
 // ----------------------------------------------------------------
 
-static void putLabelInMBB(MachineBasicBlock &MBB,
-                          X86AssembleHelper::Label label) {
+namespace {
+
+void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
+                         StringRef funcName, int chainID) {
+  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
+  resumeLabel = fmt::format("resume_{}", chainLabel);
+
+  // replacing $ with _
+  std::replace(chainLabel.begin(), chainLabel.end(), '$', '_');
+}
+
+void putLabelInMBB(MachineBasicBlock &MBB, X86AssembleHelper::Label label) {
   X86AssembleHelper as(MBB, MBB.begin());
   as.putLabel(label);
 }
+
+} // namespace
 
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
                                  const ROPfuscatorConfig &config)
@@ -662,3 +671,5 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
                           obfuscated, processed,
                           (obfuscated * 100) / processed));
 }
+
+} // namespace ropf

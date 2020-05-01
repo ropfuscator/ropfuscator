@@ -24,21 +24,23 @@ FunctionPass *createX86ROPfuscatorPass();
 
 using namespace llvm;
 
+namespace ropf {
+namespace {
+
 // ----------------------------------------------------------------
 //  COMMAND LINE ARGUMENTS
 // ----------------------------------------------------------------
-static cl::opt<bool>
+cl::opt<bool>
     ROPfPassDisabled("fno-ropfuscator",
                      cl::desc("Disable code obfuscation via ROP chains"));
 
-static cl::opt<std::string> RopfuscatorConfigFile(
+cl::opt<std::string> RopfuscatorConfigFile(
     "ropfuscator-config",
     cl::desc("Specify a configuration file path for obfuscation"),
     cl::NotHidden, cl::Optional, cl::ValueRequired);
 
 // ----------------------------------------------------------------
 
-namespace {
 class X86ROPfuscator : public MachineFunctionPass {
 public:
   static char ID;
@@ -90,7 +92,11 @@ private:
 };
 
 char X86ROPfuscator::ID = 0;
+
 } // namespace
+} // namespace ropf
+
+using ropf::X86ROPfuscator;
 
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 

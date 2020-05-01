@@ -5,9 +5,10 @@
 #include <map>
 #include <string>
 
-/* =========================
- * CONFIGURATION FILE STRINGS
- */
+namespace ropf {
+
+// =========================
+// CONFIGURATION FILE STRINGS
 
 #define CONFIG_GENERAL_SECTION "general"
 #define CONFIG_FUNCTIONS_SECTION "functions"
@@ -94,5 +95,7 @@ struct ROPfuscatorConfig {
 
   void loadFromFile(const std::string &filename);
 };
+
+} // namespace ropf
 
 #endif
