@@ -44,12 +44,21 @@ public:
   virtual uint32_t returnValue() const = 0;
 };
 
+namespace { // implementation details
+
+// ============================================================
+// basic opaque constant implementation
+
 // stub (mock) implementation of opaque constant,
 // which just moves the constant into the register/stack.
 class MovConstant32 : public OpaqueConstant32 {
 public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
+
+  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
+    return new MovConstant32(target, value);
+  }
 
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     switch (target.type) {
@@ -147,6 +156,10 @@ public:
     }
   }
 
+  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
+    return new MultiplyCompareBasedOpaqueConstant(target, value);
+  }
+
   OpaqueStorage returnStorage() const override { return target; }
 
   uint32_t returnValue() const override { return value; }
@@ -187,21 +200,12 @@ public:
   }
 };
 
-std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
-    const OpaqueStorage &target, uint32_t value, const std::string &algorithm) {
-  if (algorithm == OPAQUE_CONSTANT_ALGORITHM_MOV) {
-    return std::shared_ptr<OpaqueConstruct>(new MovConstant32(target, value));
-  }
-  if (algorithm == OPAQUE_CONSTANT_ALGORITHM_MULTCOMP) {
-    return std::shared_ptr<OpaqueConstruct>(
-        new MultiplyCompareBasedOpaqueConstant(target, value));
-  }
-
-  return std::shared_ptr<OpaqueConstruct>();
-}
+// ============================================================
+// symbolic (random) value implementation
 
 class RdtscRandomGeneratorOC : public OpaqueConstruct {
 public:
+  static OpaqueConstruct *create() { return new RdtscRandomGeneratorOC(); }
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     as.rdtsc();
   }
@@ -216,6 +220,9 @@ public:
 
 class NegativeStackRandomGeneratorOC : public OpaqueConstruct {
 public:
+  static OpaqueConstruct *create() {
+    return new NegativeStackRandomGeneratorOC();
+  }
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     int offset = -4 * math::Random::range32(2u, 32u);
     as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
@@ -231,6 +238,7 @@ public:
 
 class AddRegRandomGeneratorOC : public OpaqueConstruct {
 public:
+  static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
   void compile(X86AssembleHelper &as, int stackOffset) const override {
     for (auto reg : {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI})
       as.add(as.reg(X86::EAX), as.reg(reg));
@@ -244,12 +252,20 @@ public:
   }
 };
 
+// ============================================================
+// selector implementation
+// selector will select a value from a set of values, based on random input
+
 class MovRandomSelectorOC : public OpaqueConstruct {
 public:
   MovRandomSelectorOC(const OpaqueStorage &target,
                       const std::vector<uint32_t> &values)
       : target(target), values(values) {
     std::random_shuffle(this->values.begin(), this->values.end());
+  }
+  static OpaqueConstruct *create(const OpaqueStorage &target,
+                                 const std::vector<uint32_t> &values) {
+    return new MovRandomSelectorOC(target, values);
   }
 
   void compile(X86AssembleHelper &as, int stackOffset) const override {
@@ -314,12 +330,9 @@ private:
   }
 };
 
-std::shared_ptr<OpaqueConstruct>
-OpaqueConstructFactory::createOpaqueConstant32(const OpaqueStorage &target,
-                                               const std::string &algorithm) {
-  uint32_t value = math::Random::rand();
-  return createOpaqueConstant32(target, value, algorithm);
-}
+// ============================================================
+// composer implementation
+// composer will connect multiple opaque constructs
 
 class ComposedOpaqueConstruct : public OpaqueConstruct {
   std::vector<std::shared_ptr<OpaqueConstruct>> functions;
@@ -354,60 +367,8 @@ public:
   }
 };
 
-std::shared_ptr<OpaqueConstruct>
-OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
-                                std::shared_ptr<OpaqueConstruct> g) {
-  return std::shared_ptr<OpaqueConstruct>(new ComposedOpaqueConstruct({f, g}));
-}
-
-std::shared_ptr<OpaqueConstruct>
-OpaqueConstructFactory::createBranchingOpaqueConstant32(
-    const OpaqueStorage &target, const std::vector<uint32_t> &values,
-    const std::string &algorithm) {
-  std::string random_algo = "addreg", selector_algo = "mov";
-  size_t pos = algorithm.find("+");
-  if (pos != std::string::npos) {
-    random_algo = algorithm.substr(0, pos);
-    selector_algo = algorithm.substr(pos + 1);
-  } else {
-    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
-    // use default algorithm anyway
-  }
-  std::shared_ptr<OpaqueConstruct> randomOC, selectorOC;
-  // random generator
-  if (random_algo == "addreg") {
-    randomOC.reset(new AddRegRandomGeneratorOC());
-  } else if (random_algo == "rdtsc") {
-    randomOC.reset(new RdtscRandomGeneratorOC());
-  } else if (random_algo == "negativestack") {
-    randomOC.reset(new NegativeStackRandomGeneratorOC());
-  } else {
-    dbg_fmt("Warning: unknown random algorithm: {}\n", random_algo);
-    // use default algorithm anyway
-    randomOC.reset(new AddRegRandomGeneratorOC());
-  }
-  // selector
-  if (selector_algo == "mov") {
-    selectorOC.reset(new MovRandomSelectorOC(target, values));
-  } else {
-    dbg_fmt("Warning: unknown selector algorithm: {}\n", selector_algo);
-    // use default algorithm anyway
-    selectorOC.reset(new MovRandomSelectorOC(target, values));
-  }
-  return compose(selectorOC, randomOC);
-}
-
-std::shared_ptr<OpaqueConstruct>
-OpaqueConstructFactory::createBranchingOpaqueConstant32(
-    const OpaqueStorage &target, size_t n_choices,
-    const std::string &algorithm) {
-  std::set<uint32_t> values;
-  while (values.size() < n_choices) {
-    values.insert(math::Random::rand());
-  }
-  std::vector<uint32_t> values_v(values.begin(), values.end());
-  return createBranchingOpaqueConstant32(target, values_v, algorithm);
-}
+// ============================================================
+// value adjuster implementation
 
 // This class will convert input values to output values,
 // without leaking input/output values themselves.
@@ -563,6 +524,115 @@ private:
     return false;
   }
 };
+
+// ============================================================
+// factories
+
+template <typename... Args> using oc_factory = OpaqueConstruct *(*)(Args...);
+
+std::map<std::string, oc_factory<const OpaqueStorage &, uint32_t>>
+    constant_factories = {
+        {OPAQUE_CONSTANT_ALGORITHM_MOV, MovConstant32::create},
+        {OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
+         MultiplyCompareBasedOpaqueConstant::create},
+};
+
+std::map<std::string, oc_factory<>> random_factories = {
+    {OPAQUE_RANDOM_ALGORITHM_ADDREG, AddRegRandomGeneratorOC::create},
+    {OPAQUE_RANDOM_ALGORITHM_RDTSC, RdtscRandomGeneratorOC::create},
+    {OPAQUE_RANDOM_ALGORITHM_NEGSTK, NegativeStackRandomGeneratorOC::create},
+};
+
+std::map<std::string,
+         oc_factory<const OpaqueStorage &, const std::vector<uint32_t> &>>
+    selector_factories = {
+        {OPAQUE_SELECTOR_ALGORITHM_MOV, MovRandomSelectorOC::create},
+};
+
+template <typename... Args>
+OpaqueConstruct *
+call_factory(const std::map<std::string, oc_factory<Args...>> &factories,
+             const std::string &key, Args &&... args) {
+  auto it = factories.find(key);
+  return it == factories.end() ? nullptr
+                               : it->second(std::forward<Args>(args)...);
+}
+
+} // namespace
+
+// ============================================================
+
+std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
+    const OpaqueStorage &target, uint32_t value, const std::string &algorithm) {
+  if (OpaqueConstruct *oc = call_factory(constant_factories, algorithm, target,
+                                         std::move(value))) {
+    return std::shared_ptr<OpaqueConstruct>(oc);
+  } else {
+    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
+    return std::shared_ptr<OpaqueConstruct>(
+        MovConstant32::create(target, value));
+  }
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::createOpaqueConstant32(const OpaqueStorage &target,
+                                               const std::string &algorithm) {
+  uint32_t value = math::Random::rand();
+  return createOpaqueConstant32(target, value, algorithm);
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::createBranchingOpaqueConstant32(
+    const OpaqueStorage &target, const std::vector<uint32_t> &values,
+    const std::string &algorithm) {
+  std::string random_algo = OPAQUE_RANDOM_ALGORITHM_ADDREG,
+              selector_algo = OPAQUE_SELECTOR_ALGORITHM_MOV;
+  size_t pos = algorithm.find("+");
+  if (pos != std::string::npos) {
+    random_algo = algorithm.substr(0, pos);
+    selector_algo = algorithm.substr(pos + 1);
+  } else {
+    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
+    // use default algorithm anyway
+  }
+  std::shared_ptr<OpaqueConstruct> randomOC, selectorOC;
+  // random generator
+  if (OpaqueConstruct *p = call_factory(random_factories, random_algo)) {
+    randomOC.reset(p);
+  } else {
+    dbg_fmt("Warning: unknown random algorithm: {}\n", random_algo);
+    // use default algorithm anyway
+    randomOC.reset(AddRegRandomGeneratorOC::create());
+  }
+  // selector
+  if (OpaqueConstruct *oc =
+          call_factory(selector_factories, selector_algo, target, values)) {
+    selectorOC.reset(oc);
+  } else {
+    dbg_fmt("Warning: unknown selector algorithm: {}\n", selector_algo);
+    // use default algorithm anyway
+    selectorOC.reset(MovRandomSelectorOC::create(target, values));
+  }
+  return compose(selectorOC, randomOC);
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::createBranchingOpaqueConstant32(
+    const OpaqueStorage &target, size_t n_choices,
+    const std::string &algorithm) {
+  std::set<uint32_t> values;
+  while (values.size() < n_choices) {
+    values.insert(math::Random::rand());
+  }
+  std::vector<uint32_t> values_v(values.begin(), values.end());
+  return createBranchingOpaqueConstant32(target, values_v, algorithm);
+}
+
+std::shared_ptr<OpaqueConstruct>
+OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
+                                std::shared_ptr<OpaqueConstruct> g) {
+  return std::shared_ptr<OpaqueConstruct>(new ComposedOpaqueConstruct({f, g}));
+}
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createValueAdjustor(
     const OpaqueStorage &target, const std::vector<uint32_t> &inputvalues,

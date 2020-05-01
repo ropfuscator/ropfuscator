@@ -13,10 +13,21 @@ namespace ropf {
 const std::string OPAQUE_CONSTANT_ALGORITHM_MOV = "mov";
 const std::string OPAQUE_CONSTANT_ALGORITHM_MULTCOMP = "multcomp";
 
+// algorithms for random
+const std::string OPAQUE_RANDOM_ALGORITHM_ADDREG = "addreg";
+const std::string OPAQUE_RANDOM_ALGORITHM_RDTSC = "rdtsc";
+const std::string OPAQUE_RANDOM_ALGORITHM_NEGSTK = "negativestack";
+
+// algorithms for selector
+const std::string OPAQUE_SELECTOR_ALGORITHM_MOV = "mov";
+
 // algorithms for opaque constant based branch
-const std::string OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV = "addreg+mov";
-const std::string OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV = "rdtsc+mov";
-const std::string OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV = "negativestack+mov";
+const std::string OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV =
+    OPAQUE_RANDOM_ALGORITHM_ADDREG + "+" + OPAQUE_SELECTOR_ALGORITHM_MOV;
+const std::string OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV =
+    OPAQUE_RANDOM_ALGORITHM_RDTSC + "+" + OPAQUE_SELECTOR_ALGORITHM_MOV;
+const std::string OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV =
+    OPAQUE_RANDOM_ALGORITHM_NEGSTK + "+" + OPAQUE_SELECTOR_ALGORITHM_MOV;
 
 typedef unsigned int llvm_reg_t;
 class X86AssembleHelper;
