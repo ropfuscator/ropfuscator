@@ -37,6 +37,8 @@ uint32_t Random::rand() { return reng(); }
 
 uint32_t Random::bit() { return range32(0, 1) != 0; }
 
+std::default_random_engine Random::engine() { return reng; }
+
 uint64_t modinv(uint64_t a, uint64_t m) {
   uint64_t g, x, y;
   egcd(a, m, g, x, y);
