@@ -2,6 +2,7 @@
 #include "Debug.h"
 #include <cctype>
 #include <regex>
+#include <set>
 
 #define TOML_HAVE_FAILWITH_REPLACEMENT
 
@@ -42,47 +43,25 @@ inline bool parseOption(const toml::Value &section,
   }
 }
 
-std::string parseOpaquePredicateAlgorithm(const std::string &configString) {
-  std::string lowerConfigString = configString;
-
-  // transforming configString to lowercase
-  std::transform(lowerConfigString.begin(), lowerConfigString.end(),
-                 lowerConfigString.begin(),
+std::string str_tolower(const std::string &s) {
+  std::string s_lower = s;
+  std::transform(s_lower.begin(), s_lower.end(), s_lower.begin(),
                  [](unsigned char c) { return std::tolower(c); });
-
-  if (lowerConfigString == "mov") {
-    return OPAQUE_CONSTANT_ALGORITHM_MOV;
-  }
-
-  if (lowerConfigString == "multcomp") {
-    return OPAQUE_CONSTANT_ALGORITHM_MULTCOMP;
-  }
-
-  return "";
+  return s_lower;
 }
 
-std::string parseBranchDivergenceAlgorithm(const std::string &configString) {
-  std::string lowerConfigString = configString;
+std::set<std::string> validOpaquePredicateAlgorithmNames = {
+    OPAQUE_CONSTANT_ALGORITHM_MOV,
+    OPAQUE_CONSTANT_ALGORITHM_R3SAT32,
+    OPAQUE_CONSTANT_ALGORITHM_R3SAT64,
+    OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
+};
 
-  // transforming configString to lowercase
-  std::transform(lowerConfigString.begin(), lowerConfigString.end(),
-                 lowerConfigString.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  if (lowerConfigString == "addreg") {
-    return OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV;
-  }
-
-  if (lowerConfigString == "rdtsc") {
-    return OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV;
-  }
-
-  if (lowerConfigString == "negative_stack") {
-    return OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV;
-  }
-
-  return "";
-}
+std::set<std::string> validBranchDivergenceAlgorithmNames = {
+    OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV,
+    OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV,
+    OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV,
+};
 
 void parseFunctionOptions(const toml::Value &config,
                           const std::string &tomlSect,
@@ -107,13 +86,13 @@ void parseFunctionOptions(const toml::Value &config,
   // Opaque predicates algorithm
   std::string op_algo;
   if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
-    std::string parsed_op_algo = parseOpaquePredicateAlgorithm(op_algo);
-    if (parsed_op_algo.empty()) {
+    op_algo = str_tolower(op_algo);
+    if (validOpaquePredicateAlgorithmNames.count(op_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
               "algorithm. Algorithm configuration is ignored.\n",
               op_algo);
     } else {
-      funcParam.opaqueConstantAlgorithm = parsed_op_algo;
+      funcParam.opaqueConstantAlgorithm = op_algo;
     }
   }
 
@@ -128,14 +107,13 @@ void parseFunctionOptions(const toml::Value &config,
   // Branch divergence algorithm
   std::string branch_div_algo;
   if (parseOption(config, tomlSect, CONFIG_BRANCH_DIV_ALGO, branch_div_algo)) {
-    std::string parsed_branch_div_algo =
-        parseBranchDivergenceAlgorithm(branch_div_algo);
-    if (parsed_branch_div_algo.empty()) {
+    branch_div_algo = str_tolower(branch_div_algo);
+    if (validBranchDivergenceAlgorithmNames.count(branch_div_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as a branch divergence "
               "algorithm. Algorithm configuration is ignored.\n",
               branch_div_algo);
     } else {
-      funcParam.opaqueBranchDivergenceAlgorithm = parsed_branch_div_algo;
+      funcParam.opaqueBranchDivergenceAlgorithm = branch_div_algo;
     }
   }
 }

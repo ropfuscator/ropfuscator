@@ -113,13 +113,14 @@ public:
   void land(Reg r1, Reg r2) const { _instrd(llvm::X86::AND32rr, r1, r2); }
   void land(Reg r, Imm i) const { _instrd(llvm::X86::AND32ri, r, i); }
   void land8(Reg r1, Reg r2) const { _instrd(llvm::X86::AND8rr, r1, r2); }
-  void test(Reg r1, Reg r2) const { _instrd(llvm::X86::TEST32rr, r1, r2); }
-  void test(Reg r, Imm i) const { _instrd(llvm::X86::TEST32ri, r, i); }
+  void test(Reg r1, Reg r2) const { _instr(llvm::X86::TEST32rr, r1, r2); }
+  void test(Reg r, Imm i) const { _instr(llvm::X86::TEST32ri, r, i); }
   void lor(Reg r1, Reg r2) const { _instrd(llvm::X86::OR32rr, r1, r2); }
   void lor8(Reg r1, Reg r2) const { _instrd(llvm::X86::OR8rr, r1, r2); }
   void lxor(Reg r1, Reg r2) const { _instrd(llvm::X86::XOR32rr, r1, r2); }
   void lxor(Reg r, Imm i) const { _instrd(llvm::X86::XOR32ri, r, i); }
   void lxor(Mem m, Imm i) const { _instr(llvm::X86::XOR32mi, m, i); }
+  void lnot(Reg r) const { _instr(llvm::X86::NOT32r, r); }
   void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r); }
   void shl(Reg r, Imm i) const { _instrd(llvm::X86::SHL32ri, r, i); }
   void shr(Reg r) const { _instr(llvm::X86::SHR32r1, r); }
