@@ -10,6 +10,7 @@
 #include "BinAutopsy.h"
 #include "Debug.h"
 #include "LivenessAnalysis.h"
+#include "MathUtil.h"
 #include "OpaqueConstruct.h"
 #include "ROPEngine.h"
 #include "ROPfuscatorConfig.h"
@@ -126,6 +127,125 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 
 namespace {
 
+// Lowered ROP Chain
+// These classes represent more lower level of machine code than ROP chain
+// and directly output machine code.
+
+// base class
+struct ROPChainPushInst {
+  std::shared_ptr<OpaqueConstruct> opaqueConstant;
+  virtual void compile(X86AssembleHelper &as) = 0;
+  virtual ~ROPChainPushInst() = default;
+};
+
+// immediate (immediate operand, etc)
+struct PUSH_IMM : public ROPChainPushInst {
+  int64_t value;
+  explicit PUSH_IMM(int64_t value) : value(value) {}
+  virtual void compile(X86AssembleHelper &as) override {
+    if (opaqueConstant) {
+      uint32_t opaque =
+          *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+      // compute opaque constant to eax
+      opaqueConstant->compile(as, 0);
+      // adjust eax to be the constant
+      uint32_t diff = value - opaque;
+      as.add(as.reg(X86::EAX), as.imm(diff));
+      // push eax
+      as.push(as.reg(X86::EAX));
+    } else {
+      // push $imm
+      as.push(as.imm(value));
+    }
+  }
+  virtual ~PUSH_IMM() = default;
+};
+
+// global variable (immediate operand, etc)
+struct PUSH_GV : public ROPChainPushInst {
+  const llvm::GlobalValue *gv;
+  int64_t offset;
+  PUSH_GV(const llvm::GlobalValue *gv, int64_t offset)
+      : gv(gv), offset(offset) {}
+  virtual void compile(X86AssembleHelper &as) override {
+    if (opaqueConstant) {
+      uint32_t opaque =
+          *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+      // compute opaque constant to eax
+      opaqueConstant->compile(as, 0);
+      // adjust eax to be the constant
+      uint32_t diff = offset - opaque;
+      as.add(as.reg(X86::EAX), as.imm(gv, diff));
+      // push eax
+      as.push(as.reg(X86::EAX));
+    } else {
+      // push global_symbol
+      as.push(as.imm(gv, offset));
+    }
+  }
+  virtual ~PUSH_GV() = default;
+};
+
+// gadget with single or multiple addresses
+struct PUSH_GADGET : public ROPChainPushInst {
+  const Symbol *anchor;
+  uint32_t offset;
+  explicit PUSH_GADGET(const Symbol *anchor, uint32_t offset)
+      : anchor(anchor), offset(offset) {}
+  virtual void compile(X86AssembleHelper &as) override {
+    if (opaqueConstant) {
+      auto opaqueValues =
+          *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
+      // compute opaque constant to eax
+      opaqueConstant->compile(as, 0);
+      // add eax, $symbol
+      as.add(as.reg(X86::EAX), as.label(anchor->Label));
+      // push eax
+      as.push(as.reg(X86::EAX));
+    } else {
+      // push $symbol+offset
+      as.push(as.addOffset(as.label(anchor->Label), offset));
+    }
+  }
+  virtual ~PUSH_GADGET() = default;
+};
+
+// local label
+struct PUSH_LABEL : public ROPChainPushInst {
+  X86AssembleHelper::Label label;
+  explicit PUSH_LABEL(const X86AssembleHelper::Label &label) : label(label) {}
+  virtual void compile(X86AssembleHelper &as) override {
+    if (opaqueConstant) {
+      uint32_t value =
+          *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
+      // compute opaque constant to eax
+      opaqueConstant->compile(as, 0);
+      // adjust eax to jump target address
+      as.add(as.reg(X86::EAX), as.addOffset(label, -value));
+      // push eax
+      as.push(as.reg(X86::EAX));
+    } else {
+      // push label
+      as.push(label);
+    }
+  }
+  virtual ~PUSH_LABEL() = default;
+};
+
+// push esp
+struct PUSH_ESP : public ROPChainPushInst {
+  virtual void compile(X86AssembleHelper &as) override {
+    as.push(as.reg(X86::ESP));
+  }
+  virtual ~PUSH_ESP() = default;
+};
+
+// push eflags
+struct PUSH_EFLAGS : public ROPChainPushInst {
+  virtual void compile(X86AssembleHelper &as) override { as.pushf(); }
+  virtual ~PUSH_EFLAGS() = default;
+};
+
 void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
                          StringRef funcName, int chainID) {
   chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
@@ -169,6 +289,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   bool resumeLabelRequired = false;
   std::map<int, int> espOffsetMap;
   int espoffset = 0;
+  std::vector<const Symbol *> versionedSymbols;
 
   // stack layout:
   // (A) if FlagSaveMode == SAVE_AFTER_EXEC:
@@ -189,105 +310,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     chain.emplace_back(ChainElem::createJmpFallthrough());
   }
 
-  std::set<unsigned int> savedRegs;
-  savedRegs.insert(X86::EFLAGS); // flags are modified generally
-  // generate opaque constants before insert
-  std::vector<std::shared_ptr<OpaqueConstruct>> opaqueConstants;
-  if (param.opaquePredicateEnabled) {
-    savedRegs.insert(X86::EAX); // OpaqueConstant will be stored in EAX
-
-    for (auto &elem : chain) {
-      switch (elem.type) {
-      case ChainElem::Type::GADGET:
-        if (elem.microgadget->addresses.size() > 1 &&
-            param.opaqueBranchDivergenceEnabled) {
-          savedRegs.insert(X86::ECX); // ValueAdjustor will clobber ECX
-          savedRegs.insert(X86::EDX); // ValueAdjustor will clobber EDX
-          auto opaqueConstant =
-              OpaqueConstructFactory::createBranchingOpaqueConstant32(
-                  OpaqueStorage::EAX,
-                  std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
-                           elem.microgadget->addresses.size()),
-                  param.opaqueBranchDivergenceAlgorithm);
-          opaqueConstants.push_back(opaqueConstant);
-          auto clobbered = opaqueConstant->getClobberedRegs();
-          savedRegs.insert(clobbered.begin(), clobbered.end());
-        } else {
-          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
-          opaqueConstants.push_back(opaqueConstant);
-          auto clobbered = opaqueConstant->getClobberedRegs();
-          savedRegs.insert(clobbered.begin(), clobbered.end());
-        }
-        break;
-      case ChainElem::Type::IMM_VALUE:
-      case ChainElem::Type::IMM_GLOBAL:
-        if (param.obfuscateImmediateOperand) {
-          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
-          opaqueConstants.push_back(opaqueConstant);
-          auto clobbered = opaqueConstant->getClobberedRegs();
-          savedRegs.insert(clobbered.begin(), clobbered.end());
-        }
-        break;
-      case ChainElem::Type::JMP_BLOCK:
-      case ChainElem::Type::JMP_FALLTHROUGH:
-        if (param.obfuscateBranchTarget) {
-          auto opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
-          opaqueConstants.push_back(opaqueConstant);
-          auto clobbered = opaqueConstant->getClobberedRegs();
-          savedRegs.insert(clobbered.begin(), clobbered.end());
-        }
-        break;
-      default:
-        break;
-      }
-    }
-  }
-
-  // EMIT PROLOGUE
-
-  // save registers (and flags if necessary) on top of the stack
-  int regSavedOffset = 4 * chain.size();
-  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC)
-    regSavedOffset += 4;
-  if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
-    savedRegs.insert(X86::EFLAGS);
-  } else {
-    savedRegs.erase(X86::EFLAGS);
-  }
-  if (!savedRegs.empty()) {
-    // lea esp, [esp-4*(N+1)]   # where N = chain size
-    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -regSavedOffset));
-    // save registers (and flags)
-    for (auto it = savedRegs.begin(); it != savedRegs.end(); ++it) {
-      if (*it == X86::EFLAGS) {
-        as.pushf();
-      } else {
-        as.push(as.reg(*it));
-      }
-    }
-    // lea esp, [esp+4*(N+1+M)]
-    // where N = chain size, M = num of saved registers
-    as.lea(as.reg(X86::ESP),
-           as.mem(X86::ESP, regSavedOffset + 4 * savedRegs.size()));
-  }
-
-  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
-    assert(!chain.hasUnconditionalJump || !chain.hasConditionalJump);
-
-    // If the obfuscated instruction will NOT modify flags,
-    // (and if the chain execution might modify the flags,)
-    // the flags should be restored after the ROP chain is executed.
-    // flag is saved at the bottom of the stack
-    // pushf (EFLAGS register backup)
-    as.pushf();
-    // modify isLastInstrInBlock flag, since we will emit popf instruction later
-    isLastInstrInBlock = false;
-    espoffset -= 4;
-  }
-
   X86AssembleHelper::Label asChainLabel, asResumeLabel;
   if (config.globalConfig.useChainLabel) {
     std::string chainLabel, resumeLabel;
@@ -300,53 +322,47 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     asResumeLabel = as.label();
   }
 
-  // funcName_chain_X:
-  as.putLabel(asChainLabel);
+  // Convert ROP chain to push instructions
+  std::vector<std::shared_ptr<ROPChainPushInst>> pushchain;
 
-  // ROP Chain
+  if (chain.flagSave == FlagSaveMode::SAVE_AFTER_EXEC) {
+    assert(!chain.hasUnconditionalJump || !chain.hasConditionalJump);
+
+    // If the obfuscated instruction will NOT modify flags,
+    // (and if the chain execution might modify the flags,)
+    // the flags should be restored after the ROP chain is executed.
+    // flag is saved at the bottom of the stack
+    // pushf (EFLAGS register backup)
+    ROPChainPushInst *push = new PUSH_EFLAGS();
+    pushchain.emplace_back(push);
+    // modify isLastInstrInBlock flag, since we will emit popf instruction later
+    isLastInstrInBlock = false;
+    espoffset -= 4;
+  }
+
   // Pushes each chain element on the stack in reverse order
   for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
     switch (elem->type) {
 
     case ChainElem::Type::IMM_VALUE: {
       // Push the immediate value onto the stack
+      ROPChainPushInst *push = new PUSH_IMM(elem->value);
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
-        auto opaqueConstant = opaqueConstants.back();
-        opaqueConstants.pop_back();
-        uint32_t value =
-            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-        // compute opaque constant to eax
-        opaqueConstant->compile(as, 0);
-        // adjust eax to be the constant
-        uint32_t diff = elem->value - value;
-        as.add(as.reg(X86::EAX), as.imm(diff));
-        // push eax
-        as.push(as.reg(X86::EAX));
-      } else {
-        // push $imm
-        as.push(as.imm(elem->value));
+        push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
       }
+      pushchain.emplace_back(push);
       break;
     }
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
+      ROPChainPushInst *push = new PUSH_GV(elem->global, elem->value);
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
-        auto opaqueConstant = opaqueConstants.back();
-        opaqueConstants.pop_back();
-        uint32_t value =
-            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-        // compute opaque constant to eax
-        opaqueConstant->compile(as, 0);
-        // adjust eax to be the constant
-        uint32_t diff = elem->value - value;
-        as.add(as.reg(X86::EAX), as.imm(elem->global, diff));
-        // push eax
-        as.push(as.reg(X86::EAX));
-      } else {
-        // push global_symbol
-        as.push(as.imm(elem->global, elem->value));
+        push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
       }
+      pushchain.emplace_back(push);
       break;
     }
 
@@ -356,22 +372,16 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
       std::vector<uint32_t> offsets;
-      if (addresses.size() > 1 && param.opaqueBranchDivergenceEnabled) {
-        // take 2 addresses randomly
-        std::vector<int> indices(addresses.size());
-        for (size_t i = 0; i < addresses.size(); i++) {
-          indices[i] = i;
-        }
-        while (offsets.size() <
-               std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
-                        addresses.size())) {
-          int n = rand() % indices.size();
-          int index = indices[n];
-          indices.erase(indices.begin() + n);
-          offsets.push_back(addresses[index] - sym->Address);
-        }
-      } else {
-        offsets.push_back(addresses[rand() % addresses.size()] - sym->Address);
+      int num_branches = 1;
+      if (param.opaqueBranchDivergenceEnabled)
+        num_branches = std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
+                                addresses.size());
+      // pick num_branches elements randomly
+      std::sample(addresses.begin(), addresses.end(),
+                  std::back_inserter(offsets), num_branches,
+                  math::Random::engine());
+      for (uint32_t &offset : offsets) {
+        offset -= sym->Address;
       }
 
       // .symver directive: necessary to prevent aliasing when more
@@ -379,29 +389,30 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       // symbol Version is not "Base" (i.e., it is the only one
       // available).
       if (!sym->isUsed && sym->Version != "Base") {
-        as.inlineasm(sym->getSymverDirective());
+        versionedSymbols.push_back(sym);
         sym->isUsed = true;
       }
 
+      ROPChainPushInst *push = new PUSH_GADGET(sym, offsets[0]);
       if (param.opaquePredicateEnabled) {
-        auto opaqueConstant = opaqueConstants.back();
-        opaqueConstants.pop_back();
-        auto output = opaqueConstant->getOutput();
-        auto &opaqueValues = *output.findValues(OpaqueStorage::EAX);
+        std::shared_ptr<OpaqueConstruct> opaqueConstant;
+        if (num_branches > 1) {
+          opaqueConstant =
+              OpaqueConstructFactory::createBranchingOpaqueConstant32(
+                  OpaqueStorage::EAX, offsets.size(),
+                  param.opaqueBranchDivergenceAlgorithm);
+        } else {
+          opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+        }
+        auto opaqueValues =
+            *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
         auto adjuster = OpaqueConstructFactory::createValueAdjustor(
             OpaqueStorage::EAX, opaqueValues, offsets);
-        // compute opaque constant to eax
-        opaqueConstant->compile(as, 0);
-        // adjust eax to be relativeAddr
-        adjuster->compile(as, 0);
-        // add eax, $symbol
-        as.add(as.reg(X86::EAX), as.addOffset(as.label(sym->Label), 0));
-        // push eax
-        as.push(as.reg(X86::EAX));
-      } else {
-        // push $symbol+offset
-        as.push(as.addOffset(as.label(sym->Label), offsets[0]));
+        push->opaqueConstant =
+            OpaqueConstructFactory::compose(adjuster, opaqueConstant);
       }
+      pushchain.emplace_back(push);
       break;
     }
 
@@ -410,21 +421,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       MBB.addSuccessorWithoutProb(targetMBB);
       auto targetLabel = as.label();
       putLabelInMBB(*targetMBB, targetLabel);
+
+      ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
       if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
-        auto opaqueConstant = opaqueConstants.back();
-        opaqueConstants.pop_back();
-        uint32_t value =
-            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-        // compute opaque constant to eax
-        opaqueConstant->compile(as, 0);
-        // adjust eax to jump target address
-        as.add(as.reg(X86::EAX), as.addOffset(targetLabel, -value));
-        // push eax
-        as.push(as.reg(X86::EAX));
-      } else {
-        // push label
-        as.push(targetLabel);
+        push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
       }
+      pushchain.emplace_back(push);
       break;
     }
 
@@ -444,42 +447,27 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         targetLabel = asResumeLabel;
         resumeLabelRequired = true;
       }
-      if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
-        auto opaqueConstant = opaqueConstants.back();
-        opaqueConstants.pop_back();
-        uint32_t value =
-            *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-        if (targetLabel.symbol) {
-          // compute opaque constant to eax
-          opaqueConstant->compile(as, 0);
-          // adjust eax to jump target address
-          as.add(as.reg(X86::EAX), as.addOffset(targetLabel, -value));
-          // push eax
-          as.push(as.reg(X86::EAX));
-          // as.push(asResumeLabel);
-        } else {
-          // call or conditional jump at the end of function:
-          // probably calling "no-return" functions like exit()
-          // so we just put dummy return address here
-          as.push(as.imm(0));
+      if (targetLabel.symbol) {
+        ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
+        if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+          push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
         }
+        pushchain.emplace_back(push);
       } else {
-        if (targetLabel.symbol) {
-          // push label
-          as.push(targetLabel);
-        } else {
-          // call or conditional jump at the end of function:
-          // probably calling "no-return" functions like exit()
-          // so we just put dummy return address here
-          as.push(as.imm(0));
-        }
+        // call or conditional jump at the end of function:
+        // probably calling "no-return" functions like exit()
+        // so we just put dummy return address here
+        ROPChainPushInst *push = new PUSH_IMM(0);
+        pushchain.emplace_back(push);
       }
       break;
     }
 
     case ChainElem::Type::ESP_PUSH: {
       // push esp
-      as.push(as.reg(X86::ESP));
+      ROPChainPushInst *push = new PUSH_ESP();
+      pushchain.emplace_back(push);
       espOffsetMap[elem->esp_id] = espoffset;
       break;
     }
@@ -492,13 +480,69 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
                 "ESP_PUSH\n");
         exit(1);
       }
-      int64_t value = elem->value - it->second;
-      as.push(as.imm(value));
+      ROPChainPushInst *push = new PUSH_IMM(elem->value - it->second);
+      pushchain.emplace_back(push);
       break;
     }
     }
 
     espoffset -= 4;
+  }
+
+  // EMIT PROLOGUE
+
+  // symbol version directives
+  if (!versionedSymbols.empty()) {
+    std::stringstream ss;
+    for (auto *sym : versionedSymbols) {
+      if (ss.tellp() > 0) {
+        ss << "\n";
+      }
+      ss << sym->getSymverDirective();
+    }
+    as.inlineasm(ss.str());
+  }
+
+  // save registers (and flags if necessary) on top of the stack
+  std::set<unsigned int> savedRegs;
+
+  // compute clobbered registers
+  if (param.opaquePredicateEnabled) {
+    for (auto &push : pushchain) {
+      if (auto &op = push->opaqueConstant) {
+        auto clobbered = op->getClobberedRegs();
+        savedRegs.insert(clobbered.begin(), clobbered.end());
+      }
+    }
+  }
+  if (chain.flagSave == FlagSaveMode::SAVE_BEFORE_EXEC) {
+    savedRegs.insert(X86::EFLAGS);
+  } else {
+    savedRegs.erase(X86::EFLAGS);
+  }
+  if (!savedRegs.empty()) {
+    // lea esp, [esp-4*(N+1)]   # where N = chain size
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, espoffset));
+    // save registers (and flags)
+    for (auto it = savedRegs.begin(); it != savedRegs.end(); ++it) {
+      if (*it == X86::EFLAGS) {
+        as.pushf();
+      } else {
+        as.push(as.reg(*it));
+      }
+    }
+    // lea esp, [esp+4*(N+1+M)]
+    // where N = chain size, M = num of saved registers
+    as.lea(as.reg(X86::ESP),
+           as.mem(X86::ESP, 4 * savedRegs.size() - espoffset));
+  }
+
+  // funcName_chain_X:
+  as.putLabel(asChainLabel);
+
+  // emit rop chain
+  for (auto &push : pushchain) {
+    push->compile(as);
   }
 
   // EMIT EPILOGUE

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
+#include <random>
 #include <vector>
 
 namespace ropf::math {
@@ -14,6 +15,7 @@ public:
   static uint64_t range64(uint64_t x, uint64_t y);
   static uint32_t rand();
   static uint32_t bit();
+  static std::default_random_engine engine();
 };
 
 class PrimeNumberGenerator {

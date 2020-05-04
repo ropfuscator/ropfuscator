@@ -151,7 +151,6 @@ public:
   static std::shared_ptr<MultiplyCompareOpaquePredicate>
   createRandomInvariant(bool output) {
     uint64_t z = math::PrimeNumberGenerator::getPrime64();
-    bool negate = math::Random::bit();
     return std::shared_ptr<MultiplyCompareOpaquePredicate>(
         new MultiplyCompareOpaquePredicate(z, output));
   }
