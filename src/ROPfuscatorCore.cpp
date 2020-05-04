@@ -134,7 +134,7 @@ namespace {
 // base class
 struct ROPChainPushInst {
   std::shared_ptr<OpaqueConstruct> opaqueConstant;
-  virtual void compile(X86AssembleHelper &as) = 0;
+  virtual void compile(X86AssembleHelper &, StackState &) = 0;
   virtual ~ROPChainPushInst() = default;
 };
 
@@ -142,12 +142,12 @@ struct ROPChainPushInst {
 struct PUSH_IMM : public ROPChainPushInst {
   int64_t value;
   explicit PUSH_IMM(int64_t value) : value(value) {}
-  virtual void compile(X86AssembleHelper &as) override {
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
     if (opaqueConstant) {
       uint32_t opaque =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
       // compute opaque constant to eax
-      opaqueConstant->compile(as, 0);
+      opaqueConstant->compile(as, stack);
       // adjust eax to be the constant
       uint32_t diff = value - opaque;
       as.add(as.reg(X86::EAX), as.imm(diff));
@@ -167,12 +167,12 @@ struct PUSH_GV : public ROPChainPushInst {
   int64_t offset;
   PUSH_GV(const llvm::GlobalValue *gv, int64_t offset)
       : gv(gv), offset(offset) {}
-  virtual void compile(X86AssembleHelper &as) override {
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
     if (opaqueConstant) {
       uint32_t opaque =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
       // compute opaque constant to eax
-      opaqueConstant->compile(as, 0);
+      opaqueConstant->compile(as, stack);
       // adjust eax to be the constant
       uint32_t diff = offset - opaque;
       as.add(as.reg(X86::EAX), as.imm(gv, diff));
@@ -192,12 +192,12 @@ struct PUSH_GADGET : public ROPChainPushInst {
   uint32_t offset;
   explicit PUSH_GADGET(const Symbol *anchor, uint32_t offset)
       : anchor(anchor), offset(offset) {}
-  virtual void compile(X86AssembleHelper &as) override {
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
     if (opaqueConstant) {
       auto opaqueValues =
           *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
       // compute opaque constant to eax
-      opaqueConstant->compile(as, 0);
+      opaqueConstant->compile(as, stack);
       // add eax, $symbol
       as.add(as.reg(X86::EAX), as.label(anchor->Label));
       // push eax
@@ -214,12 +214,12 @@ struct PUSH_GADGET : public ROPChainPushInst {
 struct PUSH_LABEL : public ROPChainPushInst {
   X86AssembleHelper::Label label;
   explicit PUSH_LABEL(const X86AssembleHelper::Label &label) : label(label) {}
-  virtual void compile(X86AssembleHelper &as) override {
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
     if (opaqueConstant) {
       uint32_t value =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
       // compute opaque constant to eax
-      opaqueConstant->compile(as, 0);
+      opaqueConstant->compile(as, stack);
       // adjust eax to jump target address
       as.add(as.reg(X86::EAX), as.addOffset(label, -value));
       // push eax
@@ -234,7 +234,7 @@ struct PUSH_LABEL : public ROPChainPushInst {
 
 // push esp
 struct PUSH_ESP : public ROPChainPushInst {
-  virtual void compile(X86AssembleHelper &as) override {
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
     as.push(as.reg(X86::ESP));
   }
   virtual ~PUSH_ESP() = default;
@@ -242,7 +242,9 @@ struct PUSH_ESP : public ROPChainPushInst {
 
 // push eflags
 struct PUSH_EFLAGS : public ROPChainPushInst {
-  virtual void compile(X86AssembleHelper &as) override { as.pushf(); }
+  virtual void compile(X86AssembleHelper &as, StackState &stack) override {
+    as.pushf();
+  }
   virtual ~PUSH_EFLAGS() = default;
 };
 
@@ -505,6 +507,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
   // save registers (and flags if necessary) on top of the stack
   std::set<unsigned int> savedRegs;
+  StackState stackState;
 
   // compute clobbered registers
   if (param.opaquePredicateEnabled) {
@@ -524,12 +527,15 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     // lea esp, [esp-4*(N+1)]   # where N = chain size
     as.lea(as.reg(X86::ESP), as.mem(X86::ESP, espoffset));
     // save registers (and flags)
+    int offset = 0;
     for (auto it = savedRegs.begin(); it != savedRegs.end(); ++it) {
       if (*it == X86::EFLAGS) {
         as.pushf();
       } else {
         as.push(as.reg(*it));
       }
+      stackState.saved_regs.emplace(*it, espoffset + offset);
+      offset -= 4;
     }
     // lea esp, [esp+4*(N+1+M)]
     // where N = chain size, M = num of saved registers
@@ -541,8 +547,10 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   as.putLabel(asChainLabel);
 
   // emit rop chain
+  stackState.stack_offset = 0;
   for (auto &push : pushchain) {
-    push->compile(as);
+    push->compile(as, stackState);
+    stackState.stack_offset -= 4;
   }
 
   // EMIT EPILOGUE
