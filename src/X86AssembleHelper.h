@@ -6,6 +6,7 @@
 #include "llvm/MC/MCContext.h"
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <map>
 #include <string>
 
 namespace llvm {
@@ -95,6 +96,7 @@ public:
   void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, Label i) const { _instr(llvm::X86::ADD32ri, r, i); }
+  void add(Reg r, Mem m) const { _instrd(llvm::X86::ADD32rm, r, m); }
   void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
@@ -245,6 +247,11 @@ private:
     }
     return gv;
   }
+};
+
+struct StackState {
+  std::map<unsigned int, int> saved_regs;
+  int stack_offset;
 };
 
 } // namespace ropf

@@ -60,13 +60,13 @@ public:
     return new MovConstant32(target, value);
   }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     switch (target.type) {
     case OpaqueStorage::Type::REG:
       as.mov(as.reg(target.reg), as.imm(value));
       break;
     case OpaqueStorage::Type::STACK:
-      as.mov(as.mem(X86::ESP, target.stackOffset + stackOffset), as.imm(value));
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.imm(value));
       break;
     }
   }
@@ -75,12 +75,38 @@ public:
 
   uint32_t returnValue() const override { return value; }
 
-  std::vector<llvm_reg_t> getClobberedRegs() const override { return {}; }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    if (target.type == OpaqueStorage::Type::REG) {
+      return {target.reg};
+    } else {
+      return {};
+    }
+  }
 
 private:
   OpaqueStorage target;
   uint32_t value;
 };
+
+void addSavedRegs(X86AssembleHelper &as, StackState &stack,
+                  unsigned int targetReg,
+                  const std::vector<unsigned int> &regs) {
+  decltype(stack.saved_regs)::iterator it, end = stack.saved_regs.end();
+  if ((it = stack.saved_regs.find(targetReg)) != end) {
+    // register may be clobbered (saved in stack)
+    as.mov(as.reg(targetReg),
+           as.mem(X86::ESP, it->second - stack.stack_offset));
+  }
+  for (auto reg : regs) {
+    if ((it = stack.saved_regs.find(reg)) != end) {
+      // register may be clobbered (saved in stack)
+      as.add(as.reg(targetReg),
+             as.mem(X86::ESP, it->second - stack.stack_offset));
+    } else {
+      as.add(as.reg(targetReg), as.reg(reg));
+    }
+  }
+}
 
 // This opaque predicate executes the following code:
 //   edx:eax = eax(input1) * edx(input2);
@@ -127,7 +153,7 @@ public:
   OpaqueState getOutput() const override { return outputState; }
   bool isInvariant() const { return isInvariantOp; }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     as.mul(as.reg(X86::EDX)); // edx:eax = eax * edx
     as.cmp(as.reg(X86::EAX), as.imm(compvalue & 0xffffffff));
     if (negate) {
@@ -217,13 +243,13 @@ public:
     return {X86::EAX, X86::ECX, X86::EDX, X86::EFLAGS};
   }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     uint32_t out_eax = 0;
     uint32_t out_edx = 0;
     for (auto &p : predicates) {
       // initialise inputs (eax, edx)
       if (p->isInvariant()) {
-        compileRandomRegs(as, stackOffset);
+        compileRandomRegs(as, stack);
       } else {
         uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
         uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
@@ -236,7 +262,7 @@ public:
         }
       }
       // multiply and compare
-      p->compile(as, stackOffset);
+      p->compile(as, stack);
       // accumulate the result in ecx
       as.shl(as.reg(X86::ECX));
       as.lor8(as.reg(X86::CL), as.reg(X86::AL));
@@ -256,18 +282,15 @@ public:
         as.mov(as.reg(target.reg), as.reg(X86::ECX));
       break;
     case OpaqueStorage::Type::STACK:
-      as.mov(as.mem(X86::ESP, target.stackOffset + stackOffset),
-             as.reg(X86::ECX));
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
       break;
     }
   }
 
 private:
-  void compileRandomRegs(X86AssembleHelper &as, int stackOffset) const {
-    for (auto reg : {X86::ECX, X86::ESI})
-      as.add(as.reg(X86::EAX), as.reg(reg));
-    for (auto reg : {X86::EBX, X86::EDI})
-      as.add(as.reg(X86::EDX), as.reg(reg));
+  void compileRandomRegs(X86AssembleHelper &as, StackState &stack) const {
+    addSavedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
+    addSavedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
   }
 };
 
@@ -277,7 +300,7 @@ private:
 class RdtscRandomGeneratorOC : public OpaqueConstruct {
 public:
   static OpaqueConstruct *create() { return new RdtscRandomGeneratorOC(); }
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     as.rdtsc();
   }
   OpaqueState getInput() const override { return {}; }
@@ -294,7 +317,7 @@ public:
   static OpaqueConstruct *create() {
     return new NegativeStackRandomGeneratorOC();
   }
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     int offset = -4 * math::Random::range32(2u, 32u);
     as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
   }
@@ -310,9 +333,9 @@ public:
 class AddRegRandomGeneratorOC : public OpaqueConstruct {
 public:
   static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
-    for (auto reg : {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI})
-      as.add(as.reg(X86::EAX), as.reg(reg));
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    addSavedRegs(as, stack, X86::EAX,
+                 {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
   }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
@@ -339,7 +362,7 @@ public:
     return new MovRandomSelectorOC(target, values);
   }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     unsigned int targetreg =
         target.type == OpaqueStorage::Type::REG ? target.reg : X86::EAX;
     unsigned int tmpreg = target.reg == X86::EAX ? X86::EDX : X86::EAX;
@@ -350,8 +373,7 @@ public:
     if (labelUsed)
       as.putLabel(endLabel);
     if (target.type == OpaqueStorage::Type::STACK) {
-      as.mov(as.mem(X86::ESP, target.stackOffset + stackOffset),
-             as.reg(targetreg));
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(targetreg));
     }
   }
 
@@ -415,9 +437,9 @@ public:
     std::reverse(this->functions.begin(), this->functions.end());
   }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     for (auto func : functions) {
-      func->compile(as, stackOffset);
+      func->compile(as, stack);
     }
   }
 
@@ -469,7 +491,7 @@ public:
     std::random_shuffle(this->outputvalues.begin(), this->outputvalues.end());
   }
 
-  void compile(X86AssembleHelper &as, int stackOffset) const override {
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
     auto endLabel = as.label();
     bool endLabelUsed = false;
     switch (target.type) {
@@ -479,7 +501,7 @@ public:
         as.putLabel(endLabel);
       break;
     case OpaqueStorage::Type::STACK:
-      auto stackref = as.mem(X86::ESP, target.stackOffset + stackOffset);
+      auto stackref = as.mem(X86::ESP, target.stackOffset);
       as.mov(as.reg(X86::EAX), stackref);
       compileAux(as, 0, inputvalues.size(), X86::EAX, endLabelUsed, endLabel);
       if (endLabelUsed)
