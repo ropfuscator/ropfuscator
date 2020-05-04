@@ -14,7 +14,7 @@ public:
   static uint32_t range32(uint32_t x, uint32_t y);
   static uint64_t range64(uint64_t x, uint64_t y);
   static uint32_t rand();
-  static uint32_t bit();
+  static bool bit();
   static std::default_random_engine engine();
 };
 
