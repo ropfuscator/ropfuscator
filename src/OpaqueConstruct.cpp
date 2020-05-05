@@ -380,24 +380,10 @@ class Random3SAT32OpaquePredicate
     genClauses(nullptr, nclauses);
   }
 
-public:
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    std::vector<uint8_t> clausedata;
-    R3SATVar current = {0, 0};
-    for (auto clause : clauses) {
-      for (auto var : clause.vars) {
-        uint8_t info = (var.index - current.index + 32) % 32;
-        if (var.neg ^ current.neg) {
-          info |= 0x80;
-        }
-        current = var;
-        clausedata.push_back(info);
-      }
-    }
-    for (int i = 0; i < 4; i++) {
-      clausedata.push_back(0);
-    }
-    auto gv_clausedata = as.createData(clausedata.data(), clausedata.size());
+  static void compileSharedCode(X86AssembleHelper &as, bool negate) {
+    // Input: esi - pointer to clause data
+    // InOut: al - set result in LSB of al
+    // Clobber: bx, ecx, edx, edi, esi
     auto reg_ptr = as.reg(X86::ESI);
     auto reg_input = as.reg(X86::EDX);
     auto reg_info = as.reg(X86::ECX);
@@ -407,7 +393,6 @@ public:
 
     // asm                  # asm (negate)
     //   or    al, 0x01     #   and   al, 0xfe
-    //   mov   esi, _data
     //   mov   edi, 1
     // .L0:
     //   mov   bl, al
@@ -436,7 +421,6 @@ public:
     } else {
       as.lor8(as.reg(X86::AL), as.imm(0x01));
     }
-    as.mov(reg_ptr, gv_clausedata);
     as.mov(reg_mask, as.imm(1));
     as.putLabel(l0);
     as.mov8(as.reg(X86::BL), as.reg(X86::AL));
@@ -472,9 +456,31 @@ public:
     } else {
       as.land8(as.reg(X86::AL), as.reg(X86::BL));
     }
-    as.add(as.reg(X86::ESI), as.imm(3));
+    as.add(reg_ptr, as.imm(3));
     as.jmp(l0);
     as.putLabel(l2);
+  }
+
+public:
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    std::vector<uint8_t> clausedata;
+    R3SATVar current = {0, 0};
+    for (auto clause : clauses) {
+      for (auto var : clause.vars) {
+        uint8_t info = (var.index - current.index + 32) % 32;
+        if (var.neg ^ current.neg) {
+          info |= 0x80;
+        }
+        current = var;
+        clausedata.push_back(info);
+      }
+    }
+    for (int i = 0; i < 4; i++) {
+      clausedata.push_back(0);
+    }
+    auto gv_clausedata = as.createData(clausedata.data(), clausedata.size());
+    as.mov(as.reg(X86::ESI), gv_clausedata);
+    compileSharedCode(as, negate);
   }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
