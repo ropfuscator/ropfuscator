@@ -83,6 +83,9 @@ public:
   ImmGlobal addOffset(Label label, int64_t offset) const {
     return imm(_createGV(label.symbol->getName()), offset);
   }
+  ImmGlobal createData(const void *data, size_t size) {
+    return createData(_newLabelName(), data, size);
+  }
   ImmGlobal createData(std::string name, const void *data, size_t size) {
     return {_createData(name, data, size), 0};
   }
@@ -95,10 +98,11 @@ public:
   void mov(Mem m, Reg r) const { _instr(llvm::X86::MOV32mr, m, r); }
   void mov(Mem m, Imm i) const { _instr(llvm::X86::MOV32mi, m, i); }
   void mov(Mem m, ImmGlobal i) const { _instr(llvm::X86::MOV32mi, m, i); }
+  void mov8(Reg r1, Reg r2) const { _instr(llvm::X86::MOV8rr, r1, r2); }
   void add(Reg r1, Reg r2) const { _instrd(llvm::X86::ADD32rr, r1, r2); }
-  void add(Reg r, Imm i) const { _instr(llvm::X86::ADD32ri, r, i); }
-  void add(Reg r, ImmGlobal i) const { _instr(llvm::X86::ADD32ri, r, i); }
-  void add(Reg r, Label i) const { _instr(llvm::X86::ADD32ri, r, i); }
+  void add(Reg r, Imm i) const { _instrd(llvm::X86::ADD32ri, r, i); }
+  void add(Reg r, ImmGlobal i) const { _instrd(llvm::X86::ADD32ri, r, i); }
+  void add(Reg r, Label i) const { _instrd(llvm::X86::ADD32ri, r, i); }
   void add(Reg r, Mem m) const { _instrd(llvm::X86::ADD32rm, r, m); }
   void add(Mem m, Reg r) const { _instr(llvm::X86::ADD32mr, m, r); }
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
@@ -116,18 +120,23 @@ public:
   void land(Reg r1, Reg r2) const { _instrd(llvm::X86::AND32rr, r1, r2); }
   void land(Reg r, Imm i) const { _instrd(llvm::X86::AND32ri, r, i); }
   void land8(Reg r1, Reg r2) const { _instrd(llvm::X86::AND8rr, r1, r2); }
+  void land8(Reg r, Imm i) const { _instrd(llvm::X86::AND8ri, r, i); }
   void test(Reg r1, Reg r2) const { _instr(llvm::X86::TEST32rr, r1, r2); }
   void test(Reg r, Imm i) const { _instr(llvm::X86::TEST32ri, r, i); }
+  void test8(Reg r, Imm i) const { _instr(llvm::X86::TEST8ri, r, i); }
   void lor(Reg r1, Reg r2) const { _instrd(llvm::X86::OR32rr, r1, r2); }
   void lor8(Reg r1, Reg r2) const { _instrd(llvm::X86::OR8rr, r1, r2); }
+  void lor8(Reg r, Imm i) const { _instrd(llvm::X86::OR8ri, r, i); }
   void lxor(Reg r1, Reg r2) const { _instrd(llvm::X86::XOR32rr, r1, r2); }
   void lxor(Reg r, Imm i) const { _instrd(llvm::X86::XOR32ri, r, i); }
   void lxor(Mem m, Imm i) const { _instr(llvm::X86::XOR32mi, m, i); }
   void lnot(Reg r) const { _instr(llvm::X86::NOT32r, r); }
+  void lnot8(Reg r) const { _instr(llvm::X86::NOT8r, r); }
   void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r); }
   void shl(Reg r, Imm i) const { _instrd(llvm::X86::SHL32ri, r, i); }
   void shr(Reg r) const { _instr(llvm::X86::SHR32r1, r); }
   void shr(Reg r, Imm i) const { _instrd(llvm::X86::SHR32ri, r, i); }
+  void rol_cl(Reg r) const { _instr(llvm::X86::ROL32rCL, r); }
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
   void push(ImmGlobal i) const { _instr(llvm::X86::PUSHi32, i); }
@@ -153,6 +162,9 @@ public:
   void je(Label l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_E));
   }
+  void jne(Label l) const {
+    _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_NE));
+  }
   void ja(Label l) const {
     _instr(llvm::X86::JCC_1, l, imm(llvm::X86::COND_A));
   }
@@ -164,6 +176,7 @@ public:
   void sete(Reg r) const { _instr(llvm::X86::SETEr, r); }
   void setne(Reg r) const { _instr(llvm::X86::SETNEr, r); }
   void je(Label l) const { _instr(llvm::X86::JE_1, l); }
+  void jne(Label l) const { _instr(llvm::X86::JNE_1, l); }
   void ja(Label l) const { _instr(llvm::X86::JA_1, l); }
   void jb(Label l) const { _instr(llvm::X86::JB_1, l); }
 #endif

@@ -12,7 +12,6 @@ namespace ropf {
 // algorithms for opaque constant
 const std::string OPAQUE_CONSTANT_ALGORITHM_MOV = "mov";
 const std::string OPAQUE_CONSTANT_ALGORITHM_R3SAT32 = "r3sat32";
-const std::string OPAQUE_CONSTANT_ALGORITHM_R3SAT64 = "r3sat64";
 const std::string OPAQUE_CONSTANT_ALGORITHM_MULTCOMP = "multcomp";
 
 // algorithms for random
