@@ -299,7 +299,7 @@ struct R3SATVar {
 };
 
 struct R3SATClause {
-  R3SATVar vars[3];
+  std::array<R3SATVar, 3> vars;
   template <typename UINT> std::pair<UINT, UINT> to_mask() const {
     std::pair<UINT, UINT> mask = {0, 0};
     for (int i = 0; i < 3; i++) {
@@ -313,9 +313,7 @@ template <typename UINT>
 class Random3SATOpaquePredicateBase : public OpaqueConstruct {
 protected:
   Random3SATOpaquePredicateBase(bool negate, bool isInvariantOp)
-      : negate(negate), isInvariantOp(isInvariantOp) {
-    initMasks();
-  }
+      : negate(negate), isInvariantOp(isInvariantOp) {}
 
 public:
   OpaqueState getInput() const override { return inputState; }
@@ -323,37 +321,6 @@ public:
   bool isInvariant() const { return isInvariantOp; }
 
 protected:
-  void compileTestClause(X86AssembleHelper &as, uint32_t mask, unsigned int reg,
-                         bool &mask_negated, bool mask_negate) const {
-    // normal:
-    // bl := bl || (reg & mask);
-    // negated:
-    // bl := bl && !(reg & mask);
-    if (mask) {
-      if (mask_negated ^ mask_negate) {
-        as.lnot(as.reg(reg));
-        mask_negated ^= true;
-      }
-      as.test(as.reg(reg), as.imm(mask));
-      if (negate) {
-        as.sete(as.reg(X86::BH));
-        as.land8(as.reg(X86::BL), as.reg(X86::BH));
-      } else {
-        as.setne(as.reg(X86::BH));
-        as.lor8(as.reg(X86::BL), as.reg(X86::BH));
-      }
-    }
-  }
-
-  static std::vector<UINT> masks;
-  static void initMasks() {
-    if (masks.empty()) {
-      for (unsigned int i = 0; i < sizeof(UINT) * 8; i++) {
-        masks.push_back(1ULL << i);
-      }
-    }
-  }
-
   void genClauses(const UINT *avoid, int nclauses) {
     for (int k = 0; k < nclauses; k++) {
       UINT maskbits[2];
@@ -383,148 +350,136 @@ protected:
   OpaqueState inputState, outputState;
 };
 
-template <typename UINT>
-std::vector<UINT> Random3SATOpaquePredicateBase<UINT>::masks;
-
-class Random3SAT64OpaquePredicate
-    : public Random3SATOpaquePredicateBase<uint64_t> {
-  // Contextual OP
-  Random3SAT64OpaquePredicate(uint64_t input, bool negate,
-                              int nclauses = 64 * 6)
-      : Random3SATOpaquePredicateBase(negate, false) {
-    // input = edx:eax, output = bl
-    initMasks();
-    uint32_t input_lo = input;
-    uint32_t input_hi = input >> 32;
-    inputState.emplace_back(OpaqueStorage::EAX,
-                            OpaqueValue::createConstant(input_lo));
-    inputState.emplace_back(OpaqueStorage::EDX,
-                            OpaqueValue::createConstant(input_hi));
-    outputState.emplace_back(OpaqueStorage::EBX,
-                             OpaqueValue::createConstant(negate ? 0 : 1));
-    genClauses(&input, nclauses);
-  }
-
-  // Invariant OP
-  Random3SAT64OpaquePredicate(bool negate, int nclauses = 64 * 6)
-      : Random3SATOpaquePredicateBase(negate, true) {
-    // input = edx:eax, output = bl
-    initMasks();
-    inputState.emplace_back(OpaqueStorage::EAX, OpaqueValue::createAny());
-    inputState.emplace_back(OpaqueStorage::EDX, OpaqueValue::createAny());
-    outputState.emplace_back(OpaqueStorage::EBX,
-                             OpaqueValue::createConstant(negate ? 1 : 0));
-    genClauses(nullptr, nclauses);
-  }
-
-public:
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    as.mov(as.reg(X86::EDI), as.reg(X86::EAX));
-    as.mov(as.reg(X86::EAX), as.imm(negate ? 0 : 1));
-    for (auto &clause : clauses) {
-      auto masks = clause.to_mask<uint64_t>();
-      uint32_t mask1_lo = masks.first;
-      uint32_t mask1_hi = masks.first >> 32;
-      uint32_t mask2_lo = masks.second;
-      uint32_t mask2_hi = masks.second >> 32;
-      bool mask_lo_negated = false;
-      bool mask_hi_negated = false;
-      // normal:
-      // bl := (edi & mask1_lo) || (~edi & mask2_lo)
-      //    || (edx & mask1_hi) || (~edx & mask2_hi);
-      // negated:
-      // bl := !(edi & mask1_lo) && !(~edi & mask2_lo)
-      //    && !(edx & mask1_hi) && !(~edx & mask2_hi);
-      as.mov(as.reg(X86::EBX), as.imm(negate ? 1 : 0));
-      compileTestClause(as, mask1_lo, X86::EDI, mask_lo_negated, false);
-      compileTestClause(as, mask2_lo, X86::EDI, mask_lo_negated, true);
-      compileTestClause(as, mask1_hi, X86::EDX, mask_hi_negated, false);
-      compileTestClause(as, mask2_hi, X86::EDX, mask_hi_negated, true);
-      if (negate) {
-        as.lor8(as.reg(X86::AL), as.reg(X86::BL));
-      } else {
-        as.land8(as.reg(X86::AL), as.reg(X86::BL));
-      }
-    }
-  }
-
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::EDX, X86::EDI, X86::EFLAGS};
-  }
-
-  // Invariant OP: for all input, generate constant
-  static std::shared_ptr<Random3SAT64OpaquePredicate>
-  createRandomInvariant(bool output) {
-    return std::shared_ptr<Random3SAT64OpaquePredicate>(
-        new Random3SAT64OpaquePredicate(output));
-  }
-
-  // Contextual OP: almost invariant but has different output for some input
-  static std::shared_ptr<Random3SAT64OpaquePredicate>
-  createRandomContextual(bool output) {
-    uint64_t input = math::Random::range64(0, UINT64_MAX);
-    return std::shared_ptr<Random3SAT64OpaquePredicate>(
-        new Random3SAT64OpaquePredicate(input, !output));
-  }
-
-  // Randomly generate contextual or invariant OP
-  static std::shared_ptr<Random3SAT64OpaquePredicate>
-  createRandom(bool output) {
-    return math::Random::bit() ? createRandomContextual(output)
-                               : createRandomInvariant(output);
-  }
-};
-
 class Random3SAT32OpaquePredicate
     : public Random3SATOpaquePredicateBase<uint32_t> {
-  // Contextual OP
+  // Contextual OP 1
   Random3SAT32OpaquePredicate(uint32_t input, bool negate,
                               int nclauses = 32 * 6)
       : Random3SATOpaquePredicateBase(negate, false) {
-    // input = eax, output = bl
-    initMasks();
-    inputState.emplace_back(OpaqueStorage::EAX,
+    // input = edx, output = lsb of eax
+    inputState.emplace_back(OpaqueStorage::EDX,
                             OpaqueValue::createConstant(input));
-    outputState.emplace_back(OpaqueStorage::EBX,
-                             OpaqueValue::createConstant(negate ? 0 : 1));
     genClauses(&input, nclauses);
+  }
+
+  // Contextual OP 2
+  Random3SAT32OpaquePredicate(uint32_t input1, uint32_t input2, bool negate,
+                              int nclauses = 32 * 6)
+      : Random3SATOpaquePredicateBase(negate, false) {
+    // input = edx, output = lsb of eax
+    inputState.emplace_back(OpaqueStorage::EDX,
+                            OpaqueValue::createConstant(input1));
+    genClauses(&input2, nclauses);
   }
 
   // Invariant OP
   Random3SAT32OpaquePredicate(bool negate, int nclauses = 32 * 6)
       : Random3SATOpaquePredicateBase(negate, true) {
-    // input = eax, output = bl
-    initMasks();
-    inputState.emplace_back(OpaqueStorage::EAX, OpaqueValue::createAny());
-    outputState.emplace_back(OpaqueStorage::EBX,
-                             OpaqueValue::createConstant(negate ? 1 : 0));
+    // input = edx, output = lsb of eax
+    inputState.emplace_back(OpaqueStorage::EDX, OpaqueValue::createAny());
     genClauses(nullptr, nclauses);
   }
 
 public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    as.mov(as.reg(X86::EDX), as.reg(X86::EAX));
-    as.mov(as.reg(X86::EAX), as.imm(negate ? 0 : 1));
-    for (auto &clause : clauses) {
-      auto masks = clause.to_mask<uint32_t>();
-      bool mask_negated = false;
-      // normal:
-      // bl := (edi & mask1) || (~edi & mask2);
-      // negated:
-      // bl := !(edi & mask1) && !(~edi & mask2);
-      as.mov(as.reg(X86::EBX), as.imm(negate ? 1 : 0));
-      compileTestClause(as, masks.first, X86::EDX, mask_negated, false);
-      compileTestClause(as, masks.second, X86::EDX, mask_negated, true);
-      if (negate) {
-        as.lor8(as.reg(X86::AL), as.reg(X86::BL));
-      } else {
-        as.land8(as.reg(X86::AL), as.reg(X86::BL));
+    std::vector<uint8_t> clausedata;
+    R3SATVar current = {0, 0};
+    for (auto clause : clauses) {
+      for (auto var : clause.vars) {
+        uint8_t info = (var.index - current.index + 32) % 32;
+        if (var.neg ^ current.neg) {
+          info |= 0x80;
+        }
+        current = var;
+        clausedata.push_back(info);
       }
     }
+    for (int i = 0; i < 4; i++) {
+      clausedata.push_back(0);
+    }
+    auto gv_clausedata = as.createData(clausedata.data(), clausedata.size());
+    auto reg_ptr = as.reg(X86::ESI);
+    auto reg_input = as.reg(X86::EDX);
+    auto reg_info = as.reg(X86::ECX);
+    auto reg_mask = as.reg(X86::EDI);
+    auto l0 = as.label();
+    auto l2 = as.label();
+
+    // asm                  # asm (negate)
+    //   or    al, 0x01     #   and   al, 0xfe
+    //   mov   esi, _data
+    //   mov   edi, 1
+    // .L0:
+    //   mov   bl, al
+    //   and   bl, 0xfe     #   or    bl, 0x01
+    //   mov   ecx, [esi]
+    //   test  ecx, ecx
+    //   je    .L2
+    // === repeat 3 times ===
+    //   test  cl, 0x80
+    //   je    .L1
+    //   not   edx
+    // .L1:
+    //   rol   edi, cl
+    //   test  edx, edi
+    //   setne bh
+    //                      #   not   bh
+    //   or    bl, bh       #   and   bl, bh
+    //   shr   ecx, 8
+    // === repeat end ===
+    //   and   al, bl       #   or    al, bl
+    //   add   esi, 3
+    //   jmp   .L0
+    // .L2:
+    if (negate) {
+      as.land8(as.reg(X86::AL), as.imm(0xfe));
+    } else {
+      as.lor8(as.reg(X86::AL), as.imm(0x01));
+    }
+    as.mov(reg_ptr, gv_clausedata);
+    as.mov(reg_mask, as.imm(1));
+    as.putLabel(l0);
+    as.mov8(as.reg(X86::BL), as.reg(X86::AL));
+    if (negate) {
+      as.lor8(as.reg(X86::BL), as.imm(0x01));
+    } else {
+      as.land8(as.reg(X86::BL), as.imm(0xfe));
+    }
+    as.mov(reg_info, as.mem(X86::ESI));
+    as.test(reg_info, reg_info);
+    as.je(l2);
+    for (int i = 0; i < 3; i++) {
+      auto l1 = as.label();
+      as.test8(as.reg(X86::CL), as.imm(0x80));
+      as.je(l1);
+      as.lnot(reg_input);
+      as.putLabel(l1);
+      as.rol_cl(reg_mask);
+      as.test(reg_input, reg_mask);
+      as.setne(as.reg(X86::BH));
+      if (negate) {
+        as.lnot8(as.reg(X86::BH));
+        as.land8(as.reg(X86::BL), as.reg(X86::BH));
+      } else {
+        as.lor8(as.reg(X86::BL), as.reg(X86::BH));
+      }
+      if (i != 2) {
+        as.shr(as.reg(X86::ECX), as.imm(8));
+      }
+    }
+    if (negate) {
+      as.lor8(as.reg(X86::AL), as.reg(X86::BL));
+    } else {
+      as.land8(as.reg(X86::AL), as.reg(X86::BL));
+    }
+    as.add(as.reg(X86::ESI), as.imm(3));
+    as.jmp(l0);
+    as.putLabel(l2);
   }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::EDX, X86::EFLAGS};
+    return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
+            X86::EDI, X86::ESI, X86::EFLAGS};
   }
 
   // Invariant OP: for all input, generate constant
@@ -542,72 +497,29 @@ public:
         new Random3SAT32OpaquePredicate(input, !output));
   }
 
+  // Contextual OP: almost invariant but has different output for some input
+  static std::shared_ptr<Random3SAT32OpaquePredicate>
+  createRandomContextual2(bool output) {
+    uint32_t input1 = math::Random::range32(0, UINT32_MAX);
+    uint32_t input2 = math::Random::range32(0, UINT32_MAX);
+    while (input1 == input2) {
+      input2 = math::Random::range32(0, UINT32_MAX);
+    }
+    return std::shared_ptr<Random3SAT32OpaquePredicate>(
+        new Random3SAT32OpaquePredicate(input1, input2, output));
+  }
+
   // Randomly generate contextual or invariant OP
   static std::shared_ptr<Random3SAT32OpaquePredicate>
   createRandom(bool output) {
-    return math::Random::bit() ? createRandomContextual(output)
-                               : createRandomInvariant(output);
-  }
-};
-
-class Random3SAT64OpaqueConstant : public OpaqueConstant32 {
-  std::vector<std::shared_ptr<Random3SAT64OpaquePredicate>> predicates;
-  const OpaqueStorage &target;
-  uint32_t value;
-
-public:
-  Random3SAT64OpaqueConstant(const OpaqueStorage &target, uint32_t value)
-      : target(target), value(value) {
-    for (int i = 31; i >= 0; i--) {
-      bool v = 1 & (value >> i);
-      predicates.push_back(Random3SAT64OpaquePredicate::createRandom(v));
+    switch (math::Random::range32(0, 2)) {
+    case 0:
+      return createRandomContextual(output);
+    case 1:
+      return createRandomContextual2(output);
+    default:
+      return createRandomInvariant(output);
     }
-  }
-
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
-    return new Random3SAT64OpaqueConstant(target, value);
-  }
-
-  OpaqueStorage returnStorage() const override { return target; }
-
-  uint32_t returnValue() const override { return value; }
-
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::ECX, X86::EDX, X86::EFLAGS};
-  }
-
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    for (auto &p : predicates) {
-      // initialise inputs (eax, edx)
-      if (p->isInvariant()) {
-        compileRandomRegs(as, stack);
-      } else {
-        uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
-        uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
-        as.mov(as.reg(X86::EAX), as.imm(in_eax));
-        as.mov(as.reg(X86::EDX), as.imm(in_edx));
-      }
-      // compute opaque predicate
-      p->compile(as, stack);
-      // accumulate the result in ecx
-      as.shl(as.reg(X86::ECX));
-      as.lor8(as.reg(X86::CL), as.reg(X86::AL));
-    }
-    switch (target.type) {
-    case OpaqueStorage::Type::REG:
-      if (target.reg != X86::ECX)
-        as.mov(as.reg(target.reg), as.reg(X86::ECX));
-      break;
-    case OpaqueStorage::Type::STACK:
-      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
-      break;
-    }
-  }
-
-private:
-  void compileRandomRegs(X86AssembleHelper &as, StackState &stack) const {
-    addSavedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
-    addSavedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
   }
 };
 
@@ -634,39 +546,41 @@ public:
   uint32_t returnValue() const override { return value; }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::ECX, X86::EDX, X86::EDI, X86::EFLAGS};
+    return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
+            X86::EDI, X86::ESI, X86::EFLAGS};
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
+    // as.inlineasm(fmt::format("# R3SAT BEGIN 0x{:x}", returnValue()));
     for (auto &p : predicates) {
-      // initialise input (eax)
+      // initialise input (edx)
       if (p->isInvariant()) {
         compileRandomRegs(as, stack);
       } else {
-        uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
-        as.mov(as.reg(X86::EAX), as.imm(in_eax));
+        uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
+        as.mov(as.reg(X86::EDX), as.imm(in_edx));
       }
-      // compute opaque predicate
+      // accumulate the result in eax
+      as.shl(as.reg(X86::EAX));
+      // compute opaque predicate (set LSB in eax)
       p->compile(as, stack);
-      // accumulate the result in ecx
-      as.shl(as.reg(X86::ECX));
-      as.lor8(as.reg(X86::CL), as.reg(X86::AL));
     }
     switch (target.type) {
     case OpaqueStorage::Type::REG:
-      if (target.reg != X86::ECX)
-        as.mov(as.reg(target.reg), as.reg(X86::ECX));
+      if (target.reg != X86::EAX)
+        as.mov(as.reg(target.reg), as.reg(X86::EAX));
       break;
     case OpaqueStorage::Type::STACK:
-      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::EAX));
       break;
     }
+    // as.inlineasm(fmt::format("# R3SAT END 0x{:x}", returnValue()));
   }
 
 private:
   void compileRandomRegs(X86AssembleHelper &as, StackState &stack) const {
-    addSavedRegs(as, stack, X86::EAX,
-                 {X86::EBX, X86::ECX, X86::EDX, X86::EDI, X86::ESI});
+    addSavedRegs(as, stack, X86::EDX,
+                 {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
   }
 };
 
@@ -1005,7 +919,6 @@ std::map<std::string, oc_factory<const OpaqueStorage &, uint32_t>>
         {OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
          MultiplyCompareBasedOpaqueConstant::create},
         {OPAQUE_CONSTANT_ALGORITHM_R3SAT32, Random3SAT32OpaqueConstant::create},
-        {OPAQUE_CONSTANT_ALGORITHM_R3SAT64, Random3SAT64OpaqueConstant::create},
 };
 
 std::map<std::string, oc_factory<>> random_factories = {

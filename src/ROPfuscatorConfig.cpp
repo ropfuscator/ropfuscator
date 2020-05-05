@@ -53,7 +53,6 @@ std::string str_tolower(const std::string &s) {
 std::set<std::string> validOpaquePredicateAlgorithmNames = {
     OPAQUE_CONSTANT_ALGORITHM_MOV,
     OPAQUE_CONSTANT_ALGORITHM_R3SAT32,
-    OPAQUE_CONSTANT_ALGORITHM_R3SAT64,
     OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
 };
 
