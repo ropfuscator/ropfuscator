@@ -293,6 +293,22 @@ private:
   }
 };
 
+struct R3SATVar {
+  uint8_t index : 7;
+  bool neg : 1;
+};
+
+struct R3SATClause {
+  R3SATVar vars[3];
+  template <typename UINT> std::pair<UINT, UINT> to_mask() const {
+    std::pair<UINT, UINT> mask = {0, 0};
+    for (int i = 0; i < 3; i++) {
+      (vars[i].neg ? mask.second : mask.first) |= (UINT)1 << vars[i].index;
+    }
+    return mask;
+  }
+};
+
 template <typename UINT>
 class Random3SATOpaquePredicateBase : public OpaqueConstruct {
 protected:
@@ -332,34 +348,38 @@ protected:
   static std::vector<UINT> masks;
   static void initMasks() {
     if (masks.empty()) {
-      for (int i = 0; i < sizeof(UINT) * 8; i++) {
+      for (unsigned int i = 0; i < sizeof(UINT) * 8; i++) {
         masks.push_back(1ULL << i);
       }
     }
   }
 
   void genClauses(const UINT *avoid, int nclauses) {
-    std::vector<UINT> vars(3);
-    UINT maskbits[2];
     for (int k = 0; k < nclauses; k++) {
+      UINT maskbits[2];
+      R3SATClause clause;
       do {
         maskbits[0] = maskbits[1] = 0;
         for (int bits = 0; bits < 3;) {
-          UINT mask = masks[math::Random::range32(0, sizeof(UINT) * 8 - 1)];
+          R3SATVar var = {
+              (uint8_t)math::Random::range32(0, sizeof(UINT) * 8 - 1),
+              math::Random::bit()};
+          UINT mask = (UINT)1 << var.index;
           if ((maskbits[0] & mask) | (maskbits[1] & mask))
             continue;
-          maskbits[math::Random::bit() ? 1 : 0] |= mask;
+          maskbits[var.neg] |= mask;
+          clause.vars[bits] = var;
           bits++;
         }
       } while (avoid &&
-               ((maskbits[0] & *avoid) | (maskbits[0] & ~*avoid)) == 0);
-      clauses.emplace_back(maskbits[0], maskbits[1]);
+               ((maskbits[0] & *avoid) | (maskbits[1] & ~*avoid)) == 0);
+      clauses.emplace_back(clause);
     }
   }
 
   bool negate;
   bool isInvariantOp;
-  std::vector<std::pair<UINT, UINT>> clauses;
+  std::vector<R3SATClause> clauses;
   OpaqueState inputState, outputState;
 };
 
@@ -402,10 +422,11 @@ public:
     as.mov(as.reg(X86::EDI), as.reg(X86::EAX));
     as.mov(as.reg(X86::EAX), as.imm(negate ? 0 : 1));
     for (auto &clause : clauses) {
-      uint32_t mask1_lo = clause.first;
-      uint32_t mask1_hi = clause.first >> 32;
-      uint32_t mask2_lo = clause.second;
-      uint32_t mask2_hi = clause.second >> 32;
+      auto masks = clause.to_mask<uint64_t>();
+      uint32_t mask1_lo = masks.first;
+      uint32_t mask1_hi = masks.first >> 32;
+      uint32_t mask2_lo = masks.second;
+      uint32_t mask2_hi = masks.second >> 32;
       bool mask_lo_negated = false;
       bool mask_hi_negated = false;
       // normal:
@@ -485,17 +506,15 @@ public:
     as.mov(as.reg(X86::EDX), as.reg(X86::EAX));
     as.mov(as.reg(X86::EAX), as.imm(negate ? 0 : 1));
     for (auto &clause : clauses) {
-      uint32_t mask1_lo = clause.first;
-      uint32_t mask2_lo = clause.second;
-      bool mask_lo_negated = false;
-      bool mask_hi_negated = false;
+      auto masks = clause.to_mask<uint32_t>();
+      bool mask_negated = false;
       // normal:
-      // bl := (edi & mask1_lo) || (~edi & mask2_lo);
+      // bl := (edi & mask1) || (~edi & mask2);
       // negated:
-      // bl := !(edi & mask1_lo) && !(~edi & mask2_lo);
+      // bl := !(edi & mask1) && !(~edi & mask2);
       as.mov(as.reg(X86::EBX), as.imm(negate ? 1 : 0));
-      compileTestClause(as, mask1_lo, X86::EDX, mask_lo_negated, false);
-      compileTestClause(as, mask2_lo, X86::EDX, mask_lo_negated, true);
+      compileTestClause(as, masks.first, X86::EDX, mask_negated, false);
+      compileTestClause(as, masks.second, X86::EDX, mask_negated, true);
       if (negate) {
         as.lor8(as.reg(X86::AL), as.reg(X86::BL));
       } else {
