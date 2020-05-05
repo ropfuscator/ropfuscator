@@ -83,6 +83,9 @@ public:
   ImmGlobal addOffset(Label label, int64_t offset) const {
     return imm(_createGV(label.symbol->getName()), offset);
   }
+  ImmGlobal createData(std::string name, const void *data, size_t size) {
+    return {_createData(name, data, size), 0};
+  }
 
   // --- instruction builder ---
   void mov(Reg r1, Reg r2) const { _instr(llvm::X86::MOV32rr, r1, r2); }
@@ -246,6 +249,21 @@ private:
                                     llvm::GlobalValue::ExternalLinkage, nullptr,
                                     name);
     }
+    return gv;
+  }
+
+  llvm::GlobalValue *_createData(std::string name, const void *data,
+                                 size_t size) const {
+    auto *data_alloc = block.getParent()->createExternalSymbolName(
+        llvm::StringRef((const char *)data, size));
+    llvm::StringRef dataRef(data_alloc, size);
+    auto *module = const_cast<llvm::Module *>(
+        block.getParent()->getFunction().getParent());
+    llvm::Constant *constant = llvm::ConstantDataArray::getString(
+        module->getContext(), dataRef, false);
+    auto gv = new llvm::GlobalVariable(*module, constant->getType(), true,
+                                       llvm::GlobalValue::PrivateLinkage,
+                                       constant, name);
     return gv;
   }
 };
