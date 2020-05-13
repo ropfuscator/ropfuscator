@@ -29,9 +29,7 @@
 #include <string.h>
 #include <time.h>
 
-using namespace std;
 using namespace llvm;
-
 using llvm::object::ELF32LE;
 using llvm::object::ELF32LEFile;
 
@@ -39,8 +37,8 @@ namespace ropf {
 
 class ELFParser {
 public:
-  ELFParser(const std::string &path) {
-    ifstream f(path, std::ios::binary);
+  ELFParser(const std::string &path) : path(path) {
+    std::ifstream f(path, std::ios::binary);
 
     if (!f.good()) {
       dbg_fmt("Given file {} does not exist or is invalid", path);
@@ -74,7 +72,7 @@ public:
   const uint8_t *base() const { return elf->base(); }
   size_t size() const { return elf->getBufSize(); }
 
-  std::vector<ELF32LE::Phdr> getCodeSegments() {
+  std::vector<ELF32LE::Phdr> getCodeSegments() const {
     std::vector<ELF32LE::Phdr> rv;
 
     if (auto segments = elf->program_headers()) {
@@ -90,7 +88,7 @@ public:
     return rv;
   }
 
-  std::vector<ELF32LE::Shdr> getCodeSections() {
+  std::vector<ELF32LE::Shdr> getCodeSections() const {
     std::vector<ELF32LE::Shdr> rv;
     if (auto sections = elf->sections()) {
       for (auto &section : *sections) {
@@ -103,7 +101,7 @@ public:
     return rv;
   }
 
-  std::string getSectionName(const ELF32LE::Shdr &section) {
+  std::string getSectionName(const ELF32LE::Shdr &section) const {
     if (auto sectname_opt = elf->getSectionName(&section)) {
       return sectname_opt->str();
     }
@@ -111,7 +109,7 @@ public:
     return "<unnamed>";
   }
 
-  ArrayRef<ELF32LE::Sym> getDynamicSymbols() {
+  ArrayRef<ELF32LE::Sym> getDynamicSymbols() const {
     auto symbols = elf->symbols(dynsym);
 
     if (symbols)
@@ -120,15 +118,17 @@ public:
     return ArrayRef<ELF32LE::Sym>();
   }
 
-  Expected<StringRef> getSymbolName(const ELF32LE::Sym &sym) {
+  Expected<StringRef> getSymbolName(const ELF32LE::Sym &sym) const {
     return sym.getName(dynstrtab);
   }
 
-  bool isGlobalFunction(const ELF32LE::Sym &sym) {
-    return sym.getType() == ELF_STT_FUNC && sym.getBinding() == ELF_STB_GLOBAL;
+  bool isGlobalOrWeakFunction(const ELF32LE::Sym &sym) const {
+    return sym.getType() == ELF_STT_FUNC &&
+           (sym.getBinding() == ELF_STB_GLOBAL ||
+            sym.getBinding() == ELF_STB_WEAK);
   }
 
-  std::string getSymbolVersion(int symindex) {
+  std::string getSymbolVersion(int symindex) const {
     auto versyms = elf->getSectionContentsAsArray<uint16_t>(versym);
 
     if (!versyms)
@@ -147,6 +147,8 @@ public:
 
     return verdefs[value];
   }
+
+  std::string getPath() const { return path; }
 
 private:
   struct Verdef {
@@ -183,6 +185,8 @@ private:
   static const int ELF_STT_FUNC = 2;
   // symbol binding: global
   static const int ELF_STB_GLOBAL = 1;
+  // symbol binding: weak
+  static const int ELF_STB_WEAK = 2;
   // version table index: local
   static const int ELF_VER_NDX_LOCAL = 0;
   // version table index: global
@@ -190,6 +194,7 @@ private:
   // version table index: max value + 1
   static const int ELF_VER_NDX_LORESERVE = 0xff00;
 
+  std::string path;
   std::unique_ptr<ELF32LEFile> elf;
   std::vector<char> buf;
   const ELF32LE::Shdr *dynsym;
@@ -269,20 +274,28 @@ BinaryAutopsy::BinaryAutopsy(const GlobalConfig &config, const Module &module,
     : module(module), target(target), context(context), config(config),
       elf(new ELFParser(config.libraryPath)) {
   // Seeds the PRNG (we'll use it in getRandomSymbol());
+  for (const std::string &libPath : config.linkedLibraries) {
+    otherLibs.emplace_back(new ELFParser(libPath));
+  }
   srand(time(nullptr));
   isModuleSymbolAnalysed = false;
 
-  dissect();
+  dissect(elf.get());
   analyseUsedSymbols();
 }
 
 BinaryAutopsy::~BinaryAutopsy() {}
 
-void BinaryAutopsy::dissect() {
-  dumpSections();
-  dumpSegments();
-  dumpDynamicSymbols();
-  dumpGadgets();
+void BinaryAutopsy::dissect(ELFParser *elf) {
+  dumpSections(elf, Sections);
+  dumpSegments(elf, Segments);
+  dumpDynamicSymbols(elf, Symbols, true);
+
+  std::vector<std::shared_ptr<Microgadget>> gadgets;
+  dumpGadgets(elf, gadgets);
+  for (auto gadget : gadgets) {
+    addGadget(gadget);
+  }
   buildXchgGraph();
 }
 
@@ -298,52 +311,32 @@ BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &config,
   return instance;
 }
 
-void BinaryAutopsy::dumpSegments() {
+void BinaryAutopsy::dumpSegments(const ELFParser *elf,
+                                 std::vector<Section> &segments) const {
   for (auto &seg : elf->getCodeSegments()) {
-    Segments.push_back(
+    segments.push_back(
         Section("<unnamed-segment>", seg.p_offset, seg.p_filesz));
   }
 }
 
-void BinaryAutopsy::dumpSections() {
+void BinaryAutopsy::dumpSections(const ELFParser *elf,
+                                 std::vector<Section> &sections) const {
   DEBUG_WITH_TYPE(SECTIONS,
                   dbg_fmt("[SECTIONS]\tLooking for CODE sections... \n"));
-  using namespace std;
-
   // Iterates through only the sections that contain executable code
   for (auto &section : elf->getCodeSections()) {
     std::string sectname = elf->getSectionName(section);
 
-    Sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
+    sections.push_back(Section(sectname, section.sh_addr, section.sh_size));
 
     DEBUG_WITH_TYPE(SECTIONS,
                     dbg_fmt("[SECTIONS]\tFound section {}\n", sectname));
   }
 }
 
-void BinaryAutopsy::dumpDynamicSymbols() {
-  // these symbols are also used in libgcc_s.so (often linked), so we avoid
-  // them
-  static const char *LIBGCC_SYMBOLS[] = {"__register_frame",
-                                         "__register_frame_table",
-                                         "__register_frame_info",
-                                         "__register_frame_info_bases",
-                                         "__register_frame_info_table",
-                                         "__register_frame_info_table_bases",
-                                         "__deregister_frame",
-                                         "__deregister_frame_info",
-                                         "__deregister_frame_info_bases",
-                                         "__frame_state_for",
-                                         "__moddi3",
-                                         "__umoddi3",
-                                         "__divdi3",
-                                         "__udivdi3"};
-  std::string symbolName;
-
-  // Dumps sections if it wasn't already done
-  if (Sections.empty())
-    dumpSections();
-
+void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *elf,
+                                       std::vector<Symbol> &Symbols,
+                                       bool safeOnly) const {
   // dbg_fmt("[*] Scanning for symbols... \n");
   auto symbols = elf->getDynamicSymbols();
   std::set<std::string> symbolNames;
@@ -353,66 +346,53 @@ void BinaryAutopsy::dumpDynamicSymbols() {
     const ELF32LE::Sym &sym = symbols[i];
 
     // Consider only function symbols with global scope
-    if (elf->isGlobalFunction(sym) && sym.isDefined()) {
+    if (elf->isGlobalOrWeakFunction(sym) && sym.isDefined()) {
       auto name_opt = elf->getSymbolName(sym);
 
       if (!name_opt) {
         continue;
       }
 
-      symbolName = name_opt->str();
-
-      // those two symbols are very often subject to aliasing (they can be found
-      // in many different libraries loaded in memory), so better avoiding them!
-      if (symbolName == "_init" || symbolName == "_fini")
-        continue;
-
-      // functions with name prefixed with "_dl" is possibly created
-      // by dynamic linkers, so we aviod them
-      if (symbolName.rfind("_dl", 0) != std::string::npos)
-        continue;
-
-      bool avoided = false;
-      for (const char *avoided_name : LIBGCC_SYMBOLS) {
-        if (symbolName == avoided_name) {
-          avoided = true;
-          break;
-        }
-      }
-
-      if (avoided)
-        continue;
-
+      std::string symbolName = name_opt->str();
       uint64_t addr = sym.getValue();
 
       // Get version string to avoid symbol aliasing
       std::string versionString = elf->getSymbolVersion(i);
 
-      // symbols whose version starts with "GCC"
-      // may also exist in libgcc_s.so, so avoided
-      if (versionString.rfind("GCC", 0) != std::string::npos)
-        continue;
-
-      // we cannot use multiple versions of the same symbol, so we discard any
-      // duplicate.
+      // we cannot use multiple versions of the same symbol,
+      // so we detect duplicate.
       if (symbolNames.find(symbolName) == symbolNames.end()) {
         symbolNames.insert(symbolName);
-        Symbols.emplace_back(Symbol(symbolName, versionString, addr));
+        Symbol sym(symbolName, versionString, addr);
+        if (!safeOnly || isSafeSymbol(sym))
+          Symbols.emplace_back(sym);
       } else {
         // multi-versioned symbol
-        if (config.avoidMultiversionSymbol) {
-          Symbols.erase(std::remove_if(
-              Symbols.begin(), Symbols.end(),
-              [&](const Symbol &s) { return s.Label == symbolName; }));
+        if (safeOnly && config.avoidMultiversionSymbol) {
+          for (auto it = Symbols.begin(); it != Symbols.end(); ++it) {
+            if (it->Label == symbolName) {
+              Symbols.erase(it);
+              break;
+            }
+          }
         }
       }
     }
   }
+}
 
-  if (Symbols.empty()) {
-    dbg_fmt("No symbols found!\n");
-    exit(1);
-  }
+bool BinaryAutopsy::isSafeSymbol(const Symbol &symbol) const {
+  // those two symbols are very often subject to aliasing (they can be found
+  // in many different libraries loaded in memory), so better avoiding them!
+  if (symbol.Label == "_init" || symbol.Label == "_fini")
+    return false;
+
+  // functions with name prefixed with "_dl" is possibly created
+  // by dynamic linkers, so we aviod them
+  if (symbol.Label.rfind("_dl", 0) != std::string::npos)
+    return false;
+
+  return true;
 }
 
 void BinaryAutopsy::analyseUsedSymbols() {
@@ -425,6 +405,14 @@ void BinaryAutopsy::analyseUsedSymbols() {
 
   for (const auto &g : module.getGlobalList()) {
     names.insert(g.getName().str());
+  }
+
+  for (auto &lib : otherLibs) {
+    std::vector<Symbol> symbols;
+    dumpDynamicSymbols(lib.get(), symbols, false);
+    for (auto &sym : symbols) {
+      names.insert(sym.Label);
+    }
   }
 
   for (auto it = Symbols.begin(); it != Symbols.end();) {
@@ -505,11 +493,9 @@ public:
   }
 };
 
-void BinaryAutopsy::dumpGadgets() {
-  // Dumps sections if it wasn't already done
-  if (Sections.empty())
-    dumpSections();
-
+void BinaryAutopsy::dumpGadgets(
+    const ELFParser *elf,
+    std::vector<std::shared_ptr<Microgadget>> &gadgets) const {
   DisassemblerHelper disasm(target, context, *elf);
 
   // map to check duplication
@@ -554,15 +540,15 @@ void BinaryAutopsy::dumpGadgets() {
               instructions[0].getOpcode() != X86::REPNE_PREFIX) {
             // Each gadget is identified with its mnemonic
             // and operators (ugly but straightforward :P)
-            string asm_instr = disasm.formatInstr(instructions[0]);
+            std::string asm_instr = disasm.formatInstr(instructions[0]);
 
             auto it = gadgetMap.find(asm_instr);
             if (it != gadgetMap.end()) {
               it->second->addresses.push_back(addr);
             } else {
-              shared_ptr<Microgadget> gadget(
+              std::shared_ptr<Microgadget> gadget(
                   new Microgadget(instructions, count, addr, asm_instr));
-              addGadget(gadget);
+              gadgets.push_back(gadget);
               gadgetMap.emplace(asm_instr, gadget);
 
               cnt++;
@@ -583,7 +569,7 @@ void BinaryAutopsy::dumpGadgets() {
         disasm.disassemble(addr, size, &inst, count);
         // Valid gadgets must have just one instruction of JMP register
         if (count == 1 && inst.getOpcode() == X86::JMP32r) {
-          string asm_instr = disasm.formatInstr(inst);
+          std::string asm_instr = disasm.formatInstr(inst);
 
           auto it = gadgetMap.find(asm_instr);
           if (it != gadgetMap.end()) {
@@ -591,7 +577,7 @@ void BinaryAutopsy::dumpGadgets() {
           } else {
             std::shared_ptr<Microgadget> gadget(
                 new Microgadget(&inst, 1, addr, asm_instr));
-            addGadget(gadget);
+            gadgets.push_back(gadget);
             gadgetMap.emplace(asm_instr, gadget);
 
             cnt++;
@@ -866,8 +852,8 @@ bool BinaryAutopsy::areExchangeable(unsigned int a, unsigned int b) const {
 ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, GadgetType type,
                                             unsigned int reg1,
                                             unsigned int reg2) const {
-  // Note: everytime we need to operate on reg1 and reg2, we need to check which
-  // is the actual register that holds that operand.
+  // Note: everytime we need to operate on reg1 and reg2, we need to check
+  // which is the actual register that holds that operand.
   ROPChain result;
   const Microgadget *found = nullptr;
 

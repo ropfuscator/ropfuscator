@@ -3,6 +3,8 @@
 #include <cctype>
 #include <regex>
 #include <set>
+#include <string>
+#include <vector>
 
 #define TOML_HAVE_FAILWITH_REPLACEMENT
 
@@ -18,6 +20,12 @@ template <typename... Args>[[noreturn]] void failwith(Args &&... args) {
 } // namespace toml
 
 #include <toml/toml.h>
+
+namespace toml::internal {
+template <> inline const char *type_name<std::vector<std::string>>() {
+  return "array of string";
+}
+} // namespace toml::internal
 
 namespace ropf {
 
@@ -168,6 +176,9 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     // Custom library path
     parseOption(*general_section, CONFIG_GENERAL_SECTION,
                 CONFIG_CUSTOM_LIB_PATH, globalConfig.libraryPath);
+
+    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_LINKED_LIBS,
+                globalConfig.linkedLibraries);
 
     // Avoid multiversion symbols
     parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_AVOID_MULTIVER,

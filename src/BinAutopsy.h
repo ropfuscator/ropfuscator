@@ -86,9 +86,12 @@ public:
   std::map<GadgetType, std::vector<std::shared_ptr<Microgadget>>>
       GadgetPrimitives;
 
-  // elf - an handle to analyse ELF file. Used by dumpSections() and
+  // elf - a handle to analyse ELF file. Used by dumpSections() and
   // dumpDynamicSymbols()
   std::unique_ptr<ELFParser> elf;
+
+  // otherlibs - handles to other ELF libraries.
+  std::vector<std::unique_ptr<ELFParser>> otherLibs;
 
   bool isModuleSymbolAnalysed;
 
@@ -102,24 +105,30 @@ public:
 
 private:
   // dissect - dumps all the data and performs every analysis.
-  void dissect();
+  void dissect(ELFParser *);
 
   // dumpSections - parses the ELF header to obtain a list of
   // sections that contain executable code, from which the symbol and gadget
   // extraction will take place.
-  void dumpSections();
+  void dumpSections(const ELFParser *, std::vector<Section> &) const;
 
-  void dumpSegments();
+  void dumpSegments(const ELFParser *, std::vector<Section> &) const;
 
   // dumpDynamicSymbols - extracts symbols from the .dynsym section. It takes
   // into account only function symbols with global scope and used in executable
   // sections.
-  void dumpDynamicSymbols();
+  void dumpDynamicSymbols(const ELFParser *, std::vector<Symbol> &,
+                          bool safeOnly) const;
+
+  // isSafeSymbol - return true if symbols are "safe" to be used
+  // in gadget addressing
+  bool isSafeSymbol(const Symbol &) const;
 
   // dumpGadgets - extracts every microgadget (i.e., single instructions
   // before a RET) that can be found in executable sections. Each instruction is
   // decoded with LLVM disassembler engine.
-  void dumpGadgets();
+  void dumpGadgets(const ELFParser *,
+                   std::vector<std::shared_ptr<Microgadget>> &) const;
 
   // buildXchgGraph - creates a new instance of xgraph and feeds it with all the
   // XCHG gadgets that have been found.
