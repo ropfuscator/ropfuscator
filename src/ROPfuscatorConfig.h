@@ -4,6 +4,7 @@
 #include "OpaqueConstruct.h"
 #include <map>
 #include <string>
+#include <vector>
 
 namespace ropf {
 
@@ -19,6 +20,7 @@ namespace ropf {
 #define CONFIG_SEARCH_SEGMENT "search_segment_for_gadget"
 #define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
 #define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
+#define CONFIG_LINKED_LIBS "linked_libraries"
 #define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
 #define CONFIG_USE_CHAIN_LABEL "use_chain_label"
 
@@ -71,6 +73,9 @@ struct ObfuscationParameter {
 struct GlobalConfig {
   // [BinaryAutopsy] library path where the gadgets are extracted
   std::string libraryPath;
+  // [BinaryAutopsy] other library paths linked at run-time
+  // If set, the symbol names in these libraries are put in avoid-list in gadget
+  std::vector<std::string> linkedLibraries;
   // true if obfuscation is enabled, false if obfuscation is disabled globally
   bool obfuscationEnabled;
   // [BinaryAutopsy] If set to true, find gadget in code segment instead of code
@@ -86,9 +91,9 @@ struct GlobalConfig {
   bool useChainLabel;
 
   GlobalConfig()
-      : libraryPath(), obfuscationEnabled(true), searchSegmentForGadget(true),
-        avoidMultiversionSymbol(false), printInstrStat(false),
-        useChainLabel(false) {}
+      : libraryPath(), linkedLibraries(), obfuscationEnabled(true),
+        searchSegmentForGadget(true), avoidMultiversionSymbol(false),
+        printInstrStat(false), useChainLabel(false) {}
 };
 
 struct ROPfuscatorConfig {

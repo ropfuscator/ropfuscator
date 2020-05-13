@@ -48,7 +48,7 @@ const std::string POSSIBLE_LIBC_FOLDERS[] = {
     "/usr/lib",
 };
 
-std::string findLibcPath() {
+std::string findLibraryPath(const std::string &libfile) {
   for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
     // searching for libc in regular files only
     std::error_code ec;
@@ -57,9 +57,8 @@ std::string findLibcPath() {
          !ec && dir_it != dir_end; dir_it.increment(ec)) {
       auto st = dir_it->status();
       if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
-          llvm::sys::path::filename(dir_it->path()) == "libc.so.6") {
+          llvm::sys::path::filename(dir_it->path()) == libfile) {
         std::string libraryPath = dir_it->path();
-        dbg_fmt("[*] Using library path: {}\n", libraryPath);
         return libraryPath;
       }
     }
@@ -614,7 +613,20 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
     if (config.globalConfig.libraryPath.empty()) {
-      config.globalConfig.libraryPath = findLibcPath();
+      std::string path = findLibraryPath("libc.so.6");
+      if (!path.empty()) {
+        config.globalConfig.libraryPath = path;
+        dbg_fmt("[*] Using library path for gadget: {}\n", path);
+      }
+    }
+    if (config.globalConfig.linkedLibraries.empty()) {
+      for (std::string libname : {"libgcc_s.so.1", "libpthread.so.0"}) {
+        std::string path = findLibraryPath(libname);
+        if (!path.empty()) {
+          config.globalConfig.linkedLibraries.push_back(path);
+          dbg_fmt("[*] Using library path for avoiding gadget: {}\n", path);
+        }
+      }
     }
     BA = BinaryAutopsy::getInstance(config.globalConfig, MF);
   }
