@@ -523,24 +523,38 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   } else {
     savedRegs.erase(X86::EFLAGS);
   }
+  std::vector<unsigned int> stackRegLayout;
   if (!savedRegs.empty()) {
     // lea esp, [esp-4*(N+1)]   # where N = chain size
     as.lea(as.reg(X86::ESP), as.mem(X86::ESP, espoffset));
     // save registers (and flags)
     int offset = 0;
-    for (auto it = savedRegs.begin(); it != savedRegs.end(); ++it) {
-      if (*it == X86::EFLAGS) {
-        as.pushf();
-      } else {
-        as.push(as.reg(*it));
-      }
-      stackState.saved_regs.emplace(*it, espoffset + offset);
+    stackRegLayout.insert(stackRegLayout.begin(), savedRegs.begin(),
+                          savedRegs.end());
+    if (param.obfuscateStackSavedValues) {
+      stackRegLayout.resize(2 * savedRegs.size(), X86::NoRegister);
+      std::shuffle(stackRegLayout.begin() + 1, stackRegLayout.end(),
+                   math::Random::engine());
+      stackState.stack_mangled = true;
+    }
+    for (auto reg : stackRegLayout) {
       offset -= 4;
+      if (reg == X86::NoRegister) {
+        uint32_t value = math::Random::rand();
+        as.push(as.imm(value));
+        stackState.addConst(value, espoffset + offset);
+      } else {
+        if (reg == X86::EFLAGS) {
+          as.pushf();
+        } else {
+          as.push(as.reg(reg));
+        }
+        stackState.addReg(reg, espoffset + offset);
+      }
     }
     // lea esp, [esp+4*(N+1+M)]
     // where N = chain size, M = num of saved registers
-    as.lea(as.reg(X86::ESP),
-           as.mem(X86::ESP, 4 * savedRegs.size() - espoffset));
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -(offset + espoffset)));
   }
 
   // funcName_chain_X:
@@ -555,15 +569,26 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
   // EMIT EPILOGUE
   // restore registers (and flags)
-  if (!savedRegs.empty()) {
+  if (!stackRegLayout.empty()) {
     // lea esp, [esp-4*N]   # where N = num of saved registers
-    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -4 * savedRegs.size()));
+    as.lea(as.reg(X86::ESP), as.mem(X86::ESP, -4 * stackRegLayout.size()));
     // restore registers (and flags)
-    for (auto it = savedRegs.rbegin(); it != savedRegs.rend(); ++it) {
-      if (*it == X86::EFLAGS) {
-        as.popf();
-      } else {
-        as.pop(as.reg(*it));
+    int popCount = 0;
+    for (auto it = stackRegLayout.rbegin(); it != stackRegLayout.rend(); ++it) {
+      popCount++;
+      if (*it != X86::NoRegister) {
+        while (popCount > 0) {
+          popCount--;
+          if (*it == X86::EFLAGS) {
+            if (popCount > 0) {
+              as.add(as.reg(X86::ESP), as.imm(popCount * 4));
+              popCount = 0;
+            }
+            as.popf();
+          } else {
+            as.pop(as.reg(*it));
+          }
+        }
       }
     }
   }

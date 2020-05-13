@@ -282,8 +282,24 @@ private:
 };
 
 struct StackState {
-  std::map<unsigned int, int> saved_regs;
+  struct Value {
+    unsigned int reg;
+    uint32_t value;
+  };
+  std::map<unsigned int, int> regs_location;
+  std::vector<int> constant_location;
+  std::map<int, Value> saved_values;
   int stack_offset;
+  bool stack_mangled;
+
+  void addReg(unsigned int reg, int offset) {
+    regs_location.emplace(reg, offset);
+    saved_values.emplace(offset, Value{reg, 0});
+  }
+  void addConst(uint32_t value, int offset) {
+    constant_location.push_back(offset);
+    saved_values.emplace(offset, Value{llvm::X86::NoRegister, value});
+  }
 };
 
 } // namespace ropf

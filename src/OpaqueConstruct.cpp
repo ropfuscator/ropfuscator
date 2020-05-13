@@ -88,22 +88,76 @@ private:
   uint32_t value;
 };
 
-void addSavedRegs(X86AssembleHelper &as, StackState &stack,
-                  unsigned int targetReg,
-                  const std::vector<unsigned int> &regs) {
-  decltype(stack.saved_regs)::iterator it, end = stack.saved_regs.end();
-  if ((it = stack.saved_regs.find(targetReg)) != end) {
-    // register may be clobbered (saved in stack)
-    as.mov(as.reg(targetReg),
-           as.mem(X86::ESP, it->second - stack.stack_offset));
+void moveConstant(X86AssembleHelper &as, StackState &stack,
+                  unsigned int targetReg, uint32_t value, size_t size) {
+  // targetReg := resultValue
+  if (stack.stack_mangled) {
+    std::vector<int> stackOffsets;
+    uint32_t addend;
+    // pick up random constants saved in stack
+    std::sample(stack.constant_location.begin(), stack.constant_location.end(),
+                std::back_inserter(stackOffsets), size, math::Random::engine());
+    // compute difference
+    addend = value;
+    for (int offset : stackOffsets) {
+      addend -= stack.saved_values.find(offset)->second.value;
+    }
+    std::shuffle(stackOffsets.begin(), stackOffsets.end(),
+                 math::Random::engine());
+    as.mov(as.reg(targetReg), as.imm(addend));
+    for (int offset : stackOffsets) {
+      as.add(as.reg(targetReg), as.mem(X86::ESP, offset - stack.stack_offset));
+    }
+  } else {
+    as.mov(as.reg(targetReg), as.imm(value));
   }
-  for (auto reg : regs) {
-    if ((it = stack.saved_regs.find(reg)) != end) {
-      // register may be clobbered (saved in stack)
-      as.add(as.reg(targetReg),
-             as.mem(X86::ESP, it->second - stack.stack_offset));
+}
+
+void moveMixedRegs(X86AssembleHelper &as, StackState &stack,
+                   unsigned int targetReg,
+                   const std::vector<unsigned int> &regs) {
+  // targetReg := targetReg + sum(regs)
+  if (stack.stack_mangled) {
+    std::vector<int> stackOffsets;
+    uint32_t addend = math::Random::rand();
+    decltype(stack.regs_location)::iterator it, end = stack.regs_location.end();
+    if ((it = stack.regs_location.find(targetReg)) != end) {
+      stackOffsets.push_back(it->second);
     } else {
-      as.add(as.reg(targetReg), as.reg(reg));
+      std::sample(stack.constant_location.begin(),
+                  stack.constant_location.end(),
+                  std::back_inserter(stackOffsets), 1, math::Random::engine());
+    }
+    for (auto reg : regs) {
+      if ((it = stack.regs_location.find(reg)) != end) {
+        stackOffsets.push_back(it->second);
+      } else {
+        std::sample(
+            stack.constant_location.begin(), stack.constant_location.end(),
+            std::back_inserter(stackOffsets), 1, math::Random::engine());
+      }
+    }
+    std::shuffle(stackOffsets.begin(), stackOffsets.end(),
+                 math::Random::engine());
+    as.mov(as.reg(targetReg), as.imm(addend));
+    for (int offset : stackOffsets) {
+      as.add(as.reg(targetReg), as.mem(X86::ESP, offset - stack.stack_offset));
+    }
+  } else {
+    decltype(stack.regs_location)::iterator it, end = stack.regs_location.end();
+    if ((it = stack.regs_location.find(targetReg)) != end) {
+      // register may be clobbered (saved in stack)
+      as.mov(as.reg(targetReg),
+             as.mem(X86::ESP, it->second - stack.stack_offset));
+    }
+    for (auto reg : regs) {
+      if ((it = stack.regs_location.find(reg)) != end) {
+        // register may be clobbered (saved in stack)
+        as.add(as.reg(targetReg),
+               as.mem(X86::ESP, it->second - stack.stack_offset));
+      } else {
+        as.add(as.reg(targetReg), as.reg(reg));
+      }
     }
   }
 }
@@ -243,37 +297,21 @@ public:
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    uint32_t out_eax = 0;
-    uint32_t out_edx = 0;
+    // as.inlineasm(fmt::format("# MULTCOMP BEGIN 0x{:x}", returnValue()));
     for (auto &p : predicates) {
       // initialise inputs (eax, edx)
       if (p->isInvariant()) {
-        compileRandomRegs(as, stack);
+        compileRandom(as, stack);
       } else {
         uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
         uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
-        if (out_eax == 0) {
-          as.mov(as.reg(X86::EAX), as.imm(in_eax));
-          as.mov(as.reg(X86::EDX), as.imm(in_edx));
-        } else {
-          as.lxor(as.reg(X86::EAX), as.imm(in_eax ^ out_eax));
-          as.lxor(as.reg(X86::EDX), as.imm(in_edx ^ out_edx));
-        }
+        compileConstant(as, stack, in_eax, in_edx);
       }
       // multiply and compare
       p->compile(as, stack);
       // accumulate the result in ecx
       as.shl(as.reg(X86::ECX));
       as.lor8(as.reg(X86::CL), as.reg(X86::AL));
-      // set next state
-      if (p->isInvariant()) {
-        // eax, edx is random value
-        out_eax = 0;
-        out_edx = 0;
-      } else {
-        out_eax = *p->getOutput().findValue(OpaqueStorage::EAX);
-        out_edx = *p->getOutput().findValue(OpaqueStorage::EDX);
-      }
     }
     switch (target.type) {
     case OpaqueStorage::Type::REG:
@@ -284,12 +322,18 @@ public:
       as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
       break;
     }
+    // as.inlineasm(fmt::format("# MULTCOMP END 0x{:x}", returnValue()));
   }
 
 private:
-  void compileRandomRegs(X86AssembleHelper &as, StackState &stack) const {
-    addSavedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
-    addSavedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
+  void compileConstant(X86AssembleHelper &as, StackState &stack, uint32_t eax,
+                       uint32_t edx) const {
+    moveConstant(as, stack, X86::EAX, eax, 3);
+    moveConstant(as, stack, X86::EDX, edx, 3);
+  }
+  void compileRandom(X86AssembleHelper &as, StackState &stack) const {
+    moveMixedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
+    moveMixedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
   }
 };
 
@@ -561,10 +605,10 @@ public:
     for (auto &p : predicates) {
       // initialise input (edx)
       if (p->isInvariant()) {
-        compileRandomRegs(as, stack);
+        compileRandom(as, stack);
       } else {
         uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
-        as.mov(as.reg(X86::EDX), as.imm(in_edx));
+        compileConstant(as, stack, in_edx);
       }
       // accumulate the result in eax
       as.shl(as.reg(X86::EAX));
@@ -584,9 +628,13 @@ public:
   }
 
 private:
-  void compileRandomRegs(X86AssembleHelper &as, StackState &stack) const {
-    addSavedRegs(as, stack, X86::EDX,
-                 {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
+  void compileConstant(X86AssembleHelper &as, StackState &stack,
+                       uint32_t value) const {
+    moveConstant(as, stack, X86::EDX, value, 6);
+  }
+  void compileRandom(X86AssembleHelper &as, StackState &stack) const {
+    moveMixedRegs(as, stack, X86::EDX,
+                  {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
   }
 };
 
@@ -630,8 +678,8 @@ class AddRegRandomGeneratorOC : public OpaqueConstruct {
 public:
   static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    addSavedRegs(as, stack, X86::EAX,
-                 {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
+    moveMixedRegs(as, stack, X86::EAX,
+                  {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
   }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
