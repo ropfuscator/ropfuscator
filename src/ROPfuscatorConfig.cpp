@@ -82,6 +82,10 @@ void parseFunctionOptions(const toml::Value &config,
   parseOption(config, tomlSect, CONFIG_OPA_OBF_BRANCH_TARGET,
               funcParam.obfuscateBranchTarget);
 
+  // Obfuscation of stack saved values enabled
+  parseOption(config, tomlSect, CONFIG_OPA_OBF_STACK_SAVED,
+              funcParam.obfuscateStackSavedValues);
+
   // Opaque predicates algorithm
   std::string op_algo;
   if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
