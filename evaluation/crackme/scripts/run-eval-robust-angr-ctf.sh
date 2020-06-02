@@ -7,7 +7,7 @@ REPEAT=3
 TIMEOUT=7200
 
 SCRIPT_DIR="$(dirname $0)"
-ANGR_SCRIPT_DIR="$SCRIPT_DIR/../attack"
+ANGR_SCRIPT_DIR="$SCRIPT_DIR/../angr"
 
 if [ $# -lt 1 ]; then
     echo Usage: $0 '<bin-dir>'
