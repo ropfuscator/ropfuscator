@@ -4,15 +4,16 @@ set(ROPF_DIR ropfuscator)
 set(ROPF_SRCDIR ${ROPF_DIR}/src)
 
 set(ROPF_SOURCES
-  ${ROPF_SRCDIR}/X86ROPfuscatorPass.cpp
-  ${ROPF_SRCDIR}/ROPfuscatorCore.cpp
-  ${ROPF_SRCDIR}/ROPEngine.cpp
   ${ROPF_SRCDIR}/BinAutopsy.cpp
-  ${ROPF_SRCDIR}/XchgGraph.cpp
-  ${ROPF_SRCDIR}/LivenessAnalysis.cpp
-  ${ROPF_SRCDIR}/OpaqueConstruct.cpp
   ${ROPF_SRCDIR}/Debug.cpp
+  ${ROPF_SRCDIR}/LivenessAnalysis.cpp
+  ${ROPF_SRCDIR}/MathUtil.cpp
+  ${ROPF_SRCDIR}/OpaqueConstruct.cpp
+  ${ROPF_SRCDIR}/ROPEngine.cpp
   ${ROPF_SRCDIR}/ROPfuscatorConfig.cpp
+  ${ROPF_SRCDIR}/ROPfuscatorCore.cpp
+  ${ROPF_SRCDIR}/X86ROPfuscatorPass.cpp
+  ${ROPF_SRCDIR}/XchgGraph.cpp
   )
 
 set(sources ${sources} ${ROPF_SOURCES})

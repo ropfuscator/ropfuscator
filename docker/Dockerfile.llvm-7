@@ -101,11 +101,12 @@ RUN strip -s bin/llc bin/clang
 
 FROM ubuntu:18.04 as runtime
 
-RUN apt-get update && apt-get install -y \
+RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
     clang-7 \
     cmake \
     gcc-multilib \
     g++-multilib \
+    libc6:i386 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/src/build-ropfuscator/bin/llc /usr/local/bin/
