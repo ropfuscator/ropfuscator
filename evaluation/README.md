@@ -40,10 +40,22 @@ See `ropfuscator-extra/configs`.
   cmake ropfuscator-evaluation-crackme
   ```
 - attack scripts \
-  see `ropfuscator/evaluation/crackme/attack/`.
+    - `ropfuscator/evaluation/crackme/staticanalysis/`:
+      static decompiler and immediate operand extraction attack
+    - `ropfuscator/evaluation/crackme/angr/`:
+      input recovery attack attack with DSE (angr)
+    - `ropfuscator/evaluation/crackme/rop_static/`:
+      ROP chain recovery with static analysis (basic instruction simulation)
+    - `ropfuscator/evaluation/crackme/rop_dynamic/`:
+      ROP chain recovery with dynamic tracing with instruction simulator (unicorn)
 - run evaluation
-  ```
-  ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-orig.sh
-  ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-ctf.sh
-  ```
+    - static decompiler
+      ```
+      ropfuscator/evaluation/crackme/scripts/run-eval-robust-static-orig.sh
+      ```
+    - DSE attack
+      ```
+      ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-orig.sh
+      ropfuscator/evaluation/crackme/scripts/run-eval-robust-angr-ctf.sh
+      ```
 
