@@ -49,7 +49,8 @@ struct Microgadget {
   // Constructor
   Microgadget(const llvm::MCInst *instr, int count, uint64_t address,
               std::string asmInstr)
-      : Instr(instr, instr + count), asmInstr(asmInstr) {
+      : Type(GadgetType::UNDEFINED), reg1(0), reg2(0),
+        Instr(instr, instr + count), addresses(), asmInstr(asmInstr) {
     addresses.push_back(address);
   }
 };
