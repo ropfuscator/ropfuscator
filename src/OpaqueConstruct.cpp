@@ -1,5 +1,6 @@
 #include "OpaqueConstruct.h"
 #include "Debug.h"
+#include "InstrStegano.h"
 #include "MathUtil.h"
 #include "X86AssembleHelper.h"
 #include "X86TargetMachine.h"
@@ -69,6 +70,14 @@ public:
       as.mov(as.mem(X86::ESP, target.stackOffset), as.imm(value));
       break;
     }
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // TODO: interleave
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
   }
 
   OpaqueStorage returnStorage() const override { return target; }
@@ -223,6 +232,39 @@ public:
     }
   }
 
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    as.mul(as.reg(X86::EDX)); // edx:eax = eax * edx
+    InstrSteganoProcessor stegano;
+    const OpaqueValue *eax = inputState.find(OpaqueStorage::EAX);
+    const OpaqueValue *edx = inputState.find(OpaqueStorage::EDX);
+    if (eax->type == OpaqueValue::Type::CONSTANT &&
+        edx->type == OpaqueValue::Type::CONSTANT) {
+      uint64_t mult_result =
+          (uint64_t)eax->values[0] * (uint64_t)edx->values[0];
+      if (math::Random::bit()) {
+        stegano.insert(instrs, as, stack, {}, X86::EDX,
+                       (uint32_t)(mult_result >> 32));
+      } else {
+        stegano.insert(instrs, as, stack, {}, X86::EAX, (uint32_t)mult_result);
+      }
+    } else {
+      stegano.insert(instrs, as, stack, {}, 0, 0);
+    }
+    as.cmp(as.reg(X86::EAX), as.imm(compvalue & 0xffffffff));
+    if (negate) {
+      as.setne(as.reg(X86::AL));
+      as.cmp(as.reg(X86::EDX), as.imm((compvalue >> 32) & 0xffffffff));
+      as.setne(as.reg(X86::DL));
+      as.lor8(as.reg(X86::AL), as.reg(X86::DL));
+    } else {
+      as.sete(as.reg(X86::AL));
+      as.cmp(as.reg(X86::EDX), as.imm((compvalue >> 32) & 0xffffffff));
+      as.sete(as.reg(X86::DL));
+      as.land8(as.reg(X86::AL), as.reg(X86::DL));
+    }
+  }
+
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     return {X86::EAX, X86::EDX, X86::EFLAGS};
   }
@@ -309,6 +351,40 @@ public:
       }
       // multiply and compare
       p->compile(as, stack);
+      // accumulate the result in ecx
+      as.shl(as.reg(X86::ECX));
+      as.lor8(as.reg(X86::CL), as.reg(X86::AL));
+    }
+    switch (target.type) {
+    case OpaqueStorage::Type::REG:
+      if (target.reg != X86::ECX)
+        as.mov(as.reg(target.reg), as.reg(X86::ECX));
+      break;
+    case OpaqueStorage::Type::STACK:
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
+      break;
+    }
+    // as.inlineasm(fmt::format("# MULTCOMP END 0x{:x}", returnValue()));
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // as.inlineasm(fmt::format("# MULTCOMP BEGIN 0x{:x}", returnValue()));
+    std::vector<SteganoInstructions> steglist;
+    instrs.expandWithDummy(predicates.size())
+        .split(predicates.size(), steglist);
+    for (size_t i = 0; i < steglist.size(); i++) {
+      auto &p = predicates[i];
+      // initialise inputs (eax, edx)
+      if (p->isInvariant()) {
+        compileRandom(as, stack);
+      } else {
+        uint32_t in_eax = *p->getInput().findValue(OpaqueStorage::EAX);
+        uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
+        compileConstant(as, stack, in_eax, in_edx);
+      }
+      // multiply and compare
+      p->compileStegano(as, stack, steglist[i]);
       // accumulate the result in ecx
       as.shl(as.reg(X86::ECX));
       as.lor8(as.reg(X86::CL), as.reg(X86::AL));
@@ -527,6 +603,14 @@ public:
     compileSharedCode(as, negate);
   }
 
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // TODO: interleave
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
+
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
             X86::EDI, X86::ESI, X86::EFLAGS};
@@ -627,6 +711,38 @@ public:
     // as.inlineasm(fmt::format("# R3SAT END 0x{:x}", returnValue()));
   }
 
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // as.inlineasm(fmt::format("# R3SAT BEGIN 0x{:x}", returnValue()));
+    std::vector<SteganoInstructions> steglist;
+    instrs.expandWithDummy(predicates.size())
+        .split(predicates.size(), steglist);
+    for (size_t i = 0; i < predicates.size(); i++) {
+      auto &p = predicates[i];
+      // initialise input (edx)
+      if (p->isInvariant()) {
+        compileRandom(as, stack);
+      } else {
+        uint32_t in_edx = *p->getInput().findValue(OpaqueStorage::EDX);
+        compileConstant(as, stack, in_edx);
+      }
+      // accumulate the result in eax
+      as.shl(as.reg(X86::EAX));
+      // compute opaque predicate (set LSB in eax)
+      p->compileStegano(as, stack, steglist[i]);
+    }
+    switch (target.type) {
+    case OpaqueStorage::Type::REG:
+      if (target.reg != X86::EAX)
+        as.mov(as.reg(target.reg), as.reg(X86::EAX));
+      break;
+    case OpaqueStorage::Type::STACK:
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::EAX));
+      break;
+    }
+    // as.inlineasm(fmt::format("# R3SAT END 0x{:x}", returnValue()));
+  }
+
 private:
   void compileConstant(X86AssembleHelper &as, StackState &stack,
                        uint32_t value) const {
@@ -647,6 +763,13 @@ public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     as.rdtsc();
   }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -665,6 +788,13 @@ public:
     int offset = -4 * math::Random::range32(2u, 32u);
     as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
   }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -680,6 +810,13 @@ public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     moveMixedRegs(as, stack, X86::EAX,
                   {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
+  }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
   }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
@@ -719,6 +856,14 @@ public:
     if (target.type == OpaqueStorage::Type::STACK) {
       as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(targetreg));
     }
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
   }
 
   OpaqueState getInput() const override {
@@ -784,6 +929,15 @@ public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     for (auto func : functions) {
       func->compile(as, stack);
+    }
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    std::vector<SteganoInstructions> list;
+    instrs.expandWithDummy(functions.size()).split(functions.size(), list);
+    for (size_t i = 0; i < functions.size(); i++) {
+      functions[i]->compileStegano(as, stack, list[i]);
     }
   }
 
@@ -853,6 +1007,14 @@ public:
       as.mov(stackref, as.reg(X86::EAX));
       break;
     }
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
   }
 
   OpaqueState getInput() const override {
