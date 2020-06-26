@@ -283,7 +283,12 @@ void putLabelInMBB(MachineBasicBlock &MBB, X86AssembleHelper::Label label) {
 
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
                                  const ROPfuscatorConfig &config)
-    : config(config), BA(nullptr), TII(nullptr) {}
+    : config(config), BA(nullptr), TII(nullptr) {
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+  total_chain_elems = 0;
+  stegano_chain_elems = 0;
+#endif
+}
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -294,6 +299,12 @@ ROPfuscatorCore::~ROPfuscatorCore() {
     for (auto &kv : instr_stat) {
       dbg_fmt("{}\t{}\t{}\n", kv.first, TII->getName(kv.first),
               kv.second.to_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+    }
+    dbg_fmt("============================================================\n");
+    dbg_fmt("Total ROP chain elements: {}\n", total_chain_elems);
+    if (stegano_chain_elems > 0) {
+      dbg_fmt("ROP chain elements hidden in opaque predicates: {}\n",
+              stegano_chain_elems);
     }
   }
 #endif
@@ -309,6 +320,10 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   std::map<int, int> espOffsetMap;
   int espoffset = 0;
   std::vector<const Symbol *> versionedSymbols;
+
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+  total_chain_elems += chain.size();
+#endif
 
   // stack layout:
   // (A) if FlagSaveMode == SAVE_AFTER_EXEC:
@@ -344,8 +359,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   // instruction steganography: convert part of ROP chain into stegano
   SteganoInstructions steganoInstrs;
   if (param.opaquePredicateEnabled && param.opaqueSteganoEnabled) {
-    InstrSteganoProcessor().convertROPChainToStegano(chain, steganoInstrs,
-                                                     chain.size() / 2);
+    size_t count = InstrSteganoProcessor().convertROPChainToStegano(
+        chain, steganoInstrs, chain.size() / 2);
+#ifdef ROPFUSCATOR_INSTRUCTION_STAT
+    stegano_chain_elems += count;
+#else
+    (void)count;
+#endif
   }
 
   // Convert ROP chain to push instructions
