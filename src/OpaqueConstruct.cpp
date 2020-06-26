@@ -1076,7 +1076,7 @@ private:
         assert(N >= 3);
         uint32_t n2 = (N + 1) / 2;
         assert(inputvalues[pos + n2 - 1] < inputvalues[pos + n2]);
-        uint32_t mid = math::Random::range32(inputvalues[pos + n2 - 1],
+        uint32_t mid = math::Random::range32(inputvalues[pos + n2 - 1] + 1,
                                              inputvalues[pos + n2]);
         auto label1 = as.label();
         // test if input < mid

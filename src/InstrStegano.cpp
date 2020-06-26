@@ -24,7 +24,7 @@ void SteganoInstructions::split(
     num_elements.push_back(n);
   }
   for (size_t i = n * count; i < instrs.size(); i++) {
-    num_elements[math::Random::range32(0, (uint32_t)count)]++;
+    num_elements[math::Random::range32(0, (uint32_t)count - 1)]++;
   }
   auto it = instrs.begin();
   for (size_t i = 0; i < count; i++) {
@@ -63,7 +63,7 @@ void InstrSteganoProcessor::insertDummy(
   }
   // as.inlineasm("# dummy");
   int stack_offset = stack.constant_location[math::Random::range32(
-      0, stack.constant_location.size())];
+      0, stack.constant_location.size() - 1)];
   // mutate constant value saved in stack
   if (opaqueReg == 0 || math::Random::bit()) {
     opaqueValue = math::Random::rand();
