@@ -47,6 +47,8 @@ private:
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
   std::map<unsigned, ROPChainStatEntry> instr_stat;
+  size_t total_chain_elems;
+  size_t stegano_chain_elems;
 #endif
 
   void insertROPChain(ROPChain &chain, llvm::MachineBasicBlock &MBB,
