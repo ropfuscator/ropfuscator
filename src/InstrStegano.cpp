@@ -5,6 +5,8 @@
 #include "ROPEngine.h"
 #include "X86AssembleHelper.h"
 
+#include "llvm/CodeGen/MachineBasicBlock.h"
+
 #include "X86.h"
 
 namespace ropf {
@@ -69,11 +71,14 @@ void InstrSteganoProcessor::insertDummy(
     opaqueValue = math::Random::rand();
     as.add(as.mem(X86::ESP, stack_offset - stack.stack_offset),
            as.imm(opaqueValue));
+    stack.saved_values[stack_offset].value += opaqueValue;
   } else {
-    as.add(as.mem(X86::ESP, stack_offset - stack.stack_offset),
+    uint32_t value = math::Random::rand();
+    as.mov(as.mem(X86::ESP, stack_offset - stack.stack_offset),
            as.reg(opaqueReg));
+    as.add(as.mem(X86::ESP, stack_offset - stack.stack_offset), as.imm(value));
+    stack.saved_values[stack_offset].value = opaqueValue + value;
   }
-  stack.saved_values[stack_offset].value += opaqueValue;
 }
 
 size_t InstrSteganoProcessor::convertROPChainToStegano(
@@ -96,6 +101,12 @@ size_t InstrSteganoProcessor::convertROPChainToStegano(
       popNext = true;
       supported = true;
       break;
+    case GadgetType::XCHG:
+    case GadgetType::COPY:
+    case GadgetType::LOAD:
+    case GadgetType::LOAD_1:
+      supported = true;
+      break;
     default:
       break;
     }
@@ -104,8 +115,11 @@ size_t InstrSteganoProcessor::convertROPChainToStegano(
     }
     if (popNext) {
       ChainElem &elem = chain.chain[i + 1];
-      if (elem.type != ChainElem::Type::IMM_VALUE)
+      if (elem.type != ChainElem::Type::IMM_VALUE &&
+          elem.type != ChainElem::Type::IMM_GLOBAL &&
+          elem.type != ChainElem::Type::JMP_BLOCK) {
         break;
+      }
       instrs.instrs.emplace_back(gadget, elem);
       i++;
     } else {
@@ -113,6 +127,7 @@ size_t InstrSteganoProcessor::convertROPChainToStegano(
     }
   };
   chain.chain.erase(chain.chain.begin(), chain.chain.begin() + i);
+  // dbg_fmt("stegano {} / {}\n", i, chain.chain.size() + i);
   return i;
 }
 
@@ -123,77 +138,29 @@ void InstrSteganoProcessor::insertGadget(
     uint32_t opaqueValue) {
   // as.inlineasm("# stegano instr");
   // find actual location where reg1 and reg2 are stored
-  bool reg1_stack = false;
-  bool reg2_stack = false;
-  int reg1_offset = 0;
-  int reg2_offset = 0;
-  auto it_end = stack.regs_location.end();
-  if (gadget->reg1) {
-    auto it = stack.regs_location.find(gadget->reg1);
-    if (it != it_end) {
-      reg1_stack = true;
-      reg1_offset = it->second - stack.stack_offset;
-    }
-  }
-  if (gadget->reg2) {
-    auto it = stack.regs_location.find(gadget->reg2);
-    if (it != it_end) {
-      reg2_stack = true;
-      reg2_offset = it->second - stack.stack_offset;
-    }
-  }
+  MemLoc x = MemLoc::find(gadget->reg1, stack);
+  MemLoc y = MemLoc::find(gadget->reg2, stack);
   switch (gadget->Type) {
   case GadgetType::INIT:
-    if (poppedValue == nullptr) {
-      dbg_fmt("Impl error: poppedValue == null\n");
-      return;
-    }
-    if (reg1_stack) {
-      if (opaqueReg == 0) {
-        opaqueValue = math::Random::rand();
-        as.mov(as.mem(X86::ESP, reg1_offset), as.imm(opaqueValue));
-      } else {
-        as.mov(as.mem(X86::ESP, reg1_offset), as.reg(opaqueReg));
-      }
-      switch (poppedValue->type) {
-      case ChainElem::Type::IMM_VALUE:
-        as.add(as.mem(X86::ESP, reg1_offset),
-               as.imm(poppedValue->value - opaqueValue));
-        break;
-      case ChainElem::Type::IMM_GLOBAL:
-        dbg_fmt("Impl error: unsupported popped value\n");
-        as.add(as.mem(X86::ESP, reg1_offset),
-               as.imm(poppedValue->global, -opaqueValue));
-        break;
-      default:
-        dbg_fmt("Impl error: unsupported popped value\n");
-        return;
-      }
-    } else {
-      if (opaqueReg == 0) {
-        opaqueValue = math::Random::rand();
-        as.mov(as.reg(gadget->reg1), as.imm(opaqueValue));
-      } else {
-        as.mov(as.reg(gadget->reg1), as.reg(opaqueReg));
-      }
-      switch (poppedValue->type) {
-      case ChainElem::Type::IMM_VALUE:
-        as.add(as.reg(gadget->reg1), as.imm(poppedValue->value - opaqueValue));
-        break;
-      case ChainElem::Type::IMM_GLOBAL:
-        dbg_fmt("Impl error: unsupported popped value\n");
-        as.add(as.reg(gadget->reg1), as.imm(poppedValue->global, -opaqueValue));
-        break;
-      default:
-        dbg_fmt("Impl error: unsupported popped value\n");
-        return;
-      }
-    }
+    // reg1 := poppedValue
+    insertMov(x, poppedValue, as, stack, opaqueReg, opaqueValue);
     break;
   case GadgetType::XCHG:
+    // xchg reg1, reg2
+    insertXchg(x, y, as, stack);
+    break;
   case GadgetType::COPY:
+    // mov reg1, reg2
+    insertMov(x, y, as, stack);
+    break;
   case GadgetType::LOAD:
+    // mov reg1, [reg2]
+    insertLoad(x, y, as, stack);
+    break;
   case GadgetType::LOAD_1:
+    // mov reg1, [reg1]
+    insertLoad(x, as, stack);
+    break;
   case GadgetType::STORE:
   case GadgetType::ADD:
   case GadgetType::ADD_1:
@@ -212,6 +179,180 @@ void InstrSteganoProcessor::insertGadget(
   default:
     dbg_fmt("Impl error: unexpected case\n");
     return;
+  }
+}
+
+InstrSteganoProcessor::MemLoc
+InstrSteganoProcessor::MemLoc::find(unsigned int reg, const StackState &stack) {
+  if (reg == 0) {
+    return {0, 0};
+  }
+  auto it = stack.regs_location.find(reg);
+  if (it != stack.regs_location.end()) {
+    return {0, it->second - stack.stack_offset};
+  } else {
+    return {reg, 0};
+  }
+}
+
+void InstrSteganoProcessor::insertXchg(const MemLoc &x, const MemLoc &y,
+                                       X86AssembleHelper &as,
+                                       StackState &stack) {
+  if (x.isStack()) {
+    if (y.isStack()) {
+      as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, x.stackOffset));
+      as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, y.stackOffset));
+      as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, x.stackOffset));
+    } else {
+      as.xchg(as.reg(y.reg), as.mem(X86::ESP, x.stackOffset));
+    }
+  } else {
+    if (y.isStack()) {
+      as.xchg(as.reg(x.reg), as.mem(X86::ESP, x.stackOffset));
+    } else {
+      as.xchg(as.reg(x.reg), as.reg(y.reg));
+    }
+  }
+}
+
+void InstrSteganoProcessor::insertMov(const MemLoc &dst, const MemLoc &src,
+                                      X86AssembleHelper &as,
+                                      StackState &stack) {
+  if (src.isStack()) {
+    if (dst.isStack()) {
+      as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, src.stackOffset));
+      as.mov(as.mem(X86::ESP, dst.stackOffset), as.reg(X86::EAX));
+      as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, src.stackOffset));
+    } else {
+      as.mov(as.reg(dst.reg), as.mem(X86::ESP, src.stackOffset));
+    }
+  } else {
+    if (dst.isStack()) {
+      as.mov(as.mem(X86::ESP, dst.stackOffset), as.reg(src.reg));
+    } else {
+      as.mov(as.reg(dst.reg), as.reg(src.reg));
+    }
+  }
+}
+
+void InstrSteganoProcessor::insertMov(const MemLoc &dst,
+                                      const ChainElem *poppedValue,
+                                      X86AssembleHelper &as, StackState &stack,
+                                      unsigned int opaqueReg,
+                                      uint32_t opaqueValue) {
+  if (poppedValue == nullptr) {
+    dbg_fmt("Impl error: poppedValue == null\n");
+    return;
+  }
+  if (dst.isStack()) {
+    // reg1 is saved in [esp+reg1_offset]
+    // [esp+reg1_offset] = opaqueValue;
+    // [esp+reg1_offset] += poppedValue - opaqueValue;
+    if (opaqueReg == 0) {
+      opaqueValue = math::Random::rand();
+      as.mov(as.mem(X86::ESP, dst.stackOffset), as.imm(opaqueValue));
+    } else {
+      as.mov(as.mem(X86::ESP, dst.stackOffset), as.reg(opaqueReg));
+    }
+    switch (poppedValue->type) {
+    case ChainElem::Type::IMM_VALUE:
+      as.add(as.mem(X86::ESP, dst.stackOffset),
+             as.imm(poppedValue->value - opaqueValue));
+      break;
+    case ChainElem::Type::IMM_GLOBAL:
+      as.add(as.mem(X86::ESP, dst.stackOffset),
+             as.imm(poppedValue->global, -opaqueValue));
+      break;
+    case ChainElem::Type::JMP_BLOCK: {
+      llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
+      auto targetLabel = as.label();
+      X86AssembleHelper as0(*targetMBB, targetMBB->begin());
+      as0.putLabel(targetLabel);
+      as.add(as.mem(X86::ESP, dst.stackOffset),
+             as.addOffset(targetLabel, -opaqueValue));
+      break;
+    }
+    default:
+      dbg_fmt("Impl error: unsupported popped value\n");
+      break;
+    }
+  } else {
+    // reg1 is stored as it is
+    // reg1 = opaqueValue;
+    // reg1 += poppedValue - opaqueValue;
+    if (opaqueReg == 0) {
+      opaqueValue = math::Random::rand();
+      as.mov(as.reg(dst.reg), as.imm(opaqueValue));
+    } else {
+      as.mov(as.reg(dst.reg), as.reg(opaqueReg));
+    }
+    switch (poppedValue->type) {
+    case ChainElem::Type::IMM_VALUE:
+      as.add(as.reg(dst.reg), as.imm(poppedValue->value - opaqueValue));
+      break;
+    case ChainElem::Type::IMM_GLOBAL:
+      as.add(as.reg(dst.reg), as.imm(poppedValue->global, -opaqueValue));
+      break;
+    case ChainElem::Type::JMP_BLOCK: {
+      llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
+      as.inlineasm(fmt::format("# MBB {}", targetMBB->getFullName()));
+      auto targetLabel = as.label();
+      X86AssembleHelper as0(*targetMBB, targetMBB->begin());
+      as0.putLabel(targetLabel);
+      as.add(as.reg(dst.reg), as.addOffset(targetLabel, -opaqueValue));
+      break;
+    }
+    default:
+      dbg_fmt("Impl error: unsupported popped value\n");
+      return;
+    }
+  }
+}
+
+void InstrSteganoProcessor::insertLoad(const MemLoc &dst, const MemLoc &addr,
+                                       X86AssembleHelper &as,
+                                       StackState &stack) {
+  if (addr.isStack()) {
+    if (dst.isStack()) {
+      // xchg tmp, dst
+      // mov tmp, addr
+      // mov tmp, [eax]
+      // xchg tmp, dst
+      auto tmpreg = X86::EAX;
+      as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+      as.mov(as.reg(tmpreg), as.mem(X86::ESP, addr.stackOffset));
+      as.mov(as.reg(tmpreg), as.mem(tmpreg));
+      as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+    } else {
+      as.mov(as.reg(dst.reg), as.mem(X86::ESP, addr.stackOffset));
+      as.mov(as.reg(dst.reg), as.mem(dst.reg));
+    }
+  } else {
+    if (dst.isStack()) {
+      // xchg tmp, dst
+      // mov tmp, [addr]
+      // xchg tmp, dst
+      auto tmpreg = addr.reg != X86::EAX ? X86::EAX : X86::ECX;
+      as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+      as.mov(as.reg(tmpreg), as.mem(addr.reg));
+      as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+    } else {
+      as.mov(as.reg(dst.reg), as.mem(addr.reg));
+    }
+  }
+}
+void InstrSteganoProcessor::insertLoad(const MemLoc &dst, X86AssembleHelper &as,
+                                       StackState &stack) {
+  if (dst.isStack()) {
+    // xchg tmp, dst
+    // mov tmp, [tmp]
+    // xchg tmp, dst
+    auto tmpreg = X86::EAX;
+    as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+    as.mov(as.reg(tmpreg), as.mem(tmpreg));
+    as.xchg(as.reg(tmpreg), as.mem(X86::ESP, dst.stackOffset));
+  } else {
+    as.mov(as.reg(dst.reg), as.mem(dst.reg));
   }
 }
 

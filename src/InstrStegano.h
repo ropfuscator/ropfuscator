@@ -59,6 +59,25 @@ public:
                     X86AssembleHelper &as, StackState &stack,
                     const std::vector<unsigned int> &tempRegs,
                     unsigned int opaqueReg, uint32_t opaqueValue);
+
+private:
+  // detail
+  struct MemLoc {
+    unsigned int reg;
+    int stackOffset;
+    static MemLoc find(unsigned int reg, const StackState &stack);
+    bool isStack() const { return reg == 0; }
+  };
+  void insertMov(const MemLoc &dst, const ChainElem *poppedValue,
+                 X86AssembleHelper &as, StackState &stack,
+                 unsigned int opaqueReg, uint32_t opaqueValue);
+  void insertMov(const MemLoc &dst, const MemLoc &src, X86AssembleHelper &as,
+                 StackState &stack);
+  void insertXchg(const MemLoc &x, const MemLoc &y, X86AssembleHelper &as,
+                  StackState &stack);
+  void insertLoad(const MemLoc &dst, const MemLoc &addr, X86AssembleHelper &as,
+                  StackState &stack);
+  void insertLoad(const MemLoc &dst, X86AssembleHelper &as, StackState &stack);
 };
 
 } // namespace ropf

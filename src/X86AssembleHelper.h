@@ -108,6 +108,8 @@ public:
   void add(Mem m, Imm i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, ImmGlobal i) const { _instr(llvm::X86::ADD32mi, m, i); }
   void add(Mem m, Label i) const { _instr(llvm::X86::ADD32mi, m, i); }
+  void xchg(Reg r1, Reg r2) const { _instrd(llvm::X86::XCHG32rr, r1, r2, r1); }
+  void xchg(Reg r, Mem m) const { _instrd(llvm::X86::XCHG32rm, r, m); }
   void imul(Reg r) const { _instr(llvm::X86::IMUL32r, r); }
   void imul(Reg r, Imm i) const { _instrd(llvm::X86::IMUL32rri, r, i); }
   void imul(Reg r1, Reg r2, Imm i) const {
@@ -197,6 +199,11 @@ public:
         .addImm(0);
   }
   void putLabel(Label label) { _instr(llvm::TargetOpcode::GC_LABEL, label); }
+
+  void debug_generated() const {
+    llvm::MachineBasicBlock::iterator position0 = position;
+    dbg_fmt("{}", *--position0);
+  }
 
 private:
   llvm::MachineBasicBlock &block;
