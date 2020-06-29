@@ -261,7 +261,7 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
       break;
     case ChainElem::Type::IMM_GLOBAL:
       as.add(as.mem(X86::ESP, dst.stackOffset),
-             as.imm(poppedValue->global, -opaqueValue));
+             as.imm(poppedValue->global, poppedValue->value - opaqueValue));
       break;
     case ChainElem::Type::JMP_BLOCK: {
       llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
@@ -291,7 +291,8 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
       as.add(as.reg(dst.reg), as.imm(poppedValue->value - opaqueValue));
       break;
     case ChainElem::Type::IMM_GLOBAL:
-      as.add(as.reg(dst.reg), as.imm(poppedValue->global, -opaqueValue));
+      as.add(as.reg(dst.reg),
+             as.imm(poppedValue->global, poppedValue->value - opaqueValue));
       break;
     case ChainElem::Type::JMP_BLOCK: {
       llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
