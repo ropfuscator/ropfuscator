@@ -31,6 +31,7 @@ namespace ropf {
 #define CONFIG_OPA_OBF_IMM_OPERAND "obfuscate_immediate_operand"
 #define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
 #define CONFIG_OPA_OBF_STACK_SAVED "obfuscate_stack_saved_values"
+#define CONFIG_OPA_STEGANO_ENABLED "opaque_stegano_enabled"
 #define CONFIG_BRANCH_DIV_ENABLED "branch_divergence_enabled"
 #define CONFIG_BRANCH_DIV_MAX "branch_divergence_max_branches"
 #define CONFIG_BRANCH_DIV_ALGO "branch_divergence_algorithm"
@@ -51,6 +52,8 @@ struct ObfuscationParameter {
   bool obfuscateBranchTarget;
   /// true if save dummy constants
   bool obfuscateStackSavedValues;
+  /// true if instruction steganography into opaque predicates enabled
+  bool opaqueSteganoEnabled;
   /// true if branch divergence is enabled for this function
   bool opaqueBranchDivergenceEnabled;
   /// maximum number of branches in branch divergence
@@ -63,7 +66,8 @@ struct ObfuscationParameter {
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicateEnabled(false),
         obfuscateImmediateOperand(true), obfuscateBranchTarget(true),
-        obfuscateStackSavedValues(true), opaqueBranchDivergenceEnabled(false),
+        obfuscateStackSavedValues(true), opaqueSteganoEnabled(false),
+        opaqueBranchDivergenceEnabled(false),
         opaqueBranchDivergenceMaxBranches(32),
         opaqueConstantAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
         opaqueBranchDivergenceAlgorithm(OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV) {}
