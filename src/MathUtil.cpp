@@ -21,6 +21,151 @@ void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x, uint64_t &y) {
   }
 }
 
+template <typename UIntT> struct Divisor {};
+
+template <> struct Divisor<uint32_t> {
+  uint32_t d0;
+#ifdef __SIZEOF_INT128__
+  uint64_t d1;
+  Divisor(uint64_t dividend) {
+    d0 = dividend;
+    d1 = 1 + ((uint64_t)-1) / dividend;
+  }
+#else
+  uint32_t d1, d2;
+  Divisor(uint64_t dividend) {
+    d0 = dividend;
+    uint64_t d = 1 + ((uint64_t)-1) / dividend;
+    d0 = d >> 32;
+    d1 = d;
+  }
+#endif
+  operator uint32_t() const { return d0; }
+  void divmod(uint64_t x, uint64_t &quo, uint64_t &rem) const {
+    uint64_t result;
+#ifdef __SIZEOF_INT128__
+    result = ((__uint128_t)d1 * x) >> 64;
+#else
+    if (x >> 32) {
+      uint64_t x1 = x >> 32;
+      uint64_t x2 = (uint32_t)x;
+      // (x1x2 * d1d2) >> 64
+      // x1d1 + (x1d2 + x2d1) >> 32 + x2d2 >> 64
+      int overflow = 0;
+      uint64_t v0, v = (x2 * d2) >> 32;
+      v0 = x2 * d1;
+      v += v0;
+      if (v < v0)
+        overflow++;
+      v0 = x1 * d2;
+      v += v0;
+      if (v < v0)
+        overflow++;
+      v >>= 32;
+      result = x1 * d1 + v + overflow;
+    } else {
+      uint64_t v2 = x * d1;
+      v2 += (v1 >> 32);
+      result = v2 >> 32;
+    }
+#endif
+    uint64_t r = x - result * d0;
+    while (r >> 32) {
+      r += d0;
+      result--;
+    }
+    while (r >= d0) {
+      r -= d0;
+      result++;
+    }
+    quo = result;
+    rem = r;
+  }
+};
+
+uint64_t operator/(uint64_t x, const Divisor<uint32_t> &d) {
+  uint64_t quo, rem;
+  d.divmod(x, quo, rem);
+  return quo;
+}
+uint64_t operator%(uint64_t x, const Divisor<uint32_t> &d) {
+  uint64_t quo, rem;
+  d.divmod(x, quo, rem);
+  return rem;
+}
+
+#ifdef __SIZEOF_INT128__
+
+template <> struct Divisor<uint64_t> {
+  uint64_t d0, d1, d2;
+  Divisor(uint64_t dividend) {
+    // assert(dividend > 1);
+    d0 = dividend;
+    __uint128_t d = 1 + ((__uint128_t)-1) / dividend;
+    d1 = d >> 64;
+    d2 = d;
+  }
+  operator uint64_t() const { return d0; }
+  void divmod(__uint128_t x, __uint128_t &quo, __uint128_t &rem) const {
+    __uint128_t result;
+    if (x >> 64) {
+      __uint128_t x1 = x >> 64;
+      __uint128_t x2 = (uint64_t)x;
+      // (x1x2 * d1d2) >> 128
+      // x1d1 + (x1d2 + x2d1) >> 64 + x2d2 >> 128
+      int overflow = 0;
+      __uint128_t v0, v = (x2 * d2) >> 64;
+      v0 = x2 * d1;
+      v += v0;
+      if (v < v0)
+        overflow++;
+      v0 = x1 * d2;
+      v += v0;
+      if (v < v0)
+        overflow++;
+      v >>= 64;
+      result = x1 * d1 + v + overflow;
+    } else {
+      __uint128_t v1 = x * d2;
+      __uint128_t v2 = x * d1;
+      v2 += (v1 >> 64);
+      result = v2 >> 64;
+    }
+    __uint128_t r = x - result * d0;
+    while (r >> 64) {
+      r += d0;
+      result--;
+    }
+    while (r >= d0) {
+      r -= d0;
+      result++;
+    }
+    quo = result;
+    rem = r;
+  }
+};
+
+__uint128_t operator/(__uint128_t x, const Divisor<uint64_t> &d) {
+  __uint128_t quo, rem;
+  d.divmod(x, quo, rem);
+  return quo;
+}
+__uint128_t operator%(__uint128_t x, const Divisor<uint64_t> &d) {
+  __uint128_t quo, rem;
+  d.divmod(x, quo, rem);
+  return rem;
+}
+
+#else
+
+template <> struct Divisor<uint64_t> {
+  uint64_t d0;
+  Divisor(uint64_t dividend) { d0 = dividend; }
+  operator uint64_t() const { return d0; }
+};
+
+#endif
+
 } // namespace
 
 uint32_t Random::range32(uint32_t x, uint32_t y) {
@@ -57,25 +202,14 @@ class PrimeNumberGeneratorImpl {
            1;
   }
 
-  template <typename UIntT>
-  static UIntT mulmod(UIntT a, UIntT b, UIntT modulus);
-
-  template <>
-  uint32_t mulmod<uint32_t>(uint32_t a, uint32_t b, uint32_t modulus) {
+  template <typename ModT>
+  static uint32_t mulmod(uint32_t a, uint32_t b, const ModT &modulus) {
     return (uint64_t)a * b % modulus;
   }
 
-  template <>
-  uint64_t mulmod<uint64_t>(uint64_t a, uint64_t b, uint64_t modulus) {
-#if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
-    uint64_t rax, rdx;
-    asm("mulq %3\n\t"
-        "divq %4"
-        : "=a"(rax), "=&d"(rdx)
-        : "a"(a), "rm"(b), "rm"(modulus)
-        : "cc");
-    return rdx;
-#elif defined(__SIZEOF_INT128__)
+  template <typename ModT>
+  static uint64_t mulmod(uint64_t a, uint64_t b, const ModT &modulus) {
+#if defined(__SIZEOF_INT128__)
     return (__uint128_t)a * b % modulus;
 #else
     if (a == 1)
@@ -100,14 +234,14 @@ class PrimeNumberGeneratorImpl {
 #endif
   }
 
-  template <typename UIntT>
-  static UIntT modpow(UIntT base, UIntT exponent, UIntT modulus) {
+  template <typename UIntT, typename ModT>
+  static UIntT modpow(UIntT base, UIntT exponent, const ModT &modulus) {
     UIntT n = 1;
     for (; exponent; exponent >>= 1) {
-      base = mulmod<UIntT>(base, base, modulus);
       if (exponent & 1) {
-        n = mulmod<UIntT>(n, base, modulus);
+        n = mulmod(n, base, modulus);
       }
+      base = mulmod(base, base, modulus);
     }
     return n;
   }
@@ -129,21 +263,25 @@ class PrimeNumberGeneratorImpl {
         return false;
       }
     }
+    if (n < 37 * 37) {
+      return true;
+    }
     // Miller-Rabin test
     UIntT d = n - 1;
     int r = 0;
-    while (d % 2 == 0) {
+    while ((d & 0x1) == 0) {
       d >>= 1;
       r++;
     }
+    Divisor<UIntT> divisor(n);
     if constexpr (sizeof(UIntT) <= 4) {
       for (UIntT a : {2, 7, 61}) {
-        UIntT x = modpow<UIntT>(a, d, n);
+        UIntT x = modpow(a, d, divisor);
         if (x == 1 || x == n - 1) {
           goto CONTINUE1;
         }
         for (int j = 0; j < r; j++) {
-          x = mulmod<UIntT>(x, x, n);
+          x = mulmod(x, x, divisor);
           if (x == n - 1) {
             goto CONTINUE1;
           }
@@ -153,13 +291,14 @@ class PrimeNumberGeneratorImpl {
       }
       return true;
     } else {
-      for (UIntT a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-        UIntT x = modpow<UIntT>(a, d, n);
+      // for (UIntT a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
+      for (UIntT a : {2, 325, 9375, 28178, 450775, 9780504, 1795265022}) {
+        UIntT x = modpow(a, d, divisor);
         if (x == 1 || x == n - 1) {
           goto CONTINUE2;
         }
         for (int j = 0; j < r; j++) {
-          x = mulmod<UIntT>(x, x, n);
+          x = mulmod(x, x, divisor);
           if (x == n - 1) {
             goto CONTINUE2;
           }
