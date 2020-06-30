@@ -57,100 +57,16 @@ class PrimeNumberGeneratorImpl {
            1;
   }
 
-  static bool isPrime32(uint32_t n) {
-    if (n < 40) {
-      for (uint32_t x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-        if (n == x) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (n % 2 == 0 || n % 3 == 0) {
-      return false;
-    }
-    for (uint32_t x : {5, 7, 11, 13, 17, 19, 23, 29, 31}) {
-      if (n % x == 0) {
-        return false;
-      }
-    }
-    // Miller-Rabin test
-    uint32_t d = n - 1;
-    int r = 0;
-    while (d % 2 == 0) {
-      d >>= 1;
-      r++;
-    }
-    for (uint32_t a : {2, 7, 61}) {
-      uint32_t x = modpow32(a, d, n);
-      if (x == 1 || x == n - 1) {
-        goto CONTINUE;
-      }
-      for (int j = 0; j < r; j++) {
-        x = (uint32_t)((uint64_t)x * x % n);
-        if (x == n - 1) {
-          goto CONTINUE;
-        }
-      }
-      return false;
-    CONTINUE:;
-    }
-    return true;
+  template <typename UIntT>
+  static UIntT mulmod(UIntT a, UIntT b, UIntT modulus);
+
+  template <>
+  uint32_t mulmod<uint32_t>(uint32_t a, uint32_t b, uint32_t modulus) {
+    return (uint64_t)a * b % modulus;
   }
 
-  static bool isPrime64(uint64_t n) { // caution: very slow!
-    if (n < 40) {
-      for (uint32_t x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-        if (n == x) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (n % 2 == 0 || n % 3 == 0) {
-      return false;
-    }
-    for (uint32_t x : {5, 7, 11, 13, 17, 19, 23, 29, 31}) {
-      if (n % x == 0) {
-        return false;
-      }
-    }
-    // Miller-Rabin test
-    uint64_t d = n - 1;
-    int r = 0;
-    while (d % 2 == 0) {
-      d >>= 1;
-      r++;
-    }
-    for (uint64_t a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-      uint64_t x = modpow64(a, d, n);
-      if (x == 1 || x == n - 1) {
-        goto CONTINUE;
-      }
-      for (int j = 0; j < r; j++) {
-        x = mulmod64(x, x, n);
-        if (x == n - 1) {
-          goto CONTINUE;
-        }
-      }
-      return false;
-    CONTINUE:;
-    }
-    return true;
-  }
-
-  static uint32_t modpow32(uint32_t base, uint32_t exponent, uint32_t modulus) {
-    uint64_t n = 1;
-    for (uint32_t mask = 0x80000000; mask != 0; mask >>= 1) {
-      n = n * n % modulus;
-      if (exponent & mask) {
-        n = n * base % modulus;
-      }
-    }
-    return static_cast<uint32_t>(n);
-  }
-
-  static uint64_t mulmod64(uint64_t a, uint64_t b, uint64_t modulus) {
+  template <>
+  uint64_t mulmod<uint64_t>(uint64_t a, uint64_t b, uint64_t modulus) {
 #if (defined(__GNUC__) || defined(__clang__)) && defined(__x86_64__)
     uint64_t rax, rdx;
     asm("mulq %3\n\t"
@@ -184,18 +100,75 @@ class PrimeNumberGeneratorImpl {
 #endif
   }
 
-  static uint64_t modpow64(uint64_t base, uint64_t exponent, uint64_t modulus) {
-    uint64_t n = 1;
-    if (base >= modulus) {
-      base %= modulus;
-    }
-    for (uint64_t mask = 0x8000000000000000ULL; mask != 0; mask >>= 1) {
-      n = mulmod64(n, n, modulus);
-      if (exponent & mask) {
-        n = mulmod64(n, base, modulus);
+  template <typename UIntT>
+  static UIntT modpow(UIntT base, UIntT exponent, UIntT modulus) {
+    UIntT n = 1;
+    for (; exponent; exponent >>= 1) {
+      base = mulmod<UIntT>(base, base, modulus);
+      if (exponent & 1) {
+        n = mulmod<UIntT>(n, base, modulus);
       }
     }
     return n;
+  }
+
+  template <typename UIntT> static bool isPrime(UIntT n) {
+    if (n < 40) {
+      for (UIntT x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
+        if (n == x) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (n % 2 == 0 || n % 3 == 0) {
+      return false;
+    }
+    for (UIntT x : {5, 7, 11, 13, 17, 19, 23, 29, 31}) {
+      if (n % x == 0) {
+        return false;
+      }
+    }
+    // Miller-Rabin test
+    UIntT d = n - 1;
+    int r = 0;
+    while (d % 2 == 0) {
+      d >>= 1;
+      r++;
+    }
+    if constexpr (sizeof(UIntT) <= 4) {
+      for (UIntT a : {2, 7, 61}) {
+        UIntT x = modpow<UIntT>(a, d, n);
+        if (x == 1 || x == n - 1) {
+          goto CONTINUE1;
+        }
+        for (int j = 0; j < r; j++) {
+          x = mulmod<UIntT>(x, x, n);
+          if (x == n - 1) {
+            goto CONTINUE1;
+          }
+        }
+        return false;
+      CONTINUE1:;
+      }
+      return true;
+    } else {
+      for (UIntT a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
+        UIntT x = modpow<UIntT>(a, d, n);
+        if (x == 1 || x == n - 1) {
+          goto CONTINUE2;
+        }
+        for (int j = 0; j < r; j++) {
+          x = mulmod<UIntT>(x, x, n);
+          if (x == n - 1) {
+            goto CONTINUE2;
+          }
+        }
+        return false;
+      CONTINUE2:;
+      }
+      return true;
+    }
   }
 };
 } // namespace
@@ -203,7 +176,7 @@ class PrimeNumberGeneratorImpl {
 uint32_t PrimeNumberGenerator::getPrime32() {
   for (;;) {
     uint32_t v = PrimeNumberGeneratorImpl::getRandom32();
-    if (PrimeNumberGeneratorImpl::isPrime32(v)) {
+    if (PrimeNumberGeneratorImpl::isPrime<uint32_t>(v)) {
       return v;
     }
   }
@@ -211,7 +184,7 @@ uint32_t PrimeNumberGenerator::getPrime32() {
 uint64_t PrimeNumberGenerator::getPrime64() { // caution: very slow!
   for (;;) {
     uint64_t v = PrimeNumberGeneratorImpl::getRandom64();
-    if (PrimeNumberGeneratorImpl::isPrime64(v)) {
+    if (PrimeNumberGeneratorImpl::isPrime<uint64_t>(v)) {
       return v;
     }
   }
