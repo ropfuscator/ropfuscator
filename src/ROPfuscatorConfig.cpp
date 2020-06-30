@@ -107,6 +107,10 @@ void parseFunctionOptions(const toml::Value &config,
     }
   }
 
+  // Opaque predicate steganography enabled
+  parseOption(config, tomlSect, CONFIG_OPA_STEGANO_ENABLED,
+              funcParam.opaqueSteganoEnabled);
+
   // Branch divergence enabled
   parseOption(config, tomlSect, CONFIG_BRANCH_DIV_ENABLED,
               funcParam.opaqueBranchDivergenceEnabled);
