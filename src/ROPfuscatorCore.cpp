@@ -288,6 +288,12 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
   total_chain_elems = 0;
   stegano_chain_elems = 0;
 #endif
+  total_func_count = 0;
+  curr_func_count = 0;
+  for (auto &f : module.getFunctionList()) {
+    if (!f.empty())
+      total_func_count++;
+  }
 }
 
 ROPfuscatorCore::~ROPfuscatorCore() {
@@ -405,8 +411,12 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       // Push the global symbol onto the stack
       ROPChainPushInst *push = new PUSH_GV(elem->global, elem->value);
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
+        // we have to limit value range, so that
+        // linker will not complain about integer overflow in relocation
+        uint32_t value =
+            elem->value - math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
       }
       pushchain.emplace_back(push);
       break;
@@ -470,8 +480,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
       ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
       if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+        // we have to limit value range, so that
+        // linker will not complain about integer overflow in relocation
+        uint32_t value = -math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
       }
       pushchain.emplace_back(push);
       break;
@@ -496,8 +509,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       if (targetLabel.symbol) {
         ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
         if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+          // we have to limit value range, so that
+          // linker will not complain about integer overflow in relocation
+          uint32_t value = -math::Random::range32(0x1000, 0x10000000);
           push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+              OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
         }
         pushchain.emplace_back(push);
       } else {
@@ -676,6 +692,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 }
 
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
+  curr_func_count++;
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
     if (config.globalConfig.libraryPath.empty()) {
@@ -712,7 +729,15 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   std::string funcName = MF.getName().str();
   ObfuscationParameter param = config.getParameter(funcName);
   if (!param.obfuscationEnabled) {
+    if (config.globalConfig.showProgress) {
+      dbg_fmt("[*] skipping    [{2:4d}/{1:4d}] {0}...\n", funcName,
+              total_func_count, curr_func_count);
+    }
     return;
+  }
+  if (config.globalConfig.showProgress) {
+    dbg_fmt("[*] obfuscating [{2:4d}/{1:4d}] {0}...\n", funcName,
+            total_func_count, curr_func_count);
   }
 
   // stats

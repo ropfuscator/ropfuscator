@@ -50,6 +50,8 @@ private:
   size_t total_chain_elems;
   size_t stegano_chain_elems;
 #endif
+  // for progress report
+  size_t total_func_count, curr_func_count;
 
   void insertROPChain(ROPChain &chain, llvm::MachineBasicBlock &MBB,
                       llvm::MachineInstr &MI, int chainID,
