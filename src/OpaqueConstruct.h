@@ -184,6 +184,8 @@ public:
   /// @param instrs stegano instructions which should be interleaved
   virtual void compileStegano(X86AssembleHelper &as, StackState &stack,
                               const SteganoInstructions &instrs) const = 0;
+  /// return the number of opaque predicates (stegano insertion points)
+  virtual size_t opaquePredicateCount() const = 0;
   /// virtual destructor
   virtual ~OpaqueConstruct();
 };

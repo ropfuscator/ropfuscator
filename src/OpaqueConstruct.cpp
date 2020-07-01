@@ -92,6 +92,8 @@ public:
     }
   }
 
+  size_t opaquePredicateCount() const override { return 1; }
+
 private:
   OpaqueStorage target;
   uint32_t value;
@@ -265,6 +267,8 @@ public:
     }
   }
 
+  size_t opaquePredicateCount() const override { return 1; }
+
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     return {X86::EAX, X86::EDX, X86::EFLAGS};
   }
@@ -400,6 +404,8 @@ public:
     }
     // as.inlineasm(fmt::format("# MULTCOMP END 0x{:x}", returnValue()));
   }
+
+  size_t opaquePredicateCount() const override { return predicates.size(); }
 
 private:
   void compileConstant(X86AssembleHelper &as, StackState &stack, uint32_t eax,
@@ -611,6 +617,8 @@ public:
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
 
+  size_t opaquePredicateCount() const override { return 1; }
+
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
             X86::EDI, X86::ESI, X86::EFLAGS};
@@ -743,6 +751,8 @@ public:
     // as.inlineasm(fmt::format("# R3SAT END 0x{:x}", returnValue()));
   }
 
+  size_t opaquePredicateCount() const override { return predicates.size(); }
+
 private:
   void compileConstant(X86AssembleHelper &as, StackState &stack,
                        uint32_t value) const {
@@ -770,6 +780,7 @@ public:
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
+  size_t opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -795,6 +806,7 @@ public:
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
+  size_t opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -818,6 +830,7 @@ public:
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
+  size_t opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -865,6 +878,7 @@ public:
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
+  size_t opaquePredicateCount() const override { return 0; }
 
   OpaqueState getInput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -927,18 +941,55 @@ public:
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    for (auto func : functions) {
+    for (auto &func : functions) {
       func->compile(as, stack);
     }
   }
 
   void compileStegano(X86AssembleHelper &as, StackState &stack,
                       const SteganoInstructions &instrs) const override {
-    std::vector<SteganoInstructions> list;
-    instrs.expandWithDummy(functions.size()).split(functions.size(), list);
-    for (size_t i = 0; i < functions.size(); i++) {
-      functions[i]->compileStegano(as, stack, list[i]);
+    if (instrs.instrs.empty()) {
+      compile(as, stack);
+    } else {
+      size_t insertionPoints =
+          std::count_if(functions.begin(), functions.end(), [](auto &func) {
+            return func->opaquePredicateCount() > 0;
+          });
+      if (insertionPoints == 1) {
+        for (auto &func : functions) {
+          if (func->opaquePredicateCount()) {
+            func->compileStegano(as, stack, instrs);
+          } else {
+            func->compile(as, stack);
+          }
+        }
+      } else if (insertionPoints == 0 || insertionPoints == functions.size()) {
+        std::vector<SteganoInstructions> list;
+        instrs.expandWithDummy(functions.size()).split(functions.size(), list);
+        for (size_t i = 0; i < functions.size(); i++) {
+          functions[i]->compileStegano(as, stack, list[i]);
+        }
+      } else {
+        std::vector<SteganoInstructions> list;
+        instrs.expandWithDummy(insertionPoints).split(insertionPoints, list);
+        size_t j = 0;
+        for (auto &func : functions) {
+          if (func->opaquePredicateCount()) {
+            func->compileStegano(as, stack, list[j++]);
+          } else {
+            func->compile(as, stack);
+          }
+        }
+      }
     }
+  }
+
+  size_t opaquePredicateCount() const override {
+    size_t count = 0;
+    for (auto &f : functions) {
+      count += f->opaquePredicateCount();
+    }
+    return count;
   }
 
   OpaqueState getInput() const override {
@@ -1016,6 +1067,8 @@ public:
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
+
+  size_t opaquePredicateCount() const override { return 0; }
 
   OpaqueState getInput() const override {
     return {{target, OpaqueValue::createConstant(inputvalues)}};
