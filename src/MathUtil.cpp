@@ -246,6 +246,31 @@ class PrimeNumberGeneratorImpl {
     return n;
   }
 
+  static constexpr const uint16_t prime_base_32[256] = {
+#include "detail/primetestdata32.h"
+  };
+  static constexpr const uint16_t prime_base_64[16384] = {
+#include "detail/primetestdata64.h"
+  };
+  static constexpr const uint16_t prime_base_64_2[8] = {15, 135, 13, 60,
+                                                        15, 117, 65, 29};
+
+  template <typename UIntT, typename ModT>
+  static bool millerRabinTest(UIntT n, UIntT d, int r, UIntT base,
+                              const ModT &n_mod) {
+    UIntT x = modpow(base, d, n_mod);
+    if (x == 1 || x == n - 1) {
+      return true;
+    }
+    for (int j = 0; j < r; j++) {
+      x = mulmod(x, x, n_mod);
+      if (x == n - 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   template <typename UIntT> static bool isPrime(UIntT n) {
     if (n < 40) {
       for (UIntT x : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
@@ -275,36 +300,34 @@ class PrimeNumberGeneratorImpl {
     }
     Divisor<UIntT> divisor(n);
     if constexpr (sizeof(UIntT) <= 4) {
-      for (UIntT a : {2, 7, 61}) {
-        UIntT x = modpow(a, d, divisor);
-        if (x == 1 || x == n - 1) {
-          goto CONTINUE1;
-        }
-        for (int j = 0; j < r; j++) {
-          x = mulmod(x, x, divisor);
-          if (x == n - 1) {
-            goto CONTINUE1;
-          }
-        }
-        return false;
-      CONTINUE1:;
-      }
-      return true;
+      // < 2**32
+      uint32_t hash = (uint32_t)n * 0xad625b89u;
+      UIntT base = prime_base_32[hash >> 24];
+      return millerRabinTest(n, d, r, base, divisor);
     } else {
-      // for (UIntT a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
-      for (UIntT a : {2, 325, 9375, 28178, 450775, 9780504, 1795265022}) {
-        UIntT x = modpow(a, d, divisor);
-        if (x == 1 || x == n - 1) {
-          goto CONTINUE2;
+      if (n >> 32) {
+        // >= 2**32
+        UIntT base = 2;
+        if (!millerRabinTest(n, d, r, base, divisor)) {
+          return false;
         }
-        for (int j = 0; j < r; j++) {
-          x = mulmod(x, x, divisor);
-          if (x == n - 1) {
-            goto CONTINUE2;
+        uint32_t hash = (uint32_t)n * 0xad625b89u;
+        base = prime_base_64[hash >> 18];
+        if (!millerRabinTest(n, d, r, base, divisor)) {
+          return false;
+        }
+        if (n >> 49) {
+          base = prime_base_64_2[base >> 13];
+          if (!millerRabinTest(n, d, r, base, divisor)) {
+            return false;
           }
         }
-        return false;
-      CONTINUE2:;
+        return true;
+      } else {
+        // < 2**32
+        uint32_t hash = (uint32_t)n * 0xad625b89u;
+        UIntT base = prime_base_32[hash >> 24];
+        return millerRabinTest(n, d, r, base, divisor);
       }
       return true;
     }
