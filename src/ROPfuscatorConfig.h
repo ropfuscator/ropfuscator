@@ -21,6 +21,7 @@ namespace ropf {
 #define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
 #define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
 #define CONFIG_LINKED_LIBS "linked_libraries"
+#define CONFIG_SHOW_PROGRESS "show_progress"
 #define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
 #define CONFIG_USE_CHAIN_LABEL "use_chain_label"
 
@@ -89,6 +90,8 @@ struct GlobalConfig {
   // not used; if set to false, only one version of those symbols is used. (angr
   // will not work correctly if this is set to false)
   bool avoidMultiversionSymbol;
+  // show obfuscation progress
+  bool showProgress;
   // print instruction obfuscated status
   bool printInstrStat;
   // use chain label
@@ -97,7 +100,7 @@ struct GlobalConfig {
   GlobalConfig()
       : libraryPath(), linkedLibraries(), obfuscationEnabled(true),
         searchSegmentForGadget(true), avoidMultiversionSymbol(false),
-        printInstrStat(false), useChainLabel(false) {}
+        showProgress(false), printInstrStat(false), useChainLabel(false) {}
 };
 
 struct ROPfuscatorConfig {

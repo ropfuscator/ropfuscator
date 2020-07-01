@@ -192,6 +192,10 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_SEARCH_SEGMENT,
                 globalConfig.searchSegmentForGadget);
 
+    // Show obfuscation progress
+    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_SHOW_PROGRESS,
+                globalConfig.showProgress);
+
     // Print instruction statistics
     parseOption(*general_section, CONFIG_GENERAL_SECTION,
                 CONFIG_PRINT_INSTR_STAT, globalConfig.printInstrStat);
