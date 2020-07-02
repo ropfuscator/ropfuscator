@@ -703,7 +703,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       }
     }
     if (config.globalConfig.linkedLibraries.empty()) {
-      for (std::string libname : {"libgcc_s.so.1", "libpthread.so.0"}) {
+      for (std::string libname : {"libgcc_s.so.1", "libpthread.so.0",
+                                  "libm.so.6", "libstdc++.so.6"}) {
         std::string path = findLibraryPath(libname);
         if (!path.empty()) {
           config.globalConfig.linkedLibraries.push_back(path);

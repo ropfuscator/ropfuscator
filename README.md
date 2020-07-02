@@ -115,6 +115,18 @@ Luckily we're using `ninja-build`, so we don't have to recompile the whole backe
 
     Note: we have to use `-pie` to avoid **lazy binding** (aka PLT) to resolve symbols. This is crucial since we need direct function addresses of `libc` rather than the address of PLT entry, to compute gadget address. `gcc` has default compile option `-pie` while `clang` doesn't, so be careful if you are using `clang` instead to link the program. Also note that you should not use `-fpic` in compiling source file to bitcode.
 
+## Build harness
+
+To automate the steps above in existing build scripts (such as `Makefile`), we provide a shell script `ropcc.sh`. It serves both as a compiler and a linker.
+The following example compiles `foo.c` and `bar.c` separately, link the objects with `libbaz.so` (obfuscated with config `obf.conf`) to generate an obfuscated binary `exefile`.
+You just need to replace C-compiler with `ropcc.sh cc`, and C++-compiler with `ropcc.sh c++`, and supply obfuscation configuration (`-ropfuscator-config=...`).
+Command line options are passed to compiler/linker appropriately.
+See shell script (comment) for further details.
+
+    $ ropcc.sh cc -c foo.c -o foo.o
+    $ ropcc.sh cc -c bar.c -o bar.o
+    $ ropcc.sh cc -ropfuscator-config=obf.conf foo.o bar.o -lbaz -o exefile
+
 ## Compiling the examples
 
 While in the `build` directory, run:
