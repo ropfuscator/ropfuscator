@@ -102,7 +102,7 @@ private:
 void moveConstant(X86AssembleHelper &as, StackState &stack,
                   unsigned int targetReg, uint32_t value, size_t size) {
   // targetReg := resultValue
-  if (stack.stack_mangled) {
+  if (stack.stack_mangled && !stack.constant_location.empty()) {
     std::vector<int> stackOffsets;
     uint32_t addend;
     // pick up random constants saved in stack
@@ -128,7 +128,7 @@ void moveMixedRegs(X86AssembleHelper &as, StackState &stack,
                    unsigned int targetReg,
                    const std::vector<unsigned int> &regs) {
   // targetReg := targetReg + sum(regs)
-  if (stack.stack_mangled) {
+  if (stack.stack_mangled && !stack.constant_location.empty()) {
     std::vector<int> stackOffsets;
     uint32_t addend = math::Random::rand();
     decltype(stack.regs_location)::iterator it, end = stack.regs_location.end();
