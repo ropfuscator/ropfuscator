@@ -71,13 +71,14 @@ void InstrSteganoProcessor::insertDummy(
     opaqueValue = math::Random::rand();
     as.add(as.mem(X86::ESP, stack_offset - stack.stack_offset),
            as.imm(opaqueValue));
-    stack.saved_values[stack_offset].value += opaqueValue;
+    stack.saved_values[stack_offset].value =
+        (uint32_t)(opaqueValue + stack.saved_values[stack_offset].value);
   } else {
     uint32_t value = math::Random::rand();
     as.mov(as.mem(X86::ESP, stack_offset - stack.stack_offset),
            as.reg(opaqueReg));
     as.add(as.mem(X86::ESP, stack_offset - stack.stack_offset), as.imm(value));
-    stack.saved_values[stack_offset].value = opaqueValue + value;
+    stack.saved_values[stack_offset].value = (uint32_t)(opaqueValue + value);
   }
 }
 
@@ -245,31 +246,59 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
     return;
   }
   if (dst.isStack()) {
+    auto dstloc = as.mem(X86::ESP, dst.stackOffset);
     // reg1 is saved in [esp+reg1_offset]
     // [esp+reg1_offset] = opaqueValue;
     // [esp+reg1_offset] += poppedValue - opaqueValue;
-    if (opaqueReg == 0) {
-      opaqueValue = math::Random::rand();
-      as.mov(as.mem(X86::ESP, dst.stackOffset), as.imm(opaqueValue));
-    } else {
-      as.mov(as.mem(X86::ESP, dst.stackOffset), as.reg(opaqueReg));
-    }
     switch (poppedValue->type) {
     case ChainElem::Type::IMM_VALUE:
-      as.add(as.mem(X86::ESP, dst.stackOffset),
-             as.imm(poppedValue->value - opaqueValue));
+      if (opaqueReg == 0) {
+        opaqueValue = math::Random::rand();
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+      }
+      as.add(dstloc, as.imm(poppedValue->value - opaqueValue));
       break;
-    case ChainElem::Type::IMM_GLOBAL:
-      as.add(as.mem(X86::ESP, dst.stackOffset),
-             as.imm(poppedValue->global, poppedValue->value - opaqueValue));
+    case ChainElem::Type::IMM_GLOBAL: {
+      uint32_t addend;
+      if (opaqueReg == 0) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        opaqueValue = poppedValue->value - addend;
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+        addend = poppedValue->value - opaqueValue;
+        if (addend > 0x10000000) {
+          addend = math::Random::range32(0x1000, 0x10000000);
+          as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
+                                            opaqueValue)));
+          opaqueValue = poppedValue->value - addend;
+        }
+      }
+      as.add(dstloc, as.imm(poppedValue->global, addend));
       break;
+    }
     case ChainElem::Type::JMP_BLOCK: {
+      uint32_t addend;
+      if (opaqueReg == 0) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        opaqueValue = -addend;
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+        addend = -opaqueValue;
+        if (addend > 0x10000000) {
+          addend = math::Random::range32(0x1000, 0x10000000);
+          as.lxor(dstloc, as.imm((uint32_t)((-addend) ^ opaqueValue)));
+          opaqueValue = -addend;
+        }
+      }
       llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
       auto targetLabel = as.label();
       X86AssembleHelper as0(*targetMBB, targetMBB->begin());
       as0.putLabel(targetLabel);
-      as.add(as.mem(X86::ESP, dst.stackOffset),
-             as.addOffset(targetLabel, -opaqueValue));
+      as.add(dstloc, as.addOffset(targetLabel, addend));
       break;
     }
     default:
@@ -277,30 +306,59 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
       break;
     }
   } else {
+    auto dstloc = as.reg(dst.reg);
     // reg1 is stored as it is
     // reg1 = opaqueValue;
     // reg1 += poppedValue - opaqueValue;
-    if (opaqueReg == 0) {
-      opaqueValue = math::Random::rand();
-      as.mov(as.reg(dst.reg), as.imm(opaqueValue));
-    } else {
-      as.mov(as.reg(dst.reg), as.reg(opaqueReg));
-    }
     switch (poppedValue->type) {
     case ChainElem::Type::IMM_VALUE:
-      as.add(as.reg(dst.reg), as.imm(poppedValue->value - opaqueValue));
+      if (opaqueReg == 0) {
+        opaqueValue = math::Random::rand();
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+      }
+      as.add(dstloc, as.imm(poppedValue->value - opaqueValue));
       break;
-    case ChainElem::Type::IMM_GLOBAL:
-      as.add(as.reg(dst.reg),
-             as.imm(poppedValue->global, poppedValue->value - opaqueValue));
+    case ChainElem::Type::IMM_GLOBAL: {
+      uint32_t addend;
+      if (opaqueReg == 0) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        opaqueValue = poppedValue->value - addend;
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+        addend = poppedValue->value - opaqueValue;
+        if (addend > 0x10000000) {
+          addend = math::Random::range32(0x1000, 0x10000000);
+          as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
+                                            opaqueValue)));
+          opaqueValue = poppedValue->value - addend;
+        }
+      }
+      as.add(dstloc, as.imm(poppedValue->global, addend));
       break;
+    }
     case ChainElem::Type::JMP_BLOCK: {
+      uint32_t addend;
+      if (opaqueReg == 0) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        opaqueValue = -addend;
+        as.mov(dstloc, as.imm(opaqueValue));
+      } else {
+        as.mov(dstloc, as.reg(opaqueReg));
+        addend = -opaqueValue;
+        if (addend > 0x10000000) {
+          addend = math::Random::range32(0x1000, 0x10000000);
+          as.lxor(dstloc, as.imm((uint32_t)((-addend) ^ opaqueValue)));
+          opaqueValue = -addend;
+        }
+      }
       llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
-      as.inlineasm(fmt::format("# MBB {}", targetMBB->getFullName()));
       auto targetLabel = as.label();
       X86AssembleHelper as0(*targetMBB, targetMBB->begin());
       as0.putLabel(targetLabel);
-      as.add(as.reg(dst.reg), as.addOffset(targetLabel, -opaqueValue));
+      as.add(dstloc, as.addOffset(targetLabel, addend));
       break;
     }
     default:
