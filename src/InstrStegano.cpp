@@ -236,6 +236,71 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst, const MemLoc &src,
   }
 }
 
+namespace {
+
+template <typename DstLoc>
+void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
+                   X86AssembleHelper &as, StackState &stack,
+                   unsigned int opaqueReg, uint32_t opaqueValue) {
+  switch (poppedValue->type) {
+  case ChainElem::Type::IMM_VALUE:
+    if (opaqueReg == 0) {
+      opaqueValue = math::Random::rand();
+      as.mov(dstloc, as.imm(opaqueValue));
+    } else {
+      as.mov(dstloc, as.reg(opaqueReg));
+    }
+    as.add(dstloc, as.imm(poppedValue->value - opaqueValue));
+    break;
+  case ChainElem::Type::IMM_GLOBAL: {
+    uint32_t addend;
+    if (opaqueReg == 0) {
+      addend = math::Random::range32(0x1000, 0x10000000);
+      opaqueValue = poppedValue->value - addend;
+      as.mov(dstloc, as.imm(opaqueValue));
+    } else {
+      as.mov(dstloc, as.reg(opaqueReg));
+      addend = poppedValue->value - opaqueValue;
+      if (addend > 0x10000000) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
+                                          opaqueValue)));
+        opaqueValue = poppedValue->value - addend;
+      }
+    }
+    as.add(dstloc, as.imm(poppedValue->global, addend));
+    break;
+  }
+  case ChainElem::Type::JMP_BLOCK: {
+    uint32_t addend;
+    if (opaqueReg == 0) {
+      addend = math::Random::range32(0x1000, 0x10000000);
+      opaqueValue = -addend;
+      as.mov(dstloc, as.imm(opaqueValue));
+    } else {
+      as.mov(dstloc, as.reg(opaqueReg));
+      addend = -opaqueValue;
+      if (addend > 0x10000000) {
+        addend = math::Random::range32(0x1000, 0x10000000);
+        as.lxor(dstloc, as.imm((uint32_t)((-addend) ^ opaqueValue)));
+        opaqueValue = -addend;
+      }
+    }
+    llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
+    auto targetLabel = as.label();
+    X86AssembleHelper as0(*targetMBB, targetMBB->begin());
+    as0.putLabel(targetLabel);
+    as.add(dstloc, as.addOffset(targetLabel, addend));
+    break;
+  }
+  default:
+    dbg_fmt("Impl error: unsupported popped value\n");
+    break;
+  }
+}
+
+} // namespace
+
 void InstrSteganoProcessor::insertMov(const MemLoc &dst,
                                       const ChainElem *poppedValue,
                                       X86AssembleHelper &as, StackState &stack,
@@ -246,125 +311,17 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
     return;
   }
   if (dst.isStack()) {
-    auto dstloc = as.mem(X86::ESP, dst.stackOffset);
     // reg1 is saved in [esp+reg1_offset]
     // [esp+reg1_offset] = opaqueValue;
     // [esp+reg1_offset] += poppedValue - opaqueValue;
-    switch (poppedValue->type) {
-    case ChainElem::Type::IMM_VALUE:
-      if (opaqueReg == 0) {
-        opaqueValue = math::Random::rand();
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-      }
-      as.add(dstloc, as.imm(poppedValue->value - opaqueValue));
-      break;
-    case ChainElem::Type::IMM_GLOBAL: {
-      uint32_t addend;
-      if (opaqueReg == 0) {
-        addend = math::Random::range32(0x1000, 0x10000000);
-        opaqueValue = poppedValue->value - addend;
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-        addend = poppedValue->value - opaqueValue;
-        if (addend > 0x10000000) {
-          addend = math::Random::range32(0x1000, 0x10000000);
-          as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
-                                            opaqueValue)));
-          opaqueValue = poppedValue->value - addend;
-        }
-      }
-      as.add(dstloc, as.imm(poppedValue->global, addend));
-      break;
-    }
-    case ChainElem::Type::JMP_BLOCK: {
-      uint32_t addend;
-      if (opaqueReg == 0) {
-        addend = math::Random::range32(0x1000, 0x10000000);
-        opaqueValue = -addend;
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-        addend = -opaqueValue;
-        if (addend > 0x10000000) {
-          addend = math::Random::range32(0x1000, 0x10000000);
-          as.lxor(dstloc, as.imm((uint32_t)((-addend) ^ opaqueValue)));
-          opaqueValue = -addend;
-        }
-      }
-      llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
-      auto targetLabel = as.label();
-      X86AssembleHelper as0(*targetMBB, targetMBB->begin());
-      as0.putLabel(targetLabel);
-      as.add(dstloc, as.addOffset(targetLabel, addend));
-      break;
-    }
-    default:
-      dbg_fmt("Impl error: unsupported popped value\n");
-      break;
-    }
+    insertMovImpl(as.mem(X86::ESP, dst.stackOffset), poppedValue, as, stack,
+                  opaqueReg, opaqueValue);
   } else {
-    auto dstloc = as.reg(dst.reg);
     // reg1 is stored as it is
     // reg1 = opaqueValue;
     // reg1 += poppedValue - opaqueValue;
-    switch (poppedValue->type) {
-    case ChainElem::Type::IMM_VALUE:
-      if (opaqueReg == 0) {
-        opaqueValue = math::Random::rand();
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-      }
-      as.add(dstloc, as.imm(poppedValue->value - opaqueValue));
-      break;
-    case ChainElem::Type::IMM_GLOBAL: {
-      uint32_t addend;
-      if (opaqueReg == 0) {
-        addend = math::Random::range32(0x1000, 0x10000000);
-        opaqueValue = poppedValue->value - addend;
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-        addend = poppedValue->value - opaqueValue;
-        if (addend > 0x10000000) {
-          addend = math::Random::range32(0x1000, 0x10000000);
-          as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
-                                            opaqueValue)));
-          opaqueValue = poppedValue->value - addend;
-        }
-      }
-      as.add(dstloc, as.imm(poppedValue->global, addend));
-      break;
-    }
-    case ChainElem::Type::JMP_BLOCK: {
-      uint32_t addend;
-      if (opaqueReg == 0) {
-        addend = math::Random::range32(0x1000, 0x10000000);
-        opaqueValue = -addend;
-        as.mov(dstloc, as.imm(opaqueValue));
-      } else {
-        as.mov(dstloc, as.reg(opaqueReg));
-        addend = -opaqueValue;
-        if (addend > 0x10000000) {
-          addend = math::Random::range32(0x1000, 0x10000000);
-          as.lxor(dstloc, as.imm((uint32_t)((-addend) ^ opaqueValue)));
-          opaqueValue = -addend;
-        }
-      }
-      llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
-      auto targetLabel = as.label();
-      X86AssembleHelper as0(*targetMBB, targetMBB->begin());
-      as0.putLabel(targetLabel);
-      as.add(dstloc, as.addOffset(targetLabel, addend));
-      break;
-    }
-    default:
-      dbg_fmt("Impl error: unsupported popped value\n");
-      return;
-    }
+    insertMovImpl(as.reg(dst.reg), poppedValue, as, stack, opaqueReg,
+                  opaqueValue);
   }
 }
 
@@ -400,6 +357,7 @@ void InstrSteganoProcessor::insertLoad(const MemLoc &dst, const MemLoc &addr,
     }
   }
 }
+
 void InstrSteganoProcessor::insertLoad(const MemLoc &dst, X86AssembleHelper &as,
                                        StackState &stack) {
   if (dst.isStack()) {
