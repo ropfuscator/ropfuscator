@@ -20,6 +20,7 @@ namespace ropf {
 #define CONFIG_SEARCH_SEGMENT "search_segment_for_gadget"
 #define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
 #define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
+#define CONFIG_LIB_SHA1 "library_hash_sha1"
 #define CONFIG_LINKED_LIBS "linked_libraries"
 #define CONFIG_SHOW_PROGRESS "show_progress"
 #define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
@@ -78,6 +79,9 @@ struct ObfuscationParameter {
 struct GlobalConfig {
   // [BinaryAutopsy] library path where the gadgets are extracted
   std::string libraryPath;
+  // [BinaryAutopsy] expected library sha1 hash where the gadgets are extracted
+  // If set, SHA1 hash is checked and stop obfuscation if it does not match
+  std::string librarySHA1;
   // [BinaryAutopsy] other library paths linked at run-time
   // If set, the symbol names in these libraries are put in avoid-list in gadget
   std::vector<std::string> linkedLibraries;
@@ -98,9 +102,10 @@ struct GlobalConfig {
   bool useChainLabel;
 
   GlobalConfig()
-      : libraryPath(), linkedLibraries(), obfuscationEnabled(true),
-        searchSegmentForGadget(true), avoidMultiversionSymbol(false),
-        showProgress(false), printInstrStat(false), useChainLabel(false) {}
+      : libraryPath(), librarySHA1(), linkedLibraries(),
+        obfuscationEnabled(true), searchSegmentForGadget(true),
+        avoidMultiversionSymbol(false), showProgress(false),
+        printInstrStat(false), useChainLabel(false) {}
 };
 
 struct ROPfuscatorConfig {

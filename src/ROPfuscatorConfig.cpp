@@ -181,6 +181,12 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     parseOption(*general_section, CONFIG_GENERAL_SECTION,
                 CONFIG_CUSTOM_LIB_PATH, globalConfig.libraryPath);
 
+    // library SHA1 hash
+    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_LIB_SHA1,
+                globalConfig.librarySHA1);
+    globalConfig.librarySHA1 = str_tolower(globalConfig.librarySHA1);
+
+    // linked libraries
     parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_LINKED_LIBS,
                 globalConfig.linkedLibraries);
 
