@@ -6,12 +6,14 @@
 #include "BinAutopsy.h"
 #include "ChainElem.h"
 #include "Debug.h"
+#include "MathUtil.h"
 #include "ROPEngine.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/SHA1.h"
 #include "llvm/Support/TargetRegistry.h"
 
 #if LLVM_VERSION_MAJOR >= 9
@@ -25,9 +27,7 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <sstream>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 using namespace llvm;
 using llvm::object::ELF32LE;
@@ -150,6 +150,26 @@ public:
 
   std::string getPath() const { return path; }
 
+  std::string getSHA1HashRaw() const {
+    if (sha1hash.empty()) {
+      llvm::SHA1 sha1;
+      sha1.update(
+          llvm::ArrayRef<uint8_t>((const uint8_t *)&buf[0], buf.size()));
+      sha1hash = sha1.final();
+    }
+    return sha1hash;
+  }
+
+  std::string getSHA1HashHex() const {
+    std::string hash = getSHA1HashRaw();
+    std::string s;
+    s.reserve(hash.length() * 2);
+    for (unsigned char c : getSHA1HashRaw()) {
+      s += fmt::format("{:02x}", c);
+    }
+    return s;
+  }
+
 private:
   struct Verdef {
     uint16_t vd_version;
@@ -197,6 +217,7 @@ private:
   std::string path;
   std::unique_ptr<ELF32LEFile> elf;
   std::vector<char> buf;
+  mutable std::string sha1hash;
   const ELF32LE::Shdr *dynsym;
   const ELF32LE::Shdr *verdef;
   const ELF32LE::Shdr *versym;
@@ -273,11 +294,16 @@ BinaryAutopsy::BinaryAutopsy(const GlobalConfig &config, const Module &module,
                              const TargetMachine &target, MCContext &context)
     : module(module), target(target), context(context), config(config),
       elf(new ELFParser(config.libraryPath)) {
-  // Seeds the PRNG (we'll use it in getRandomSymbol());
+  std::string sha1 = elf->getSHA1HashHex();
+  dbg_fmt("[*] Extracting gadgets from: {} SHA1={}\n", elf->getPath(), sha1);
+  if (!config.librarySHA1.empty() && config.librarySHA1 != sha1) {
+    dbg_fmt("[!] Error: library SHA1 mismatch: expected={}, actual={}\n",
+            config.librarySHA1, sha1);
+    exit(1);
+  }
   for (const std::string &libPath : config.linkedLibraries) {
     otherLibs.emplace_back(new ELFParser(libPath));
   }
-  srand(time(nullptr));
   isModuleSymbolAnalysed = false;
 
   dissect(elf.get());
@@ -425,9 +451,9 @@ void BinaryAutopsy::analyseUsedSymbols() {
 }
 
 const Symbol *BinaryAutopsy::getRandomSymbol() const {
-  unsigned long i = rand() % Symbols.size();
+  uint32_t index = math::Random::range32(0, Symbols.size() - 1);
 
-  return &(Symbols.at(i));
+  return &Symbols[index];
 }
 
 extern "C" void LLVMInitializeX86Disassembler();
@@ -508,7 +534,7 @@ void BinaryAutopsy::dumpGadgets(
 
     // Scan for RET instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length); i++) {
-      if (buf[i] == (uint8_t)'\xc3') { // ret
+      if (buf[i] == (uint8_t)0xc3) { // ret
         size_t offset = i + 1;
         const uint8_t *cur_pos = buf + offset;
 
@@ -516,9 +542,7 @@ void BinaryAutopsy::dumpGadgets(
         // bytes before the actual RET
         for (int depth = MAXDEPTH; depth > 0; depth--) {
 
-          // Capstone sometimes ignores repeat prefix (0xF2, 0xF3)
-          // in disassembled output. We do not need gadget prefixed
-          // with repeat, so we avoid them
+          // ignore repeat prefix
           uint8_t firstbyte = *(cur_pos - depth);
           if (firstbyte == 0xf2 || firstbyte == 0xf3)
             continue;

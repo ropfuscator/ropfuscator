@@ -8,16 +8,36 @@ It would work on another environment, software installation should be adjusted t
 
 ## Preparation
 
-1. Install required software
+1. Install required software and library
 2. Install SPEC CPU 2017 to `/opt/cpu2017`
 3. Build ROPfuscator
 4. Install ROPfuscator to `/opt/ropfuscator`
 
-### Install required software
+### Install required software and library
 
 Install build tools (cmake, ninja), compiler (gcc, g++, clang-7), and 32bit libc/libstdc++ (gcc-multilib, g++-multilib)
 
-    sudo apt install cmake ninja-build pkg-config gcc g++ clang-7 gcc-multilib g++-multilib
+    sudo apt-get install cmake ninja-build pkg-config gcc g++ clang-7 gcc-multilib g++-multilib
+
+Warning: evaluation result may be very sensitive to libc version. Our main evaluation is based on Ubuntu 18.04 package `libc6:i386`, version `2.27-3ubuntu1`, located in `/lib/i386-linux-gnu/libc-2.27.so`.
+Since the obfuscation scheme depends on gadgets found in the libc, even a tiny version difference may result in significant difference of obfuscation coverage, and thus has a large impact performance.
+Therefore, the ROPfuscator configuration files under this directory includes the library hash number to avoid evaluating with different library version occasionally.
+
+    $ sha1sum /lib/i386-linux-gnu/libc-2.27.so
+    e3d54f5709190f15a9c51089c70f2069771913c1  /lib/i386-linux-gnu/libc-2.27.so
+
+To install this version of library, run the following commands:
+
+    sudo dpkg --add-architecture i386
+    sudo apt-get update
+    sudo apt-get install libc6:i386=2.27-3ubuntu1 libc6=2.27-3ubuntu1 libc6:i386=2.27-3ubuntu1 libc6-dev=2.27-3ubuntu1 libc6-dev-i386=2.27-3ubuntu1 libc6-i386=2.27-3ubuntu1 libc-dev-bin=2.27-3ubuntu1 libc6-dev-x32=2.27-3ubuntu1 libc6-x32=2.27-3ubuntu1
+    echo 'libc6 hold' | sudo dpkg --set-selections
+    echo 'libc6-dev hold' | sudo dpkg --set-selections
+    echo 'libc6-dev-i386 hold' | sudo dpkg --set-selections
+    echo 'libc6-dev-x32 hold' | sudo dpkg --set-selections
+    echo 'libc6-i386 hold' | sudo dpkg --set-selections
+    echo 'libc6-x32 hold' | sudo dpkg --set-selections
+    echo 'libc-dev-bin hold' | sudo dpkg --set-selections
 
 ### Install SPEC CPU 2017
 
