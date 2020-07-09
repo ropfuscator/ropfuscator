@@ -356,8 +356,8 @@ ROPEngine::handleArithmeticRM(MachineInstr *MI,
 
   // skip scaled-index addressing mode since we cannot handle them
   //      xxx     orig_0/1, [orig_2 + scale_3 * orig_4 + disp_5]
-  if (MI->getOperand(3).isReg() &&
-      MI->getOperand(3).getReg() != X86::NoRegister)
+  if (MI->getOperand(4).isReg() &&
+      MI->getOperand(4).getReg() != X86::NoRegister)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
