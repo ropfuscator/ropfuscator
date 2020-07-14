@@ -12,6 +12,8 @@
 ##   ropcc.sh -v
 ##       Show llc version information
 
+echo "ROPCC" $*
+
 # set path to ropfuscator binary directory
 ROPF_BIN_DIR=/opt/ropfuscator/bin
 
@@ -27,13 +29,14 @@ ROPF_COMPILER=$ROPF_CC
 ROPF_FINAL_LINKER=$GCC
 
 ARGS=""
+SRCARGS=""
 OBJARGS=""
+LIBARGS=""
 LLC_ARGS=""
 LD_ARGS=""
 LINKER=1
-HAS_INPUT=0
 SHOW_VERSION=0
-OUTFILE=a.out
+OUTFILE=""
 
 case "$1" in
     cc)
@@ -45,6 +48,10 @@ case "$1" in
 	ROPF_COMPILER=$ROPF_CXX
 	ROPF_FINAL_LINKER=$GXX
 	shift
+	;;
+    *)
+	ROPF_COMPILER=$ROPF_CXX
+	ROPF_FINAL_LINKER=$GXX
 	;;
 esac
 
@@ -83,7 +90,14 @@ while [ $# -gt 0 ]; do
 	    ;;
 	*.o)
 	    OBJARGS="$OBJARGS $1"
-	    HAS_INPUT=1
+	    shift
+	    ;;
+	*.c|*.cpp|*.cxx|*.cc|*.c++|*.C|*.h|*.hpp|*.hxx|*.hh|*.h++|*.H)
+	    SRCARGS="$SRCARGS $1"
+	    shift
+	    ;;
+	*.a)
+	    LIBARGS="$LIBARGS $1"
 	    shift
 	    ;;
 	*)
@@ -94,27 +108,96 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ "1" -eq "$SHOW_VERSION" ]; then
+if [ "1" = "$SHOW_VERSION" -a "x" = "x$OBJARGS$SRCARGS" ]; then
     $ROPF_LLC --version
     exit 0
 fi
 
-if [ "0" -eq "$HAS_INPUT" ]; then
+if [ "x" = "x$OBJARGS$SRCARGS" ]; then
     echo Error: no input files.
     exit 1
 fi
 
-if [ "1" -eq "$LINKER" ]; then
-    echo "=== ROPfuscator Linker ==="
-    echo "$ROPF_LLVMLINK $OBJARGS -o $OUTFILE.linked.bc"
-    $ROPF_LLVMLINK $OBJARGS -o $OUTFILE.linked.bc
-    echo "$ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc"
-    $ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc
-    echo "$ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_ARGS"
-    $ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_ARGS
+if [ "1" = "$LINKER" ]; then
+    # Compile and link (or link only)
+    LD_LIB_ARGS=""
+    if [ "x" != "x$LIBARGS" ]; then
+	# Link library (*.a)
+	# extract bitcode files
+	echo "=== ROPfuscator Extract Library ==="
+	TMPOBJDIRS=""
+	EXTRACTED_BC_OBJS=""
+	for lib in $LIBARGS; do
+	    TMPOBJDIR=$(mktemp -d)
+	    OLD_DIR=$(pwd)
+	    lib=$(realpath $lib)
+	    cd $TMPOBJDIR
+	    ar x $lib
+	    cd $OLD_DIR
+	    IS_NATIVELIB=0
+	    for obj in $TMPOBJDIR/*.o; do
+		case $(file $obj) in
+		    *"LLVM IR bitcode"*)
+			EXTRACTED_BC_OBJS="$EXTRACTED_BC_OBJS $obj"
+			;;
+		    *"ELF"*)
+			IS_NATIVELIB=1
+			;;
+		esac
+	    done
+	    if [ "1" = "$IS_NATIVELIB" ]; then
+		rm -rf $TMPOBJDIR
+		LD_LIB_ARGS="$LD_LIB_ARGS $lib"
+	    else
+		TMPOBJDIRS="$TMPOBJDIRS $TMPOBJDIR"
+	    fi
+	done
+    fi
+    if [ "x" = "x$OUTFILE" ]; then
+	OUTFILE=a.out
+    fi
+    if [ "x" != "x$SRCARGS" ]; then
+	# Compile and link (source code)
+	OUTOBJS=""
+	for src in $SRCARGS; do
+	    echo "=== ROPfuscator LLVM Compiler ==="
+	    echo "$ROPF_COMPILER -emit-llvm -c $src $ARGS -o $src.o"
+	    $ROPF_COMPILER -emit-llvm -c $src $ARGS -o $src.o
+	    OUTOBJS="$OUTOBJS $src.o"
+	done
+	if [ "x" != "x$LIBARGS" ]; then
+	    OUTOBJS="$OUTOBJS $EXTRACTED_BC_OBJS"
+	fi
+	echo "=== ROPfuscator Linker ==="
+	echo "$ROPF_LLVMLINK $OUTOBJS -o $OUTFILE.linked.bc"
+	$ROPF_LLVMLINK $OUTOBJS -o $OUTFILE.linked.bc
+	echo "$ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc"
+	$ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc
+	echo "$ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_LIB_ARGS $LD_ARGS $ARGS"
+	$ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_LIB_ARGS $LD_ARGS $ARGS
+    else
+	# Link only (no source code)
+	echo "=== ROPfuscator Linker ==="
+	if [ "x" != "x$LIBARGS" ]; then
+	    OBJARGS="$OBJARGS $EXTRACTED_BC_OBJS"
+	fi
+	echo "$ROPF_LLVMLINK $OBJARGS -o $OUTFILE.linked.bc"
+	$ROPF_LLVMLINK $OBJARGS -o $OUTFILE.linked.bc
+	echo "$ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc"
+	$ROPF_LLC $LLC_ARGS -o $OUTFILE.linked.s $OUTFILE.linked.bc
+	echo "$ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_LIB_ARGS $LD_ARGS $ARGS"
+	$ROPF_FINAL_LINKER -o $OUTFILE $OUTFILE.linked.s $LD_LIB_ARGS $LD_ARGS $ARGS
+    fi
 else
+    # Compile only (-c)
+    if [ "x" = "x$OUTFILE" ]; then
+	OUTFILE=${SRCARGS%.*}.o
+    fi
     echo "=== ROPfuscator LLVM Compiler ==="
-    echo "$ROPF_COMPILER -emit-llvm $ARGS -o $OUTFILE"
-    $ROPF_COMPILER -emit-llvm $ARGS -o $OUTFILE
+    echo "$ROPF_COMPILER -emit-llvm $SRCARGS $ARGS -o $OUTFILE"
+    $ROPF_COMPILER -emit-llvm $SRCARGS $ARGS -o $OUTFILE
 fi
 
+if [ "x" != "x$TMPOBJDIR" ]; then
+    rm -rf $TMPOBJDIR
+fi
