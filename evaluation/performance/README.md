@@ -110,8 +110,8 @@ Go to SPEC CPU installation directory, and set environment variables with `shrc`
 
 Execute SPEC CPU with `instrstat` config (`-O0` and `-O3`, build only).
 
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-instrstat-o0.cfg --action=build intrate
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-instrstat-o3.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-instrstat-o0.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-instrstat-o3.cfg --action=build intrate
 
 Then, look at each `make.out` file output in the build directory.
 Note that the result includes pseudo-instructions (label, etc) - they are not actual instructions.
@@ -121,10 +121,10 @@ They are shown as instruction numbers less than 100, and should be excluded in f
 
 Execute SPEC CPU with `plain`, `roponly`, `opaque`, `stegano` config (`-O0`, build only).
 
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg --action=build intrate
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg --action=build intrate
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-opaque-o0.cfg --action=build intrate
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-stegano-o0.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-opaque-o0.cfg --action=build intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-stegano-o0.cfg --action=build intrate
 
 Then, strip each generated executables, and measure the size.
 
@@ -134,20 +134,20 @@ Execute SPEC CPU with `plain`, `roponly` config (`-O0`).
 Plain config takes about 3.5 hours, and ROPonly config likely takes about 1-2 weeks.
 This means that `opaque` and `stegano` configs would take more than a month (or a year), thus cannot be tested practically.
 
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg intrate
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg intrate
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg intrate
 
 Even `plain` and `roponly` takes so long, and the tasks can be split into 4 machines as follows:
 
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg 500.perlbench_r 523.xalancbmk_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg 520.omnetpp_r 525.x264_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg 502.gcc_r 541.leela_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-plain-o0.cfg 505.mcf_r 531.deepsjeng_r 557.xz_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg 500.perlbench_r 523.xalancbmk_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg 520.omnetpp_r 525.x264_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg 502.gcc_r 541.leela_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-plain-o0.cfg 505.mcf_r 531.deepsjeng_r 557.xz_r
 
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg 500.perlbench_r 523.xalancbmk_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg 520.omnetpp_r 525.x264_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg 502.gcc_r 541.leela_r
-    runcpu --config=/opt/ropfuscator/evaluation/speccpu2017/spec/ropf-roponly-o0.cfg 505.mcf_r 531.deepsjeng_r 557.xz_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg 500.perlbench_r 523.xalancbmk_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg 520.omnetpp_r 525.x264_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg 502.gcc_r 541.leela_r
+    runcpu --config=/opt/ropfuscator/evaluation/performance/speccpu2017/ropf-roponly-o0.cfg 505.mcf_r 531.deepsjeng_r 557.xz_r
 
 
 ## Evaluation with binutils
