@@ -200,6 +200,11 @@ public:
   }
   void putLabel(Label label) { _instr(llvm::TargetOpcode::GC_LABEL, label); }
 
+  // To deal with C++ exception in EHStreamer::computeCallSiteTable
+  void dummyCall(const llvm::GlobalValue *callee) const {
+    _instr(llvm::X86::TCRETURNdi, imm(callee, 0));
+  }
+
   void debug_generated() const {
     llvm::MachineBasicBlock::iterator position0 = position;
     dbg_fmt("{}", *--position0);

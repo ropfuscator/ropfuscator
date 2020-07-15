@@ -520,7 +520,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         // call or conditional jump at the end of function:
         // probably calling "no-return" functions like exit()
         // so we just put dummy return address here
-        ROPChainPushInst *push = new PUSH_IMM(0);
+        auto dummyLabel = as.label();
+        as.putLabel(dummyLabel);
+        ROPChainPushInst *push = new PUSH_LABEL(dummyLabel);
         pushchain.emplace_back(push);
       }
       break;
@@ -672,6 +674,14 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         }
       }
     }
+  }
+
+  if (chain.callee) {
+    // Insert dummy call instruction (not actually output in assembly file)
+    // to convince that this includes function call in later analysis.
+    // Currently, EHStreamer::computeCallSiteTable will use this information
+    // to generate correct call site information for C++ exception handling.
+    as.dummyCall(chain.callee);
   }
 
   // ret

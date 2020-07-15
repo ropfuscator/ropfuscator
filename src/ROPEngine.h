@@ -33,6 +33,8 @@ public:
   ChainElem *successor; // jump target at the end of chain
   FlagSaveMode flagSave;
   bool hasNormalInstr, hasConditionalJump, hasUnconditionalJump;
+  // call target information, if this chain calls other function
+  const llvm::GlobalValue *callee;
 
   std::vector<ChainElem>::iterator begin() { return chain.begin(); }
 
@@ -76,6 +78,7 @@ public:
     hasNormalInstr = false;
     hasConditionalJump = false;
     hasUnconditionalJump = false;
+    callee = nullptr;
   }
 
   // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
