@@ -195,6 +195,9 @@ void ROPChain::merge(const ROPChain &other) {
   hasNormalInstr |= other.hasNormalInstr;
   hasConditionalJump |= other.hasConditionalJump;
   hasUnconditionalJump |= other.hasUnconditionalJump;
+  if (!callee) {
+    callee = other.callee;
+  }
 
   // handle conditional jump + unconditional jmp chain
   if (other.successor && !successor) {
@@ -861,13 +864,16 @@ ROPChainStatus ROPEngine::handleCall(MachineInstr *MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1).append(callee_elem);
-  builder.reorder();
-  builder.append(GadgetType::JMP, SCRATCH_1);
+  builder.append(callee_elem);
   builder.append(ChainElem::createJmpFallthrough());
   builder.jumpInstrFlag = true;
 
-  return builder.build(state, chain);
+  ROPChainStatus rv = builder.build(state, chain);
+  if (rv == ROPChainStatus::OK &&
+      callee_elem.type == ChainElem::Type::IMM_GLOBAL) {
+    chain.callee = callee_elem.global;
+  }
+  return rv;
 }
 
 ROPChainStatus
