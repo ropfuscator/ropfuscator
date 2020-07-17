@@ -1,14 +1,11 @@
-import sys
-from angr_helper import *
+from angr_helper import AngrHelper
 
 def main():
-    progpath, opt = parse_args(sys.argv)
-    #enable_simgr_logging()
-    import angr, claripy
-    proj = angr_make_project(progpath)
-    state = angr_make_state(proj, [progpath], opt)
-    simgr = angr_make_simgr(proj, state, opt)
-    set_mem_limit(simgr, 8192)
+    helper = AngrHelper()
+    proj = helper.make_project()
+    state = helper.make_state([helper.progpath])
+    simgr = helper.make_simgr(state)
+    helper.set_mem_limit(simgr, 8192)
     simgr.explore(find=lambda s: b'sum is' in s.posix.dumps(1))
     print(simgr)
     if len(simgr.found) > 0:

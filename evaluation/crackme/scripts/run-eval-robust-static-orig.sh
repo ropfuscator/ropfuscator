@@ -1,6 +1,6 @@
 
 TARGETS="crackme1 crackme2"
-CONFIGS="plain roponly opaque-dummy opaque-multcomp opaque-r3sat"
+CONFIGS="plain roponly opaque stegano"
 
 SCRIPT_DIR="$(dirname $0)"
 STATIC_SCRIPT_DIR="$SCRIPT_DIR/../staticanalysis"
