@@ -1,6 +1,6 @@
 
 TARGETS="crackme1 crackme2"
-CONFIGS="plain roponly opaque-dummy opaque-multcomp opaque-dummy-branch-addreg opaque-dummy-branch-rdtsc opaque-dummy-branch-negstk opaque-multcomp-branch-addreg"
+CONFIGS="plain roponly opaque stegano"
 
 TIME_LOG="time.log"
 EXEC_LOG="exec.log"
@@ -9,6 +9,7 @@ TIMEOUT=600
 
 SCRIPT_DIR="$(dirname $0)"
 ANGR_SCRIPT_DIR="$SCRIPT_DIR/../angr"
+LIBC_DIR="/lib/i386-linux-gnu"
 
 if [ $# -lt 1 ]; then
     echo Usage: $0 '<bin-dir>'
@@ -38,7 +39,7 @@ run_target() {
     angr_param2=$3
     angr_param3=$4
     for config in $CONFIGS; do
-	measure_time $REPEAT $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve.$target.py $BIN_DIR/eval.$target.$config $angr_param1 $angr_param2 $angr_param3
+	measure_time $REPEAT $TIME_LOG $EXEC_LOG /usr/bin/env python3 $ANGR_SCRIPT_DIR/solve.$target.py $BIN_DIR/eval.$target.$config $angr_param1 $angr_param2 $angr_param3 --libdir $LIBC_DIR
     done
 }
 

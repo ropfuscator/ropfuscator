@@ -1,72 +1,71 @@
 ## tested with angr 8.20.1.7
 
-def enable_simgr_logging():
-    import logging
-    logging.getLogger('angr.sim_manager').setLevel(logging.DEBUG)
+import argparse
 
-def help_and_exit(argv):
-    print('Usage: {} <exe_path> <symbolic|tracing> <BFS|DFS> <eager|lazy>'.format(argv[0]))
-    exit(1)
+class AngrHelper:
+    def __init__(self):
+        ap = argparse.ArgumentParser()
+        ap.add_argument('progpath', type=str, help='executable path to analyze')
+        ap.add_argument('mode', choices=['symbolic', 'tracing'], help='choose simulation mode')
+        ap.add_argument('explore', choices=['BFS', 'DFS'], help='choose exploration mode (breadth or depth first)')
+        ap.add_argument('resolve', choices=['eager', 'lazy'], help='choose constraint solving mode')
+        ap.add_argument('--libdir', type=str, help='libc directory path')
+        ap.add_argument('--verbose', action='store_true', help='if set, log each step in simulation manager')
+        ap.parse_args(namespace=self)
+        if not self.libdir:
+            import os
+            self.libdir = os.getenv('LD_LIBRARY_PATH')
+        if self.verbose:
+            self.enable_simgr_logging()
 
-def parse_args(argv):
-    if len(argv) < 5:
-        help_and_exit(argv)
-    progpath = argv[1]
-    mode = argv[2]
-    explore = argv[3]
-    resolve = argv[4]
-    if not (mode in ['symbolic', 'tracing']):
-        help_and_exit(argv)
-    if not (explore in ['BFS', 'DFS']):
-        help_and_exit(argv)
-    if not (resolve in ['eager', 'lazy']):
-        help_and_exit(argv)
-    return (progpath, {'mode': mode, 'explore': explore, 'resolve': resolve})
+    def enable_simgr_logging(self):
+        import logging
+        logging.getLogger('angr.sim_manager').setLevel(logging.DEBUG)
 
-def angr_make_project(progpath):
-    import angr
-    import os
-    # load executable
-    ld_path = os.getenv('LD_LIBRARY_PATH')
-    if ld_path:
-        proj = angr.Project(progpath, ld_path=ld_path, use_system_libs=False)
-    else:
-        proj = angr.Project(progpath, use_system_libs=False)
-    # workaround for angr/cle reloc bug
-    for r in proj.loader.main_object.relocs:
-        if r.resolvedby:
-            # do relocation
-            r.owner_obj.memory.pack_word(r.dest_addr, r.value)
-    return proj
+    def make_project(self):
+        import angr
+        import os
+        # load executable
+        if self.libdir:
+            proj = angr.Project(self.progpath, ld_path=self.libdir, use_system_libs=False)
+        else:
+            proj = angr.Project(self.progpath, use_system_libs=False)
+        # workaround for angr/cle reloc bug
+        for r in proj.loader.main_object.relocs:
+            if r.resolvedby:
+                # do relocation
+                r.owner_obj.memory.pack_word(r.dest_addr, r.value)
+        self.proj = proj
+        return proj
 
-def angr_make_state(proj, args, options):
-    import angr
-    mode = options['mode'] # symbolic, tracing
-    resolve = options['resolve'] # eager, lazy
-    state = proj.factory.full_init_state(args=args, mode=mode)
-    if mode == 'tracing':
-        state.options.add(angr.options.USE_SYSTEM_TIMES)
-    if resolve == 'lazy':
-        state.options.add(angr.options.LAZY_SOLVES)
-    return state
+    def make_state(self, args):
+        import angr
+        state = self.proj.factory.full_init_state(args=args, mode=self.mode)
+        if self.mode == 'tracing':
+            state.options.add(angr.options.USE_SYSTEM_TIMES)
+        if self.resolve == 'lazy':
+            state.options.add(angr.options.LAZY_SOLVES)
+        return state
 
-def angr_make_simgr(proj, state, options):
-    import angr
-    explore = options['explore'] # BFS, DFS
-    simgr = proj.factory.simulation_manager(state)
-    if explore == 'DFS':
-        simgr.use_technique(angr.exploration_techniques.DFS())
-    return simgr
+    def make_simgr(self, state):
+        import angr
+        simgr = self.proj.factory.simulation_manager(state)
+        if self.explore == 'DFS':
+            simgr.use_technique(angr.exploration_techniques.DFS())
+        return simgr
 
-def set_mem_limit(simgr, megabytes):
-    import angr
-    import resource, os, platform
-    limit = megabytes * 1024 * (1024 if platform.system() == 'Darwin' else 1)
-    class MemLimit(angr.ExplorationTechnique):
-        def __init__(self, limit):
-            self.limit = limit
-        def step(self, simgr, stash='active', **kwargs):
-            if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > self.limit:
-                raise MemoryError()
-            simgr.step(stash=stash, **kwargs)
-    simgr.use_technique(MemLimit(limit))
+    def explore(self, *args, **kwargs):
+        return self.simgr.explore(*args, **kwargs)
+
+    def set_mem_limit(self, simgr, megabytes):
+        import angr
+        import resource, os, platform
+        limit = megabytes * 1024 * (1024 if platform.system() == 'Darwin' else 1)
+        class MemLimit(angr.ExplorationTechnique):
+            def __init__(self, limit):
+                self.limit = limit
+            def step(self, simgr, stash='active', **kwargs):
+                if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > self.limit:
+                    raise MemoryError()
+                simgr.step(stash=stash, **kwargs)
+        simgr.use_technique(MemLimit(limit))

@@ -1,15 +1,14 @@
-import sys
-from angr_helper import *
+from angr_helper import AngrHelper
 
 def main():
-    progpath, opt = parse_args(sys.argv)
-    #enable_simgr_logging()
-    import angr, claripy
-    proj = angr_make_project(progpath)
+    helper = AngrHelper()
+    # helper.enable_simgr_logging()
+    import claripy
     arg = claripy.BVS('input', 8*16, explicit_name=True)
-    state = angr_make_state(proj, [progpath, arg], opt)
-    simgr = angr_make_simgr(proj, state, opt)
-    set_mem_limit(simgr, 8192)
+    helper.make_project()
+    state = helper.make_state([helper.progpath, arg])
+    simgr = helper.make_simgr(state)
+    helper.set_mem_limit(simgr, 8192)
     simgr.explore(find=lambda s: len(s.posix.dumps(1)) > 0)
     print(simgr)
     if len(simgr.found) > 0:
