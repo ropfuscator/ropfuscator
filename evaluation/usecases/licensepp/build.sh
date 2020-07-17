@@ -33,21 +33,20 @@ cd cryptopp
 CXX=$ROPCC CXXFLAGS="c++ -DCRYPTOPP_DISABLE_ASM -O1 -flto" make libcryptopp.a
 cd ..
 
-cd licensepp
 mkdir -p build
 cd build
 
 OBJS=""
 for src in $LICENSEPP_SOURCE; do
     obj=$(basename ${src%.*}).o
-    $ROPCC c++ -c -O1 -flto -I../.. -I.. -DLICENSEPP_SOVERSION=1.0.6 -DRIPE_VERSION=\"4.0.1-custom-static\" ../$src -o $obj 2>&1 | tee -a build.log
+    $ROPCC c++ -c -O1 -flto -I.. -I../licensepp -DLICENSEPP_SOVERSION=1.0.6 -DRIPE_VERSION=\"4.0.1-custom-static\" ../licensepp/$src -o $obj 2>&1 | tee -a build.log
     OBJS="$OBJS $obj"
 done
 
-$ROPCC c++ -ropfuscator-config=../../ropf/plain.conf    -O1 -flto -Wl,--gc-sections $OBJS ../../cryptopp/libcryptopp.a -o license-manager-sample.plain    | tee -a build.log
-$ROPCC c++ -ropfuscator-config=../../ropf/roponly.conf  -O1 -flto -Wl,--gc-sections $OBJS ../../cryptopp/libcryptopp.a -o license-manager-sample.roponly  | tee -a build.log
-$ROPCC c++ -ropfuscator-config=../../ropf/opaque.conf   -O1 -flto -Wl,--gc-sections $OBJS ../../cryptopp/libcryptopp.a -o license-manager-sample.opaque   | tee -a build.log
-$ROPCC c++ -ropfuscator-config=../../ropf/stegano.conf  -O1 -flto -Wl,--gc-sections $OBJS ../../cryptopp/libcryptopp.a -o license-manager-sample.stegano  | tee -a build.log
-$ROPCC c++ -ropfuscator-config=../../ropf/balanced.conf -O1 -flto -Wl,--gc-sections $OBJS ../../cryptopp/libcryptopp.a -o license-manager-sample.balanced | tee -a build.log
+$ROPCC c++ -ropfuscator-config=../ropf/plain.conf    -O1 -flto -Wl,--gc-sections $OBJS ../cryptopp/libcryptopp.a -o license-manager-sample.plain    | tee -a build.log
+$ROPCC c++ -ropfuscator-config=../ropf/roponly.conf  -O1 -flto -Wl,--gc-sections $OBJS ../cryptopp/libcryptopp.a -o license-manager-sample.roponly  | tee -a build.log
+$ROPCC c++ -ropfuscator-config=../ropf/opaque.conf   -O1 -flto -Wl,--gc-sections $OBJS ../cryptopp/libcryptopp.a -o license-manager-sample.opaque   | tee -a build.log
+$ROPCC c++ -ropfuscator-config=../ropf/stegano.conf  -O1 -flto -Wl,--gc-sections $OBJS ../cryptopp/libcryptopp.a -o license-manager-sample.stegano  | tee -a build.log
+$ROPCC c++ -ropfuscator-config=../ropf/balanced.conf -O1 -flto -Wl,--gc-sections $OBJS ../cryptopp/libcryptopp.a -o license-manager-sample.balanced | tee -a build.log
 
-cd ../..
+cd ..
