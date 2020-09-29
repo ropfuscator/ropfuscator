@@ -48,56 +48,7 @@ public:
 namespace { // implementation details
 
 // ============================================================
-// basic opaque constant implementation
-
-// stub (mock) implementation of opaque constant,
-// which just moves the constant into the register/stack.
-class MovConstant32 : public OpaqueConstant32 {
-public:
-  MovConstant32(const OpaqueStorage &target, uint32_t value)
-      : target(target), value(value) {}
-
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
-    return new MovConstant32(target, value);
-  }
-
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    switch (target.type) {
-    case OpaqueStorage::Type::REG:
-      as.mov(as.reg(target.reg), as.imm(value));
-      break;
-    case OpaqueStorage::Type::STACK:
-      as.mov(as.mem(X86::ESP, target.stackOffset), as.imm(value));
-      break;
-    }
-  }
-
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
-                      const SteganoInstructions &instrs) const override {
-    // TODO: interleave
-    compile(as, stack);
-    InstrSteganoProcessor stegano;
-    stegano.insert(instrs, as, stack, {}, 0, 0);
-  }
-
-  OpaqueStorage returnStorage() const override { return target; }
-
-  uint32_t returnValue() const override { return value; }
-
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    if (target.type == OpaqueStorage::Type::REG) {
-      return {target.reg};
-    } else {
-      return {};
-    }
-  }
-
-  size_t opaquePredicateCount() const override { return 1; }
-
-private:
-  OpaqueStorage target;
-  uint32_t value;
-};
+// symbolic (random) value implementation
 
 void moveConstant(X86AssembleHelper &as, StackState &stack,
                   unsigned int targetReg, uint32_t value, size_t size) {
@@ -172,6 +123,213 @@ void moveMixedRegs(X86AssembleHelper &as, StackState &stack,
     }
   }
 }
+
+class RuntimeValueGenerator {
+public:
+  virtual void compile(X86AssembleHelper &as, StackState &stack,
+                       const std::vector<llvm_reg_t> &targetRegs,
+                       const std::vector<llvm_reg_t> &sourceRegs) const = 0;
+  virtual ~RuntimeValueGenerator() = default;
+};
+
+class ConstantRuntimeValueGenerator : RuntimeValueGenerator {
+public:
+  void compile(X86AssembleHelper &as, StackState &stack,
+               const std::vector<llvm_reg_t> &targetRegs,
+               const std::vector<llvm_reg_t> &sourceRegs) const override {
+    for (llvm_reg_t target : targetRegs) {
+      moveConstant(as, stack, target, math::Random::rand(),
+                   sourceRegs.size() / targetRegs.size());
+    }
+  }
+  static RuntimeValueGenerator *create() {
+    return new ConstantRuntimeValueGenerator();
+  }
+};
+
+class AddRegRuntimeValueGenerator : RuntimeValueGenerator {
+public:
+  void compile(X86AssembleHelper &as, StackState &stack,
+               const std::vector<llvm_reg_t> &targetRegs,
+               const std::vector<llvm_reg_t> &sourceRegs) const override {
+    if (targetRegs.size() > 1) {
+      size_t n = sourceRegs.size() / targetRegs.size();
+      auto it = sourceRegs.begin();
+      for (llvm_reg_t target : targetRegs) {
+        std::vector<llvm_reg_t> regs(it, it + n);
+        moveMixedRegs(as, stack, target, regs);
+        it += n;
+      }
+    } else if (targetRegs.size() == 0) {
+      moveMixedRegs(as, stack, targetRegs[0], sourceRegs);
+    }
+  }
+  static RuntimeValueGenerator *create() {
+    return new AddRegRuntimeValueGenerator();
+  }
+};
+
+class RdtscRuntimeValueGenerator : RuntimeValueGenerator {
+public:
+  void compile(X86AssembleHelper &as, StackState &stack,
+               const std::vector<llvm_reg_t> &targetRegs,
+               const std::vector<llvm_reg_t> &sourceRegs) const override {
+    if (targetRegs.size() == 1) {
+      llvm_reg_t reg = targetRegs[0];
+      if (reg != X86::EAX) {
+        as.xchg(as.reg(X86::EAX), as.reg(reg));
+      }
+      as.push(as.reg(X86::RDX));
+      as.rdtsc();
+      as.pop(as.reg(X86::RDX));
+      if (reg != X86::EAX) {
+        as.xchg(as.reg(X86::EAX), as.reg(reg));
+      }
+    } else if (targetRegs.size() == 2 &&
+               ((targetRegs[0] == X86::EAX && targetRegs[1] == X86::EDX) ||
+                (targetRegs[0] == X86::RDX && targetRegs[1] == X86::RAX))) {
+      as.rdtsc();
+    } else if (targetRegs.size() > 1) {
+      unsigned int reg = targetRegs[0];
+      compile(as, stack, {reg}, sourceRegs);
+      for (unsigned int target : targetRegs) {
+        if (reg != target) {
+          as.mov(as.reg(target), as.reg(reg));
+        }
+      }
+    }
+  }
+  static RuntimeValueGenerator *create() {
+    return new RdtscRuntimeValueGenerator();
+  }
+};
+
+class RdtscRandomGeneratorOC : public OpaqueConstruct {
+public:
+  static OpaqueConstruct *create() { return new RdtscRandomGeneratorOC(); }
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    as.rdtsc();
+  }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
+  size_t opaquePredicateCount() const override { return 0; }
+  OpaqueState getInput() const override { return {}; }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EDX};
+  }
+};
+
+class NegativeStackRandomGeneratorOC : public OpaqueConstruct {
+public:
+  static OpaqueConstruct *create() {
+    return new NegativeStackRandomGeneratorOC();
+  }
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    int offset = -4 * math::Random::range32(2u, 32u);
+    as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
+  }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
+  size_t opaquePredicateCount() const override { return 0; }
+  OpaqueState getInput() const override { return {}; }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX};
+  }
+};
+
+class AddRegRandomGeneratorOC : public OpaqueConstruct {
+public:
+  static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    moveMixedRegs(as, stack, X86::EAX,
+                  {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
+  }
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // not used as of now, so just use default implementation
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
+  size_t opaquePredicateCount() const override { return 0; }
+  OpaqueState getInput() const override { return {}; }
+  OpaqueState getOutput() const override {
+    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
+  }
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    return {X86::EAX, X86::EFLAGS};
+  }
+};
+
+// ============================================================
+// basic opaque constant implementation
+
+// stub (mock) implementation of opaque constant,
+// which just moves the constant into the register/stack.
+class MovConstant32 : public OpaqueConstant32 {
+public:
+  MovConstant32(const OpaqueStorage &target, uint32_t value)
+      : target(target), value(value) {}
+
+  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+                                 std::shared_ptr<RuntimeValueGenerator> rvg,
+                                 bool contextualOpEnabled) {
+    return new MovConstant32(target, value);
+  }
+
+  void compile(X86AssembleHelper &as, StackState &stack) const override {
+    switch (target.type) {
+    case OpaqueStorage::Type::REG:
+      as.mov(as.reg(target.reg), as.imm(value));
+      break;
+    case OpaqueStorage::Type::STACK:
+      as.mov(as.mem(X86::ESP, target.stackOffset), as.imm(value));
+      break;
+    }
+  }
+
+  void compileStegano(X86AssembleHelper &as, StackState &stack,
+                      const SteganoInstructions &instrs) const override {
+    // TODO: interleave
+    compile(as, stack);
+    InstrSteganoProcessor stegano;
+    stegano.insert(instrs, as, stack, {}, 0, 0);
+  }
+
+  OpaqueStorage returnStorage() const override { return target; }
+
+  uint32_t returnValue() const override { return value; }
+
+  std::vector<llvm_reg_t> getClobberedRegs() const override {
+    if (target.type == OpaqueStorage::Type::REG) {
+      return {target.reg};
+    } else {
+      return {};
+    }
+  }
+
+  size_t opaquePredicateCount() const override { return 1; }
+
+private:
+  OpaqueStorage target;
+  uint32_t value;
+};
 
 // This opaque predicate executes the following code:
 //   edx:eax = eax(input1) * edx(input2);
@@ -319,19 +477,28 @@ class MultiplyCompareBasedOpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<MultiplyCompareOpaquePredicate>> predicates;
   const OpaqueStorage &target;
   uint32_t value;
+  std::shared_ptr<RuntimeValueGenerator> rvg;
 
 public:
   MultiplyCompareBasedOpaqueConstant(const OpaqueStorage &target,
-                                     uint32_t value)
-      : target(target), value(value) {
+                                     uint32_t value,
+                                     std::shared_ptr<RuntimeValueGenerator> rvg,
+                                     bool contextualOpEnabled)
+      : target(target), value(value), rvg(rvg) {
     for (int i = 31; i >= 0; i--) {
       bool v = 1 & (value >> i);
-      predicates.push_back(MultiplyCompareOpaquePredicate::createRandom(v));
+      predicates.push_back(
+          contextualOpEnabled
+              ? MultiplyCompareOpaquePredicate::createRandom(v)
+              : MultiplyCompareOpaquePredicate::createRandomInvariant(v));
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
-    return new MultiplyCompareBasedOpaqueConstant(target, value);
+  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+                                 std::shared_ptr<RuntimeValueGenerator> rvg,
+                                 bool contextualOpEnabled) {
+    return new MultiplyCompareBasedOpaqueConstant(target, value, rvg,
+                                                  contextualOpEnabled);
   }
 
   OpaqueStorage returnStorage() const override { return target; }
@@ -414,10 +581,12 @@ private:
     moveConstant(as, stack, X86::EDX, edx, 3);
   }
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
-    moveMixedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
-    moveMixedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
+    rvg->compile(as, stack, {X86::EAX, X86::EDX},
+                 {X86::ECX, X86::ESI, X86::EBX, X86::EDI});
+    // moveMixedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
+    // moveMixedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
   }
-};
+}; // namespace
 
 struct R3SATVar {
   uint8_t index : 7;
@@ -669,18 +838,27 @@ class Random3SAT32OpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<Random3SAT32OpaquePredicate>> predicates;
   const OpaqueStorage &target;
   uint32_t value;
+  std::shared_ptr<RuntimeValueGenerator> rvg;
 
 public:
-  Random3SAT32OpaqueConstant(const OpaqueStorage &target, uint32_t value)
-      : target(target), value(value) {
+  Random3SAT32OpaqueConstant(const OpaqueStorage &target, uint32_t value,
+                             std::shared_ptr<RuntimeValueGenerator> rvg,
+                             bool contextualOpEnabled)
+      : target(target), value(value), rvg(rvg) {
     for (int i = 31; i >= 0; i--) {
       bool v = 1 & (value >> i);
-      predicates.push_back(Random3SAT32OpaquePredicate::createRandom(v));
+      predicates.push_back(
+          contextualOpEnabled
+              ? Random3SAT32OpaquePredicate::createRandom(v)
+              : Random3SAT32OpaquePredicate::createRandomInvariant(v));
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value) {
-    return new Random3SAT32OpaqueConstant(target, value);
+  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+                                 std::shared_ptr<RuntimeValueGenerator> rvg,
+                                 bool contextualOpEnabled) {
+    return new Random3SAT32OpaqueConstant(target, value, rvg,
+                                          contextualOpEnabled);
   }
 
   OpaqueStorage returnStorage() const override { return target; }
@@ -759,84 +937,10 @@ private:
     moveConstant(as, stack, X86::EDX, value, 6);
   }
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
-    moveMixedRegs(as, stack, X86::EDX,
-                  {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
-  }
-};
-
-// ============================================================
-// symbolic (random) value implementation
-
-class RdtscRandomGeneratorOC : public OpaqueConstruct {
-public:
-  static OpaqueConstruct *create() { return new RdtscRandomGeneratorOC(); }
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    as.rdtsc();
-  }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
-                      const SteganoInstructions &instrs) const override {
-    // not used as of now, so just use default implementation
-    compile(as, stack);
-    InstrSteganoProcessor stegano;
-    stegano.insert(instrs, as, stack, {}, 0, 0);
-  }
-  size_t opaquePredicateCount() const override { return 0; }
-  OpaqueState getInput() const override { return {}; }
-  OpaqueState getOutput() const override {
-    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
-  }
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EDX};
-  }
-};
-
-class NegativeStackRandomGeneratorOC : public OpaqueConstruct {
-public:
-  static OpaqueConstruct *create() {
-    return new NegativeStackRandomGeneratorOC();
-  }
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    int offset = -4 * math::Random::range32(2u, 32u);
-    as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
-  }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
-                      const SteganoInstructions &instrs) const override {
-    // not used as of now, so just use default implementation
-    compile(as, stack);
-    InstrSteganoProcessor stegano;
-    stegano.insert(instrs, as, stack, {}, 0, 0);
-  }
-  size_t opaquePredicateCount() const override { return 0; }
-  OpaqueState getInput() const override { return {}; }
-  OpaqueState getOutput() const override {
-    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
-  }
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX};
-  }
-};
-
-class AddRegRandomGeneratorOC : public OpaqueConstruct {
-public:
-  static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
-  void compile(X86AssembleHelper &as, StackState &stack) const override {
-    moveMixedRegs(as, stack, X86::EAX,
-                  {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
-  }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
-                      const SteganoInstructions &instrs) const override {
-    // not used as of now, so just use default implementation
-    compile(as, stack);
-    InstrSteganoProcessor stegano;
-    stegano.insert(instrs, as, stack, {}, 0, 0);
-  }
-  size_t opaquePredicateCount() const override { return 0; }
-  OpaqueState getInput() const override { return {}; }
-  OpaqueState getOutput() const override {
-    return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
-  }
-  std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EFLAGS};
+    // moveMixedRegs(as, stack, X86::EDX,
+    //               {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
+    rvg->compile(as, stack, {X86::EDX},
+                 {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
   }
 };
 
@@ -1180,9 +1284,12 @@ private:
 // ============================================================
 // factories
 
-template <typename... Args> using oc_factory = OpaqueConstruct *(*)(Args...);
+template <typename Result, typename... Args>
+using oc_factory = Result *(*)(Args...);
 
-std::map<std::string, oc_factory<const OpaqueStorage &, uint32_t>>
+std::map<std::string,
+         oc_factory<OpaqueConstruct, const OpaqueStorage &, uint32_t,
+                    std::shared_ptr<RuntimeValueGenerator>, bool>>
     constant_factories = {
         {OPAQUE_CONSTANT_ALGORITHM_MOV, MovConstant32::create},
         {OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
@@ -1190,22 +1297,30 @@ std::map<std::string, oc_factory<const OpaqueStorage &, uint32_t>>
         {OPAQUE_CONSTANT_ALGORITHM_R3SAT32, Random3SAT32OpaqueConstant::create},
 };
 
-std::map<std::string, oc_factory<>> random_factories = {
+std::map<std::string, oc_factory<RuntimeValueGenerator>>
+    runtimevaluegen_factories = {
+        {OPAQUE_RANDOM_ALGORITHM_ADDREG, AddRegRuntimeValueGenerator::create},
+        {OPAQUE_RANDOM_ALGORITHM_RDTSC, RdtscRuntimeValueGenerator::create},
+        {OPAQUE_RANDOM_ALGORITHM_CONSTANT,
+         ConstantRuntimeValueGenerator::create},
+};
+
+std::map<std::string, oc_factory<OpaqueConstruct>> random_factories = {
     {OPAQUE_RANDOM_ALGORITHM_ADDREG, AddRegRandomGeneratorOC::create},
     {OPAQUE_RANDOM_ALGORITHM_RDTSC, RdtscRandomGeneratorOC::create},
     {OPAQUE_RANDOM_ALGORITHM_NEGSTK, NegativeStackRandomGeneratorOC::create},
 };
 
-std::map<std::string,
-         oc_factory<const OpaqueStorage &, const std::vector<uint32_t> &>>
+std::map<std::string, oc_factory<OpaqueConstruct, const OpaqueStorage &,
+                                 const std::vector<uint32_t> &>>
     selector_factories = {
         {OPAQUE_SELECTOR_ALGORITHM_MOV, MovRandomSelectorOC::create},
 };
 
-template <typename... Args>
-OpaqueConstruct *
-call_factory(const std::map<std::string, oc_factory<Args...>> &factories,
-             const std::string &key, Args &&... args) {
+template <typename Result, typename... Args>
+Result *call_factory(
+    const std::map<std::string, oc_factory<Result, Args...>> &factories,
+    const std::string &key, Args &&... args) {
   auto it = factories.find(key);
   return it == factories.end() ? nullptr
                                : it->second(std::forward<Args>(args)...);
@@ -1216,22 +1331,31 @@ call_factory(const std::map<std::string, oc_factory<Args...>> &factories,
 // ============================================================
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
-    const OpaqueStorage &target, uint32_t value, const std::string &algorithm) {
-  if (OpaqueConstruct *oc = call_factory(constant_factories, algorithm, target,
-                                         std::move(value))) {
-    return std::shared_ptr<OpaqueConstruct>(oc);
-  } else {
-    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
-    return std::shared_ptr<OpaqueConstruct>(
-        MovConstant32::create(target, value));
+    const OpaqueStorage &target, uint32_t value, const std::string &algorithm,
+    const std::string &inputAlgorithm, bool contextualOpEnabled) {
+  std::shared_ptr<RuntimeValueGenerator> rvg{
+      call_factory(runtimevaluegen_factories, inputAlgorithm)};
+  if (!rvg) {
+    dbg_fmt("Warning: unknown opaque input generation algorithm: {}\n",
+            inputAlgorithm);
+    rvg.reset(AddRegRuntimeValueGenerator::create());
   }
+  std::shared_ptr<OpaqueConstruct> oc{
+      call_factory(constant_factories, algorithm, target, std::move(value),
+                   std::move(rvg), std::move(contextualOpEnabled))};
+  if (!oc) {
+    dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
+    oc.reset(MovConstant32::create(target, value, rvg, contextualOpEnabled));
+  }
+  return oc;
 }
 
-std::shared_ptr<OpaqueConstruct>
-OpaqueConstructFactory::createOpaqueConstant32(const OpaqueStorage &target,
-                                               const std::string &algorithm) {
+std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
+    const OpaqueStorage &target, const std::string &algorithm,
+    const std::string &inputAlgorithm, bool contextualOpEnabled) {
   uint32_t value = math::Random::rand();
-  return createOpaqueConstant32(target, value, algorithm);
+  return createOpaqueConstant32(target, value, algorithm, inputAlgorithm,
+                                contextualOpEnabled);
 }
 
 std::shared_ptr<OpaqueConstruct>
