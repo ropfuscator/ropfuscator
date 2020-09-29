@@ -30,6 +30,9 @@ namespace ropf {
 #define CONFIG_FUNCTION_NAME "name"
 #define CONFIG_OPA_PRED_ENABLED "opaque_predicates_enabled"
 #define CONFIG_OPA_PRED_ALGO "opaque_predicates_algorithm"
+#define CONFIG_OPA_PRED_INPUT_ALGO "opaque_predicates_input_algorithm"
+#define CONFIG_OPA_PRED_CONTEXTUAL_ENABLED                                     \
+  "opaque_predicates_contextual_enabled"
 #define CONFIG_OPA_OBF_IMM_OPERAND "obfuscate_immediate_operand"
 #define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
 #define CONFIG_OPA_OBF_STACK_SAVED "obfuscate_stack_saved_values"
@@ -49,6 +52,8 @@ struct ObfuscationParameter {
   /// true if obfuscation of immediate operand is enabled for this function
   /// (only effective if opaquePredicateEnabled == true)
   bool obfuscateImmediateOperand;
+  /// true if contextual opaque predicate is enabled
+  bool opaquePredicateContextualEnabled;
   /// true if obfuscation of branch address is enabled for this function
   /// (only effective if opaquePredicateEnabled == true)
   bool obfuscateBranchTarget;
@@ -62,16 +67,19 @@ struct ObfuscationParameter {
   unsigned int opaqueBranchDivergenceMaxBranches;
   /// opaque constant algorithm for this function
   std::string opaqueConstantAlgorithm;
+  /// opaque predicate input generation algorithm for this function
+  std::string opaqueInputGenAlgorithm;
   /// branch divergence algorithm for this function
   std::string opaqueBranchDivergenceAlgorithm;
 
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicateEnabled(false),
-        obfuscateImmediateOperand(true), obfuscateBranchTarget(true),
-        obfuscateStackSavedValues(true), opaqueSteganoEnabled(false),
-        opaqueBranchDivergenceEnabled(false),
+        obfuscateImmediateOperand(true), opaquePredicateContextualEnabled(true),
+        obfuscateBranchTarget(true), obfuscateStackSavedValues(true),
+        opaqueSteganoEnabled(false), opaqueBranchDivergenceEnabled(false),
         opaqueBranchDivergenceMaxBranches(32),
         opaqueConstantAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
+        opaqueInputGenAlgorithm(OPAQUE_RANDOM_ALGORITHM_ADDREG),
         opaqueBranchDivergenceAlgorithm(OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV) {}
 };
 

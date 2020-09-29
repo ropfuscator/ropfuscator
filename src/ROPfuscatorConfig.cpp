@@ -64,6 +64,12 @@ std::set<std::string> validOpaquePredicateAlgorithmNames = {
     OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
 };
 
+std::set<std::string> validOpaquePredicateInputAlgorithmNames = {
+    OPAQUE_RANDOM_ALGORITHM_CONSTANT,
+    OPAQUE_RANDOM_ALGORITHM_ADDREG,
+    OPAQUE_RANDOM_ALGORITHM_RDTSC,
+};
+
 std::set<std::string> validBranchDivergenceAlgorithmNames = {
     OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV,
     OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV,
@@ -86,6 +92,10 @@ void parseFunctionOptions(const toml::Value &config,
   parseOption(config, tomlSect, CONFIG_OPA_OBF_IMM_OPERAND,
               funcParam.obfuscateImmediateOperand);
 
+  // Opaque predicates (contextual OP) enabled
+  parseOption(config, tomlSect, CONFIG_OPA_PRED_CONTEXTUAL_ENABLED,
+              funcParam.opaquePredicateContextualEnabled);
+
   // Obfuscation of branch target enabled
   parseOption(config, tomlSect, CONFIG_OPA_OBF_BRANCH_TARGET,
               funcParam.obfuscateBranchTarget);
@@ -95,7 +105,7 @@ void parseFunctionOptions(const toml::Value &config,
               funcParam.obfuscateStackSavedValues);
 
   // Opaque predicates algorithm
-  std::string op_algo;
+  std::string op_algo, op_input_algo;
   if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
     op_algo = str_tolower(op_algo);
     if (validOpaquePredicateAlgorithmNames.count(op_algo) == 0) {
@@ -104,6 +114,17 @@ void parseFunctionOptions(const toml::Value &config,
               op_algo);
     } else {
       funcParam.opaqueConstantAlgorithm = op_algo;
+    }
+  }
+  if (parseOption(config, tomlSect, CONFIG_OPA_PRED_INPUT_ALGO,
+                  op_input_algo)) {
+    op_input_algo = str_tolower(op_input_algo);
+    if (validOpaquePredicateInputAlgorithmNames.count(op_input_algo) == 0) {
+      dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
+              "input algorithm. Algorithm configuration is ignored.\n",
+              op_input_algo);
+    } else {
+      funcParam.opaqueInputGenAlgorithm = op_input_algo;
     }
   }
 

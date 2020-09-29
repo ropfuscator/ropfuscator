@@ -401,7 +401,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       ROPChainPushInst *push = new PUSH_IMM(elem->value);
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+            OpaqueStorage::EAX, param.opaqueConstantAlgorithm,
+            param.opaqueInputGenAlgorithm,
+            param.opaquePredicateContextualEnabled);
       }
       pushchain.emplace_back(push);
       break;
@@ -416,7 +418,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         uint32_t value =
             elem->value - math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
+            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+            param.opaqueInputGenAlgorithm,
+            param.opaquePredicateContextualEnabled);
       }
       pushchain.emplace_back(push);
       break;
@@ -459,7 +463,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
                   param.opaqueBranchDivergenceAlgorithm);
         } else {
           opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm);
+              OpaqueStorage::EAX, param.opaqueConstantAlgorithm,
+              param.opaqueInputGenAlgorithm,
+              param.opaquePredicateContextualEnabled);
         }
         auto opaqueValues =
             *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
@@ -484,7 +490,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         // linker will not complain about integer overflow in relocation
         uint32_t value = -math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
+            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+            param.opaqueInputGenAlgorithm,
+            param.opaquePredicateContextualEnabled);
       }
       pushchain.emplace_back(push);
       break;
@@ -513,7 +521,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
           // linker will not complain about integer overflow in relocation
           uint32_t value = -math::Random::range32(0x1000, 0x10000000);
           push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm);
+              OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+              param.opaqueInputGenAlgorithm,
+              param.opaquePredicateContextualEnabled);
         }
         pushchain.emplace_back(push);
       } else {
