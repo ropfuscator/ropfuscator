@@ -1,3 +1,9 @@
-[submodule "ropfuscator-extra/include/toml11"]
-	path = ropfuscator-extra/include/toml11
-	url = https://github.com/ToruNiina/toml11.git
+[submodule "ropfuscator-extra/include/tinytoml"]
+	path = thirdparty/tinytoml
+	url = https://github.com/mayah/tinytoml
+[submodule "ropfuscator-extra/include/fmt"]
+	path = thirdparty/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO"]
+	path = evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO
+	url = https://github.com/serge1/ELFIO.git

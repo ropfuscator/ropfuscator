@@ -1,0 +1,41 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -70,7 +70,7 @@
+   X86WinEHState.cpp
+   )
+ 
+-add_llvm_target(X86CodeGen ${sources})
++include(ropfuscator/cmake/ropfuscator.cmake)
+ 
+ add_subdirectory(AsmParser)
+ add_subdirectory(Disassembler)
+--- a/X86TargetMachine.cpp
++++ b/X86TargetMachine.cpp
+@@ -60,6 +60,11 @@
+                                         "folding pass"),
+                                cl::init(false), cl::Hidden);
+ 
++namespace llvm {
++void initializeX86ROPfuscatorPass(PassRegistry &);
++FunctionPass *createX86ROPfuscatorPass();
++}
++
+ extern "C" void LLVMInitializeX86Target() {
+   // Register the target.
+   RegisterTargetMachine<X86TargetMachine> X(getTheX86_32Target());
+@@ -81,6 +86,7 @@
+   initializeX86SpeculativeLoadHardeningPassPass(PR);
+   initializeX86FlagsCopyLoweringPassPass(PR);
+   initializeX86CondBrFoldingPassPass(PR);
++  initializeX86ROPfuscatorPass(PR);
+ }
+ 
+ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
+@@ -514,6 +520,7 @@
+   }
+   addPass(createX86DiscriminateMemOpsPass());
+   addPass(createX86InsertPrefetchPass());
++  addPass(createX86ROPfuscatorPass());
+ }
+ 
+ void X86PassConfig::addPreEmitPass2() {

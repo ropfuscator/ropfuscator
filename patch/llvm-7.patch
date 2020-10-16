@@ -1,0 +1,39 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -67,7 +67,7 @@
+   X86WinEHState.cpp
+   )
+ 
+-add_llvm_target(X86CodeGen ${sources})
++include(ropfuscator/cmake/ropfuscator.cmake)
+ 
+ add_subdirectory(AsmParser)
+ add_subdirectory(Disassembler)
+--- a/X86TargetMachine.cpp
++++ b/X86TargetMachine.cpp
+@@ -69,6 +69,8 @@
+ void initializeX86DomainReassignmentPass(PassRegistry &);
+ void initializeX86AvoidSFBPassPass(PassRegistry &);
+ void initializeX86FlagsCopyLoweringPassPass(PassRegistry &);
++void initializeX86ROPfuscatorPass(PassRegistry &);
++FunctionPass *createX86ROPfuscatorPass();
+ 
+ } // end namespace llvm
+ 
+@@ -90,6 +92,7 @@
+   initializeX86DomainReassignmentPass(PR);
+   initializeX86AvoidSFBPassPass(PR);
+   initializeX86FlagsCopyLoweringPassPass(PR);
++  initializeX86ROPfuscatorPass(PR);
+ }
+ 
+ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
+@@ -508,6 +511,8 @@
+     addPass(createX86FixupLEAs());
+     addPass(createX86EvexToVexInsts());
+   }
++
++  addPass(createX86ROPfuscatorPass());
+ }
+ 
+ void X86PassConfig::addPreEmitPass2() {
