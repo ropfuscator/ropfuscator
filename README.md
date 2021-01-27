@@ -1,7 +1,6 @@
 # ROPfuscator
 
 ![logo](./docs/logo.png)
-[comment]: <> (![logo](https://i.imgur.com/dSAJ2VG.png))
 
 ROPfuscator is a fine-grained code obfuscation framework for C/C++ programs using ROP (return oriented programming).
 ROPfuscator obfuscates a program in assembly code level by transforming normal instructions into ROP chains, thwarting our natural conception of normal control flow.
@@ -14,11 +13,17 @@ It is implemented as an extension to LLVM x86 backend.
 We combine the following obfuscation layers to achieve robust obfuscation against several attacks.
 
 - ROP Transformation
-    - Convert each instruction into one or more ROP gadgets, and translate the entire code to ROP chains.
+    - Algorithm: Convert each instruction into one or more ROP gadgets, and translate the entire code to ROP chains.
+    - Robustness: This transformation obviously make it hard for normal disassemblers and decompilers to recover the original code.
+    - Weakness: There are several techniques proposed to reverse ROP chains, and ROP transformation itself does not provide any protection to those techniques.
 - Opaque Predicate Insertion
-    - Translate ROP gadget address(es) into opaque constants.
+    - Algorithm: Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
+    - Robustness: Opaque constants make it hard to statically infer transformed values, i.e., ROP gadget addresses and stack based values. Therefore, it breaks static analysis to detect ROP gadgets and reverse them into original instructions. Also, input to opaque predicate implementation is crafted to include user-supplied values (only known at runtime), which makes DSE diverge when it tries to resolve execution paths.
+    - Weakness: Though it is resistant to DSE, it is not robust against instruction tracing based reversing techniques.
 - Instruction Hiding
-    - Hide some of the instructions within the opaque predicate implementation so that it cannot be identified easily.
+    - Instead of applying ROP transformation to all instructions, pick up some original instructions before ROP transformation and interleave them with the opaque predicate instructions.
+    - Robustness: This will make some of the original instructions hard to be identified in the execution trace, as they are hidden in large opaque predicate execution trace. Decompiler's output would be corrupted even if a small part of the instruction trace is not available.
+    - Weakness: Non-hidden instructions can be revealed in instruction trace, and the protection is not complete. Hidden instructions are not protected by ROP or opaque predicate and may be easier to be analyzed.
 
 ## Robustness and Performance Overhead
 
@@ -77,7 +82,7 @@ These obfuscation methods can be chosen per function; it means that ROPfuscator 
 - Inline assembly (`asm`) written in the source code cannot be obfuscated.
 - Some version of `libc` may not have enough gadgets to obfuscate fundamental instructions, and can result in very low obfuscation coverage. If this happens, another version of `libc` or other library to which the program is linked should be used instead.
 - Enabling optimization may lower obfuscation coverage (and robustness); it is recommended to disable optimization for functions which are to be obfuscated.
-- Current implementation does not consider any defense measures or malware detection mechanisms against ROP exploitation.
+- Current implementation does not take any defense measures against ROP exploitation into account, for example, CFI (control flow integrity) and behavior-based malware detection.
 
 ## Manual Build
 
@@ -234,7 +239,8 @@ clang-7 -m32 -pie main.c
 
 ## Implementation Details
 
+See [implementation.md](./docs/implementation.md).
+
 ### Original Architecture for ROP Transformation
 
-[comment]: <> (![Imgur](https://i.imgur.com/ipResnS.png))
 ![original architecture diagram](./docs/impl-architecture-old.png)

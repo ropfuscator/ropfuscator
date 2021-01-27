@@ -1,0 +1,110 @@
+%% Mermaid UML diagram
+classDiagram
+
+%% Main classes
+
+class X86ROPfuscator {
+    - ropfuscator: ROPfuscatorCore
+    + runOnMachineFunction()
+}
+
+class ROPfuscatorCore {
+    + obfuscateFunction()
+    - insertROPChain()
+}
+
+%% ROP Transformation
+
+class ROPEngine {
+    + ropify()
+    - handleXXX()
+}
+
+class ROPChainBuilder {
+    + append()
+    + build()
+}
+
+class BinaryAutopsy {
+    - xgraph: XchgGraph
+    + findGadgetPrimitive()
+    + undoXchgs()
+}
+<<singleton>> BinaryAutopsy
+
+class XchgGraph {
+    + getPath()
+    + checkPath()
+    + addEdge()
+}
+
+class ROPChain {
+    + chain: ChainElem[]
+    + successor: ChainElem
+    + flagSave: FlagSaveMode
+    + merge()
+    + append()
+}
+
+class ROPChainPushInst {
+    + opaqueConstant: OpaqueConstruct
+    + steganoInstr : SteganoInstructions
+    + compile()
+}
+<<abstract>> ROPChainPushInst
+
+%% Opaque Predicate Insertion
+
+class OpaqueConstruct {
+    + getInput()
+    + getOutput()
+    + getClobberedRegs()
+    + compile()
+    + compileStegano()
+    + opaquePredicateCount()
+}
+<<interface>> OpaqueConstruct
+
+class OpaqueConstructFactory {
+    + createOpaqueConstant32()
+    + compose()
+}
+
+%% Instruction Hiding (Interleaving)
+
+class InstrSteganoProcessor {
+    + convertROPChainToStegano()
+}
+
+class SteganoInstructions {
+    + instrs: SteganoInstr[]
+}
+
+%% relations
+
+llvm_MachineFunctionPass <|-- X86ROPfuscator
+X86ROPfuscator ..> ROPfuscatorCore : <<use>>
+ROPfuscatorCore ..> ROPEngine : <<use>>
+ROPfuscatorCore ..> BinaryAutopsy : <<use>>
+ROPfuscatorCore ..> OpaqueConstructFactory : <<use>>
+ROPfuscatorCore ..> InstrSteganoProcessor : <<use>>
+OpaqueConstructFactory ..> MultiplyCompareBasedOpaqueConstant : <<create>>
+OpaqueConstruct <|.. OpaqueConstant32
+OpaqueConstant32 <|.. MultiplyCompareBasedOpaqueConstant
+MultiplyCompareBasedOpaqueConstant "1" *-- "32" MultiplyCompareOpaquePredicate
+OpaqueConstruct <|.. MultiplyCompareOpaquePredicate
+SteganoInstructions *-- SteganoInstr
+InstrSteganoProcessor ..> SteganoInstructions : <<create>>
+ROPEngine ..> ROPChainBuilder : <<use>>
+ROPChainBuilder ..> ROPChain : <<create>>
+ROPfuscatorCore ..> ROPChain : <<use>>
+ROPfuscatorCore ..> ROPChainPushInst : <<create/use>>
+ROPChainPushInst o-- OpaqueConstruct
+ROPChainPushInst o-- SteganoInstructions
+ROPChainBuilder ..> ChainElem : <<create>>
+ROPChainBuilder ..> BinaryAutopsy : <<use>>
+BinaryAutopsy o-- MicroGadget
+ChainElem o-- MicroGadget
+BinaryAutopsy ..> ELFParser : <<use>>
+BinaryAutopsy ..> XchgGraph : <<use>>
+ROPChain *-- ChainElem

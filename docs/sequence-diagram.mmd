@@ -1,0 +1,47 @@
+%% Mermaid UML diagram
+sequenceDiagram
+
+participant LLVM as (LLVM backend)
+participant Pass as : X86ROPfuscator
+participant Core as : ROPfuscatorCore
+participant ROP  as : ROPEngine
+participant RCB  as : ROPChainBuilder
+participant BA   as : BinaryAutopsy
+participant ELF  as : ELFParser
+LLVM ->>  + Pass : runOnMachineFunction()
+Pass ->>  + Core : obfuscateFunction()
+opt if BinaryAutopsy is not initialized
+Core -->> + BA   : getInstance()
+BA   -->> + ELF  : <<create>>
+ELF  -->> - BA   : ELFParser
+BA   ->>    BA   : dissect()
+activate    BA
+BA   -->    BA   : dumpSegments()
+BA   -->    BA   : dumpGadgets()
+BA   -->    BA   : buildXchgGraph()
+deactivate  BA
+BA   -->> - Core : BinaryAutopsy
+end %% opt
+loop for each MachineBasicBlock
+loop for each MachineInstr
+Core -->> + ROP  : <<create>>
+Core ->>    ROP  : ropify()
+ROP  ->>    ROP  : handleXXX()
+activate    ROP
+ROP  -->> + RCB  : <<create>>
+ROP  ->>    RCB  : append()
+ROP  ->>    RCB  : build()
+RCB  ->>  + BA   : findGadgetPrimitive()
+BA   -->> - RCB  : ROPChain
+RCB  ->>  + BA   : undoXchgs()
+BA   -->> - RCB  : ROPChain
+RCB  -->> - ROP  : ROPChain
+deactivate  ROP
+ROP  -->> - Core : ROPChain
+end %% for each MachineInstr
+Core ->>    Core : insertROPChain()
+activate    Core
+deactivate  Core
+end %% for each MachineBasicBlock
+Core -->> - Pass : .
+Pass -->> - LLVM : .
