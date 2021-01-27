@@ -1,0 +1,65 @@
+%% Mermaid UML diagram
+sequenceDiagram
+
+participant Core as : ROPfuscatorCore
+participant ROP  as : ROPEngine
+participant RCPI as : ROPChainPushInst
+participant OPCF as : OpaqueConstructFactory
+participant OPC  as : OpaqueConstruct
+participant IH   as : InstrSteganoProcessor
+participant IHI  as : SteganoInstr
+
+activate Core
+loop for each MachineBasicBlock
+loop for each MachineInstr
+Core ->>  + ROP  : ropify()
+ROP  ->>    ROP  : handleXXX()
+activate    ROP
+deactivate  ROP
+ROP  -->> - Core : ROPChain
+end
+Core ->>  + Core : insertROPChain()
+
+opt if Instruction Hiding is enabled
+Core ->>  + IH   : convertROPChainToStegano()
+IH   -->> + IHI  : <<create>>
+IH   -->> - Core : SteganoInstructions, modify ROPChain
+end
+
+loop for each ChainElem
+Note right of Core : lower ChainElem to ROPChainPushInst
+opt if Opaque Predicate Insertion is enabled
+Core ->>  + OPCF : createOpaqueConstant32()
+OPCF -->> + OPC  : <<create>>
+OPCF -->> - Core : OpaqueConstruct
+end
+Core -->> + RCPI : <<create>>
+end
+
+loop for each ROPChainPushInst
+Note right of Core : generate machine code
+Core ->>  + RCPI : compile()
+alt if Opaque Predicate Insertion is enabled
+RCPI ->>  + OPC  : compile()
+Note right of OPC : emit opaque code to push ROP element
+OPC  -->> - RCPI : (assembly instructions generated)
+else if Opaque Predicate Insertion and Instruction Hiding is enabled
+RCPI ->>  + OPC  : compileStegano()
+Note right of OPC : emit opaque code to push ROP element
+loop for each insertion point
+OPC  ->>  + IHI  : compile()
+IHI  -->> - OPC  : (assembly instructions generated)
+end
+OPC  -->> - RCPI : (assembly instructions generated)
+else if ROP only
+Note right of RCPI : emit an instruction to push ROP element
+end
+RCPI -->> - Core : (assembly instructions generated)
+end
+
+deactivate  IHI
+deactivate  OPC
+deactivate  RCPI
+deactivate  Core
+end
+deactivate  Core

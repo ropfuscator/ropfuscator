@@ -1,0 +1,48 @@
+%% Mermaid UML diagram
+classDiagram
+
+class X86ROPfuscator {
+    - ropfuscator: ROPfuscatorCore
+    + runOnMachineFunction()
+}
+
+class ROPfuscatorCore {
+    + obfuscateFunction()
+    - insertROPChain()
+}
+
+class ROPEngine {
+    + ropify()
+    - handleXXX()
+}
+
+class ROPChainBuilder {
+    + append()
+    + build()
+}
+
+class BinaryAutopsy {
+    + findGadgetPrimitive()
+    + undoXchgs()
+}
+<<singleton>> BinaryAutopsy
+
+class ROPChain {
+    + chain: ChainElem[]
+    + merge()
+    + append()
+}
+
+llvm_MachineFunctionPass <|-- X86ROPfuscator
+X86ROPfuscator ..> ROPfuscatorCore : <<use>>
+ROPfuscatorCore ..> ROPEngine : <<use>>
+ROPfuscatorCore ..> BinaryAutopsy : <<use>>
+ROPEngine ..> ROPChainBuilder : <<use>>
+ROPChainBuilder ..> ROPChain : <<create>>
+ROPfuscatorCore ..> ROPChain : <<use>>
+ROPChainBuilder ..> ChainElem : <<create>>
+ROPChainBuilder ..> BinaryAutopsy : <<use>>
+BinaryAutopsy ..> ELFParser : <<use>>
+BinaryAutopsy o-- MicroGadget
+ChainElem o-- MicroGadget
+ROPChain *-- ChainElem
