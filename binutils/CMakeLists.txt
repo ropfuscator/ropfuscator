@@ -13,8 +13,13 @@ foreach (filename ${files})
     add_executable(${exec_name} ${exec_name}.s)
     add_dependencies(ropfuscator-binutils ${ropfuscated_exec_name})
 
-    target_link_libraries(${exec_name} dl)
-    target_link_libraries(${ropfuscated_exec_name} dl)
+    target_link_libraries(${exec_name} dl stdc++)
+    target_link_libraries(${ropfuscated_exec_name} dl stdc++)
+
+    if (EXISTS "{CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.cplusplus")
+        target_link_libraries(${exec_name} dl stdc++)
+        target_link_libraries(${ropfuscated_exec_name} dl stdc++)
+    endif ()
 
     #######################
     # options handling
