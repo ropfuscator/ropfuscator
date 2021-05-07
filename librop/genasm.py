@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+
 from typing import List
 
 
 OUTFILE = "gadgets.asm"
 
-REG2REG_OP = ["xor", "and", "or", "mov"]
+REG2REG_OP = ["xor", "and", "or", "mov", "add", "sub", "xchg", "cmova", "cmovae", "cmovb", "cmovbe", "cmovc", "cmove", "cmovg", "cmovge", "cmovl", "cmovle", "cmovna", "cmovnae",
+              "cmovnb", "cmovnbe", "cmovnc", "cmovne", "cmovng", "cmovnge", "cmovnl", "cmovnle", "cmovno", "cmovnp", "cmovns", "cmovnz", "cmovo", "cmovp", "cmovpe", "cmovpo", "cmovs", "cmovz"]
 REGONLY_OP = ["push", "pop"]
 
 X86_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "ebp"]
