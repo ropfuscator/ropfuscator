@@ -13,7 +13,7 @@ X86_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "ebp"]
 
 
 def export_directive_template(name):
-    return f"global {name}"
+    return f".global {name}"
 
 
 def code_template(symname, operation):
@@ -39,7 +39,7 @@ def main():
 
     with open(OUTFILE, "w") as f:
         f.write("\n".join(exports))
-        f.write("\n\nsection .text\n\n")
+        f.write("\n\n.section .text\n\n")
         f.write("\n".join(functions))
 
     return
