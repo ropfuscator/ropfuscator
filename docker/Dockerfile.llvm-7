@@ -87,6 +87,7 @@ COPY evaluation/ ./evaluation/
 COPY binutils/ ./binutils/
 COPY configs/ ./configs/
 COPY testcase/ ./testcase/
+COPY librop/ ./librop/
 
 # reload CMakeLists.txt
 RUN touch /usr/local/src/llvm-7.0.0.src/lib/Target/X86/CMakeLists.txt
