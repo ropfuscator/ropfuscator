@@ -31,7 +31,7 @@ namespace {
 //  COMMAND LINE ARGUMENTS
 // ----------------------------------------------------------------
 cl::opt<bool>
-    ROPfPassDisabled("fno-ropfuscator",
+    RopfuscatorPassDisabled("fno-ropfuscator",
                      cl::desc("Disable code obfuscation via ROP chains"));
 
 cl::opt<std::string> RopfuscatorConfigFile(
@@ -63,7 +63,7 @@ public:
   }
 
   bool doInitialization(Module &module) override {
-    if (ROPfPassDisabled) {
+    if (RopfuscatorPassDisabled) {
       return false;
     }
 
