@@ -31,6 +31,3 @@ include_directories(${ROPF_DIR}/thirdparty/fmt/include)
 include_directories(${ROPF_DIR}/thirdparty/tinytoml/include)
 
 add_subdirectory(${ROPF_DIR})
-
-# librop
-add_subdirectory(${ROPF_DIR}/librop)

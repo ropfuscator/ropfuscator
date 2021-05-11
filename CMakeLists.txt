@@ -19,6 +19,7 @@ endif()
 
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 
+add_subdirectory("librop")
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
 add_subdirectory("evaluation" EXCLUDE_FROM_ALL)
 add_subdirectory("examples" EXCLUDE_FROM_ALL)
