@@ -1,3 +1,7 @@
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  message(FATAL_ERROR "Please use clang/clang++ to compile ROPfuscator.")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 
 set(ROPF_DIR ropfuscator)
