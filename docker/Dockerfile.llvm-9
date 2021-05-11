@@ -16,14 +16,14 @@ RUN apt-get update && apt-get install -y \
 ############################################################
 ### retrieve LLVM source tree
 
-ADD http://releases.llvm.org/7.0.0/llvm-7.0.0.src.tar.xz /usr/local/src
-ADD http://releases.llvm.org/7.0.0/cfe-7.0.0.src.tar.xz /usr/local/src
+ADD http://releases.llvm.org/9.0.0/llvm-9.0.0.src.tar.xz /usr/local/src
+ADD http://releases.llvm.org/9.0.0/cfe-9.0.0.src.tar.xz /usr/local/src
 
 WORKDIR /usr/local/src
-RUN tar -xf llvm-7.0.0.src.tar.xz && rm llvm-7.0.0.src.tar.xz
+RUN tar -xf llvm-9.0.0.src.tar.xz && rm llvm-9.0.0.src.tar.xz
 
-WORKDIR /usr/local/src/llvm-7.0.0.src/tools
-RUN tar -xf ../../cfe-7.0.0.src.tar.xz && rm ../../cfe-7.0.0.src.tar.xz
+WORKDIR /usr/local/src/llvm-9.0.0.src/tools
+RUN tar -xf ../../cfe-9.0.0.src.tar.xz && rm ../../cfe-9.0.0.src.tar.xz
 
 ############################################################
 ### add ropfuscator (essential files for build)
@@ -31,13 +31,13 @@ RUN tar -xf ../../cfe-7.0.0.src.tar.xz && rm ../../cfe-7.0.0.src.tar.xz
 WORKDIR /usr/local/src/ropfuscator/
 COPY cmake/ropfuscator-buildonly.cmake ./cmake/ropfuscator.cmake
 COPY src/ ./src/
-COPY patch/llvm-7.patch ./
+COPY patch/llvm-9.patch ./
 COPY thirdparty/fmt/include/ ./thirdparty/fmt/include/
 COPY thirdparty/tinytoml/include/ ./thirdparty/tinytoml/include/
 
-WORKDIR /usr/local/src/llvm-7.0.0.src/lib/Target/X86
+WORKDIR /usr/local/src/llvm-9.0.0.src/lib/Target/X86
 RUN ln -s ../../../../ropfuscator .
-RUN patch < ropfuscator/llvm-7.patch && rm ropfuscator/llvm-7.patch
+RUN patch < ropfuscator/llvm-9.patch && rm ropfuscator/llvm-9.patch
 
 ############################################################
 ### configure LLVM + ropfuscator
@@ -50,7 +50,7 @@ RUN cmake \
     -DCMAKE_CXX_COMPILER=clang++-9 \
     -DLLVM_TARGETS_TO_BUILD=X86 \
     -GNinja \
-    /usr/local/src/llvm-7.0.0.src
+    /usr/local/src/llvm-9.0.0.src
 
 
 ############################################################
@@ -87,10 +87,10 @@ COPY evaluation/ ./evaluation/
 COPY binutils/ ./binutils/
 COPY configs/ ./configs/
 COPY testcase/ ./testcase/
-COPY librop/ ./librop/
+COPY librop/ ./librop
 
 # reload CMakeLists.txt
-RUN touch /usr/local/src/llvm-7.0.0.src/lib/Target/X86/CMakeLists.txt
+RUN touch /usr/local/src/llvm-9.0.0.src/lib/Target/X86/CMakeLists.txt
 WORKDIR /usr/local/src/build-ropfuscator
 RUN ninja llc clang
 RUN strip -s bin/llc bin/clang
@@ -111,6 +111,6 @@ RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/src/build-ropfuscator/bin/llc /usr/local/bin/
-COPY --from=build /usr/local/src/build-ropfuscator/bin/clang-7 /usr/local/bin/
+COPY --from=build /usr/local/src/build-ropfuscator/bin/clang-9 /usr/local/bin/
 
 RUN ln -s /usr/lib/clang /usr/local/lib/clang
