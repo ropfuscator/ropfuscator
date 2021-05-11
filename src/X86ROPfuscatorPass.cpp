@@ -5,6 +5,7 @@
 // This module is simply the frontend of ROPfuscator for LLVM.
 //
 
+#include "Debug.h"
 #include "ROPfuscatorConfig.h"
 #include "ROPfuscatorCore.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -30,14 +31,18 @@ namespace {
 // ----------------------------------------------------------------
 //  COMMAND LINE ARGUMENTS
 // ----------------------------------------------------------------
-cl::opt<bool>
-    RopfuscatorPassDisabled("fno-ropfuscator",
-                     cl::desc("Disable code obfuscation via ROP chains"));
+cl::opt<bool> RopfuscatorPassDisabled(
+    "fno-ropfuscator", cl::desc("Disable code obfuscation via ROP chains"));
 
 cl::opt<std::string> RopfuscatorConfigFile(
     "ropfuscator-config",
     cl::desc("Specify a configuration file path for obfuscation"),
     cl::NotHidden, cl::Optional, cl::ValueRequired);
+
+cl::opt<std::string> RopfuscatorGadgetLibrary(
+    "ropfuscator-library",
+    cl::desc("Specify a library to extract gadgets from"), cl::NotHidden,
+    cl::Optional, cl::ValueRequired);
 
 // ----------------------------------------------------------------
 
@@ -64,16 +69,23 @@ public:
 
   bool doInitialization(Module &module) override {
     if (RopfuscatorPassDisabled) {
+      dbg_fmt("[*] ROPfuscator disabled by command-line flag.");
       return false;
     }
 
     ROPfuscatorConfig config;
 
     if (!RopfuscatorConfigFile.empty()) {
+      dbg_fmt("[*] Loading ROPfuscator configuration file...");
       config.loadFromFile(RopfuscatorConfigFile);
     }
     if (!config.globalConfig.obfuscationEnabled) {
+      dbg_fmt("[*] ROPfuscator disabled in configuration file.");
       return false;
+    }
+    if (!RopfuscatorGadgetLibrary.empty() &&
+        config.globalConfig.libraryPath.empty()) {
+      config.globalConfig.libraryPath = RopfuscatorGadgetLibrary;
     }
 
     ropfuscator = new ROPfuscatorCore(module, config);
