@@ -3,7 +3,7 @@
 from typing import List
 
 
-OUTFILE = "librop.asm"
+OUTFILE = "librop.s"
 
 REG2REG_OP = ["xor", "and", "or", "mov", "add", "sub", "xchg", "cmova", "cmovae", "cmovb", "cmovbe", "cmovc", "cmove", "cmovg", "cmovge", "cmovl", "cmovle", "cmovna", "cmovnae",
               "cmovnb", "cmovnbe", "cmovnc", "cmovne", "cmovng", "cmovnge", "cmovnl", "cmovnle", "cmovno", "cmovnp", "cmovns", "cmovnz", "cmovo", "cmovp", "cmovpe", "cmovpo", "cmovs", "cmovz"]
