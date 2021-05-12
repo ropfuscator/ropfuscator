@@ -1,8 +1,3 @@
-add_library(rop SHARED librop.s)
+add_library(rop SHARED librop.c)
 
-target_compile_options(rop PRIVATE "-masm=intel")
-
-add_custom_command(
-  OUTPUT librop.s
-  DEPENDS genasm.py
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/genasm.py)
+target_compile_options(rop PRIVATE "-fasm-blocks")
