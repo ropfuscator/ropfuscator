@@ -52,14 +52,17 @@ foreach(filename ${files})
   # ############################################################################
 
   add_dependencies(ropfuscator-examples ${ropfuscated_exec_name})
-  target_link_libraries(${ropfuscated_exec_name} c)
+  target_link_libraries(${ropfuscated_exec_name} c rop)
 
   add_custom_command(
     OUTPUT ${ropfuscated_exec_name}.s
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc clang
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc clang rop
     COMMAND
       $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_ROPFBIN}
       ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
-            ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s)
+    COMMAND
+      $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
+      ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s
+      --ropfuscator-library=$<TARGET_FILE:rop>)
+  # $<TARGET_LINKER_FILE:rop>
 endforeach()
