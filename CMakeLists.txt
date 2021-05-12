@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra ASM)
 
 set(CMAKE_C_FLAGS "-m32 -fpie")
-set(CMAKE_ASM_FLAGS "-m32 -fpie -masm=intel")
+set(CMAKE_ASM_FLAGS "-m32 -fpie")
 set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie")
 set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
