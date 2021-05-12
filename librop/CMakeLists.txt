@@ -1,5 +1,7 @@
 add_library(rop SHARED librop.s)
 
+target_compile_options(rop PRIVATE "-masm=intel")
+
 add_custom_command(
   OUTPUT librop.s
   DEPENDS genasm.py
