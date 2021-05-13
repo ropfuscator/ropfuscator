@@ -37,7 +37,7 @@ namespace ropf {
 
 class ELFParser {
 public:
-  ELFParser(const std::string &path) : path(path) {
+  ELFParser(const std::string &path) : path(path), dynsym(0), verdef(0), versym(0) {
     std::ifstream f(path, std::ios::binary);
 
     if (!f.good()) {
