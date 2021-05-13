@@ -32,7 +32,10 @@ struct Symbol {
   // force the static linker to pick the right symbol version during the
   // compilation.
   std::string getSymverDirective() const {
-    return fmt::format(".symver {},{}@{}", Label, Label, Version);
+    if (!Version.empty()) {
+      return fmt::format(".symver {},{}@{}", Label, Label, Version);
+    }
+    return "";
   }
 };
 
