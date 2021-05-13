@@ -18,6 +18,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
+option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop." OFF)
 
 add_subdirectory("librop")
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
