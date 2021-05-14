@@ -4,6 +4,7 @@ ROPFUSCATOR_PATH=`( cd $(dirname $0) && cd .. && pwd )`
 
 VERSION="10.0.1"
 
+LLVM_MAJOR_VERSION=`echo $VERSION | cut -d "." -f 1`
 LLVM_GITHUBORG="llvmorg-$VERSION"
 LLVM_PKGNAME="llvm-$VERSION.src"
 CLANG_PKGNAME="clang-$VERSION.src"
@@ -28,7 +29,7 @@ popd
 pushd lib/Target/X86
 
 ln -s $ROPFUSCATOR_PATH .
-patch < ropfuscator/patch/llvm-10.patch
+patch < ropfuscator/patch/llvm-$LLVM_MAJOR_VERSION.patch
 
 popd
 # create build dir
