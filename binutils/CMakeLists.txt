@@ -16,6 +16,11 @@ foreach(filename ${files})
   target_link_libraries(${exec_name} dl stdc++)
   target_link_libraries(${ropfuscated_exec_name} dl stdc++)
 
+  # use librop
+  if(NOT USE_LIBC)
+    target_link_libraries(${ropfuscated_exec_name} rop)
+  endif()
+
   if(EXISTS "{CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.cplusplus")
     target_link_libraries(${exec_name} dl stdc++)
     target_link_libraries(${ropfuscated_exec_name} dl stdc++)

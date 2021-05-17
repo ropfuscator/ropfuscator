@@ -41,8 +41,8 @@ foreach(filename ${files})
 
   add_custom_command(
     OUTPUT ${exec_name}.s
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc
-    COMMAND ${CMAKE_C_COMPILER} ARGS ${ROPF_IR_FLAGS_STDBIN}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+    COMMAND $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_STDBIN}
             ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${exec_name}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_STDBIN} ${exec_name}.bc -o
             ${exec_name}.s)
@@ -53,32 +53,18 @@ foreach(filename ${files})
 
   add_dependencies(ropfuscator-examples ${ropfuscated_exec_name})
 
-  # TODO: put back clang target!
   if(USE_LIBC)
     target_link_libraries(${ropfuscated_exec_name} c)
-
-    add_custom_command(
-      OUTPUT ${ropfuscated_exec_name}.s
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc rop
-      COMMAND
-        ${CMAKE_C_COMPILER} ARGS ${ROPF_IR_FLAGS_ROPFBIN}
-        ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o
-        ${ropfuscated_exec_name}.bc
-      COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
-              ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s)
   else()
     target_link_libraries(${ropfuscated_exec_name} rop)
-
-    add_custom_command(
-      OUTPUT ${ropfuscated_exec_name}.s
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c llc rop
-      COMMAND
-        ${CMAKE_C_COMPILER} ARGS ${ROPF_IR_FLAGS_ROPFBIN}
-        ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o
-        ${ropfuscated_exec_name}.bc
-      COMMAND
-        $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
-        ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s
-        --ropfuscator-library=$<TARGET_FILE:rop>)
   endif()
+
+  add_custom_command(
+    OUTPUT ${ropfuscated_exec_name}.s
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+    COMMAND
+      $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_ROPFBIN}
+      ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.bc
+    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
+            ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s)
 endforeach()
