@@ -8,3 +8,8 @@ set(VERSION_STRING ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 set_target_properties(rop PROPERTIES VERSION ${VERSION_STRING} SOVERSION
                                                                ${VERSION_MAJOR})
 target_compile_options(rop PRIVATE "-fasm-blocks")
+
+add_custom_command(
+  OUTPUT librop.c
+  DEPENDS genlib.py
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/genlib.py)
