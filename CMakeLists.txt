@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra ASM)
 
+option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
+option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop." OFF)
+
 set(CMAKE_C_FLAGS "-m32 -fpie")
 set(CMAKE_ASM_FLAGS "-m32 -fpie")
-set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie")
+set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie -Wl,-rpath,${CMAKE_BINARY_DIR}/lib")
 set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm) # -fno-omit-frame-pointer
