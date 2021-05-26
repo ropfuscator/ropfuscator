@@ -9,5 +9,7 @@ fi
 
 for vanilla_sample in $(find $1 -maxdepth 1 -type f -name "vanilla-tigsam*"); do
     echo "Evaluating $vanilla_sample..."
+
+    # The time is measured in elapsed real seconds
     \time -f "%C, %e" -a -o angr_solve_times.csv python $SCRIPT_PATH/solve_tigress_chall.py $vanilla_sample
 done
