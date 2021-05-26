@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 angr = "*"
 pandas = "*"
+ipython = "*"
+autopep8 = "*"
 
 [dev-packages]
 
