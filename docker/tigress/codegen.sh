@@ -3,7 +3,7 @@
 mkdir -p output/vanilla
 mkdir -p output/obfuscated
 
-for loopsize in $(seq 10 10 200); do
+for loopsize in $(seq 50 50 1000); do
     tigress $TIGRESS_RANDOM_FUNS_ARGS \
         --RandomFunsLoopSize=$loopsize \
         --out=vanilla-tigsam-$loopsize.c \
