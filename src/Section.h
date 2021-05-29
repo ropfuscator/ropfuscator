@@ -19,6 +19,6 @@ struct Section {
       : Label(label), Address(address), Length(length) {}
 };
 
-}
+} // namespace ropf
 
 #endif

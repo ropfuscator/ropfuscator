@@ -37,7 +37,8 @@ namespace ropf {
 
 class ELFParser {
 public:
-  ELFParser(const std::string &path) : path(path), dynsym(0), verdef(0), versym(0) {
+  ELFParser(const std::string &path)
+      : path(path), dynsym(0), verdef(0), versym(0) {
     std::ifstream f(path, std::ios::binary);
 
     if (!f.good()) {
@@ -70,7 +71,7 @@ public:
   }
 
   const uint8_t *base() const { return elf->base(); }
-  size_t size() const { return elf->getBufSize(); }
+  size_t         size() const { return elf->getBufSize(); }
 
   std::vector<ELF32LE::Phdr> getCodeSegments() const {
     std::vector<ELF32LE::Phdr> rv;
@@ -214,15 +215,15 @@ private:
   // version table index: max value + 1
   static const int ELF_VER_NDX_LORESERVE = 0xff00;
 
-  std::string path;
+  std::string                  path;
   std::unique_ptr<ELF32LEFile> elf;
-  std::vector<char> buf;
-  mutable std::string sha1hash;
-  const ELF32LE::Shdr *dynsym;
-  const ELF32LE::Shdr *verdef;
-  const ELF32LE::Shdr *versym;
-  StringRef dynstrtab;
-  std::vector<std::string> verdefs;
+  std::vector<char>            buf;
+  mutable std::string          sha1hash;
+  const ELF32LE::Shdr *        dynsym;
+  const ELF32LE::Shdr *        verdef;
+  const ELF32LE::Shdr *        versym;
+  StringRef                    dynstrtab;
+  std::vector<std::string>     verdefs;
 
   void parseSections() {
     // identify dynsym, verdef, versym sections
@@ -256,9 +257,9 @@ private:
     if (!data_opt)
       return;
 
-    const uint8_t *data = data_opt->data();
-    size_t size = data_opt->size();
-    uint16_t max_index = 0;
+    const uint8_t *data      = data_opt->data();
+    size_t         size      = data_opt->size();
+    uint16_t       max_index = 0;
 
     // iterate over Verdef entries
     for (unsigned int pos = 0; pos < size;) {
@@ -290,15 +291,18 @@ private:
   }
 };
 
-BinaryAutopsy::BinaryAutopsy(const GlobalConfig &config, const Module &module,
-                             const TargetMachine &target, MCContext &context)
+BinaryAutopsy::BinaryAutopsy(const GlobalConfig & config,
+                             const Module &       module,
+                             const TargetMachine &target,
+                             MCContext &          context)
     : module(module), target(target), context(context), config(config),
       elf(new ELFParser(config.libraryPath)) {
   std::string sha1 = elf->getSHA1HashHex();
   dbg_fmt("[*] Extracting gadgets from: {} SHA1={}\n", elf->getPath(), sha1);
   if (!config.librarySHA1.empty() && config.librarySHA1 != sha1) {
     dbg_fmt("[!] Error: library SHA1 mismatch: expected={}, actual={}\n",
-            config.librarySHA1, sha1);
+            config.librarySHA1,
+            sha1);
     exit(1);
   }
   for (const std::string &libPath : config.linkedLibraries) {
@@ -327,17 +331,19 @@ void BinaryAutopsy::dissect(ELFParser *elf) {
 
 BinaryAutopsy *BinaryAutopsy::instance = 0;
 
-BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &config,
+BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &   config,
                                           llvm::MachineFunction &MF) {
   if (instance == nullptr) {
-    instance = new BinaryAutopsy(config, *MF.getFunction().getParent(),
-                                 MF.getTarget(), MF.getContext());
+    instance = new BinaryAutopsy(config,
+                                 *MF.getFunction().getParent(),
+                                 MF.getTarget(),
+                                 MF.getContext());
   }
 
   return instance;
 }
 
-void BinaryAutopsy::dumpSegments(const ELFParser *elf,
+void BinaryAutopsy::dumpSegments(const ELFParser *     elf,
                                  std::vector<Section> &segments) const {
   for (auto &seg : elf->getCodeSegments()) {
     segments.push_back(
@@ -345,7 +351,7 @@ void BinaryAutopsy::dumpSegments(const ELFParser *elf,
   }
 }
 
-void BinaryAutopsy::dumpSections(const ELFParser *elf,
+void BinaryAutopsy::dumpSections(const ELFParser *     elf,
                                  std::vector<Section> &sections) const {
   DEBUG_WITH_TYPE(SECTIONS,
                   dbg_fmt("[SECTIONS]\tLooking for CODE sections... \n"));
@@ -360,11 +366,11 @@ void BinaryAutopsy::dumpSections(const ELFParser *elf,
   }
 }
 
-void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *elf,
+void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *    elf,
                                        std::vector<Symbol> &Symbols,
-                                       bool safeOnly) const {
+                                       bool                 safeOnly) const {
   // dbg_fmt("[*] Scanning for symbols... \n");
-  auto symbols = elf->getDynamicSymbols();
+  auto                  symbols = elf->getDynamicSymbols();
   std::set<std::string> symbolNames;
 
   // Scan for all the symbols
@@ -380,7 +386,7 @@ void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *elf,
       }
 
       std::string symbolName = name_opt->str();
-      uint64_t addr = sym.getValue();
+      uint64_t    addr       = sym.getValue();
 
       // Get version string to avoid symbol aliasing
       std::string versionString = elf->getSymbolVersion(i);
@@ -459,52 +465,61 @@ const Symbol *BinaryAutopsy::getRandomSymbol() const {
 extern "C" void LLVMInitializeX86Disassembler();
 
 class DisassemblerHelper {
-  MCDisassembler *disasm;
+  MCDisassembler *     disasm;
   X86IntelInstPrinter *printer;
-  ArrayRef<uint8_t> data;
+  ArrayRef<uint8_t>    data;
 
 public:
-  DisassemblerHelper(const TargetMachine &target, MCContext &context,
-                     const ELFParser &elf) {
+  DisassemblerHelper(const TargetMachine &target,
+                     MCContext &          context,
+                     const ELFParser &    elf) {
     LLVMInitializeX86Disassembler();
-    disasm = target.getTarget().createMCDisassembler(
-        *target.getMCSubtargetInfo(), context);
+    disasm =
+        target.getTarget().createMCDisassembler(*target.getMCSubtargetInfo(),
+                                                context);
     printer = new X86IntelInstPrinter(*target.getMCAsmInfo(),
                                       *target.getMCInstrInfo(),
                                       *target.getMCRegisterInfo());
-    data = ArrayRef<uint8_t>(elf.base(), elf.size());
+    data    = ArrayRef<uint8_t>(elf.base(), elf.size());
   }
 
   ~DisassemblerHelper() { delete printer; }
 
-  void disassemble(uint64_t address, size_t &size, MCInst *result,
-                   size_t &count) {
-    size_t i = 0;
-    size_t pos = 0;
+  void
+  disassemble(uint64_t address, size_t &size, MCInst *result, size_t &count) {
+    size_t   i        = 0;
+    size_t   pos      = 0;
     uint64_t readsize = 0;
     for (i = 0, pos = 0; i < count && pos < size; i++, pos += readsize) {
 #if LLVM_VERSION_MAJOR >= 10
-      auto status = disasm->getInstruction(
-          result[i], readsize, data.slice(address + pos, size - pos),
-          address + pos, llvm::nulls());
+      auto status =
+          disasm->getInstruction(result[i],
+                                 readsize,
+                                 data.slice(address + pos, size - pos),
+                                 address + pos,
+                                 llvm::nulls());
 #else
-      auto status = disasm->getInstruction(
-          result[i], readsize, data.slice(address + pos, size - pos),
-          address + pos, llvm::nulls(), llvm::nulls());
+      auto status =
+          disasm->getInstruction(result[i],
+                                 readsize,
+                                 data.slice(address + pos, size - pos),
+                                 address + pos,
+                                 llvm::nulls(),
+                                 llvm::nulls());
 #endif
       if (status != MCDisassembler::DecodeStatus::Success) {
         // disassemble error
         count = 0;
-        size = 0;
+        size  = 0;
         return;
       }
     }
     count = i;
-    size = pos;
+    size  = pos;
   }
 
   std::string formatInstr(const MCInst &instr) {
-    std::string result;
+    std::string        result;
     raw_string_ostream os(result);
 #if LLVM_VERSION_MAJOR >= 10
     printer->printInstruction(&instr, 0, os);
@@ -520,7 +535,7 @@ public:
 };
 
 void BinaryAutopsy::dumpGadgets(
-    const ELFParser *elf,
+    const ELFParser *                          elf,
     std::vector<std::shared_ptr<Microgadget>> &gadgets) const {
   DisassemblerHelper disasm(target, context, *elf);
 
@@ -535,7 +550,7 @@ void BinaryAutopsy::dumpGadgets(
     // Scan for RET instructions
     for (uint64_t i = s.Address; i < (uint64_t)(s.Address + s.Length); i++) {
       if (buf[i] == (uint8_t)0xc3) { // ret
-        size_t offset = i + 1;
+        size_t         offset  = i + 1;
         const uint8_t *cur_pos = buf + offset;
 
         // Iteratively try to decode starting from MAXDEPTH to 1
@@ -551,7 +566,7 @@ void BinaryAutopsy::dumpGadgets(
 
           MCInst instructions[2];
           size_t count = 2;
-          size_t size = depth;
+          size_t size  = depth;
           disasm.disassemble(addr, size, instructions, count);
 
           // Valid gadgets must have two instructions, and the
@@ -589,7 +604,7 @@ void BinaryAutopsy::dumpGadgets(
       if (buf[addr] == 0xff && buf[addr + 1] >= 0xe0 && buf[addr + 1] < 0xe8) {
         MCInst inst;
         size_t count = 1;
-        size_t size = 2;
+        size_t size  = 2;
         disasm.disassemble(addr, size, &inst, count);
         // Valid gadgets must have just one instruction of JMP register
         if (count == 1 && inst.getOpcode() == X86::JMP32r) {
@@ -613,7 +628,8 @@ void BinaryAutopsy::dumpGadgets(
   }
 }
 
-const Microgadget *BinaryAutopsy::findGadget(GadgetType type, unsigned int reg1,
+const Microgadget *BinaryAutopsy::findGadget(GadgetType   type,
+                                             unsigned int reg1,
                                              unsigned int reg2) const {
   auto it = GadgetPrimitives.find(GadgetType::XCHG);
   if (it == GadgetPrimitives.end() || it->second.empty()) {
@@ -651,8 +667,9 @@ void BinaryAutopsy::buildXchgGraph() {
 
     xgraph.addEdge(edge_a, edge_b);
 
-    DEBUG_WITH_TYPE(XCHG_GRAPH, dbg_fmt("[XchgGraph]\tAdded new edge: {}, {}\n",
-                                        edge_a, edge_b));
+    DEBUG_WITH_TYPE(
+        XCHG_GRAPH,
+        dbg_fmt("[XchgGraph]\tAdded new edge: {}, {}\n", edge_a, edge_b));
   }
 }
 
@@ -811,8 +828,8 @@ void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
   }
 #if LLVM_VERSION_MAJOR >= 9
   case X86::CMOV32rr: {
-    gadget->reg1 = inst.getOperand(1).getReg();
-    gadget->reg2 = inst.getOperand(2).getReg();
+    gadget->reg1       = inst.getOperand(1).getReg();
+    gadget->reg2       = inst.getOperand(2).getReg();
     X86::CondCode cond = (X86::CondCode)inst.getOperand(3).getImm();
     if (gadget->reg1 != gadget->reg2) {
       if (cond == X86::COND_E) {
@@ -867,18 +884,19 @@ void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
 }
 
 bool BinaryAutopsy::areExchangeable(unsigned int a, unsigned int b) const {
-  int pred[N_REGS], dist[N_REGS];
+  int  pred[N_REGS], dist[N_REGS];
   bool visited[N_REGS];
 
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &state, GadgetType type,
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &  state,
+                                            GadgetType   type,
                                             unsigned int reg1,
                                             unsigned int reg2) const {
   // Note: everytime we need to operate on reg1 and reg2, we need to check
   // which is the actual register that holds that operand.
-  ROPChain result;
+  ROPChain           result;
   const Microgadget *found = nullptr;
 
   auto it_gadgets = GadgetPrimitives.find(type);
@@ -963,13 +981,14 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(XchgState &state, unsigned int reg1,
+ROPChain BinaryAutopsy::exchangeRegs(XchgState &  state,
+                                     unsigned int reg1,
                                      unsigned int reg2) const {
   ROPChain result;
 
   if (reg1 != reg2) {
     XchgPath path = xgraph.getPath(state, reg1, reg2);
-    result = buildXchgChain(path);
+    result        = buildXchgChain(path);
   }
 
   return result;
@@ -981,7 +1000,7 @@ ROPChain BinaryAutopsy::undoXchgs(XchgState &state) const {
 }
 
 unsigned int BinaryAutopsy::getEffectiveReg(const XchgState &state,
-                                            unsigned int reg) const {
+                                            unsigned int     reg) const {
   return state.searchLogicalReg(reg);
 }
 
@@ -990,8 +1009,12 @@ void BinaryAutopsy::debugPrintGadgets() const {
   for (auto &kv : GadgetPrimitives) {
     dbg_fmt("Gadgets of type {}:\n", (int)kv.first);
     for (auto &g : kv.second) {
-      dbg_fmt("  {}\t{}#{}, {}#{}\t@", g->asmInstr, regInfo->getName(g->reg1),
-              g->reg1, regInfo->getName(g->reg2), g->reg2);
+      dbg_fmt("  {}\t{}#{}, {}#{}\t@",
+              g->asmInstr,
+              regInfo->getName(g->reg1),
+              g->reg1,
+              regInfo->getName(g->reg2),
+              g->reg2);
       for (uint64_t addr : g->addresses) {
         dbg_fmt(" 0x{:x}", addr);
       }

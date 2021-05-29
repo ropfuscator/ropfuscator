@@ -59,16 +59,18 @@ class BinaryAutopsy {
 private:
   // Singleton
   static BinaryAutopsy *instance;
-  BinaryAutopsy(const GlobalConfig &config, const llvm::Module &module,
-                const llvm::TargetMachine &target, llvm::MCContext &context);
-  BinaryAutopsy() = delete;
+  BinaryAutopsy(const GlobalConfig &       config,
+                const llvm::Module &       module,
+                const llvm::TargetMachine &target,
+                llvm::MCContext &          context);
+  BinaryAutopsy()                      = delete;
   BinaryAutopsy(const BinaryAutopsy &) = delete;
   ~BinaryAutopsy();
 
-  const llvm::Module &module;
+  const llvm::Module &       module;
   const llvm::TargetMachine &target;
-  llvm::MCContext &context;
-  const GlobalConfig &config;
+  llvm::MCContext &          context;
+  const GlobalConfig &       config;
 
 public:
   // XchgGraph instance
@@ -96,7 +98,7 @@ public:
   bool isModuleSymbolAnalysed;
 
   // getInstance - returns an instance of this singleton class
-  static BinaryAutopsy *getInstance(const GlobalConfig &config,
+  static BinaryAutopsy *getInstance(const GlobalConfig &   config,
                                     llvm::MachineFunction &MF);
 
   // -----------------------------------------------------------------------------
@@ -117,7 +119,8 @@ private:
   // dumpDynamicSymbols - extracts symbols from the .dynsym section. It takes
   // into account only function symbols with global scope and used in executable
   // sections.
-  void dumpDynamicSymbols(const ELFParser *, std::vector<Symbol> &,
+  void dumpDynamicSymbols(const ELFParser *,
+                          std::vector<Symbol> &,
                           bool safeOnly) const;
 
   // isSafeSymbol - return true if symbols are "safe" to be used
@@ -155,10 +158,12 @@ public:
   // the set of the ones that have been previously discovered.
   // const Microgadget *findGadget(std::string asmInstr) const;
 
-  const Microgadget *findGadget(GadgetType type, unsigned int op0,
+  const Microgadget *findGadget(GadgetType   type,
+                                unsigned int op0,
                                 unsigned int op1 = llvm::X86::NoRegister) const;
 
-  ROPChain findGadgetPrimitive(XchgState &state, GadgetType type,
+  ROPChain findGadgetPrimitive(XchgState &  state,
+                               GadgetType   type,
                                unsigned int reg1,
                                unsigned int reg2 = llvm::X86::NoRegister) const;
 
@@ -168,8 +173,8 @@ public:
 
   // getXchgPath - returns a vector of XCHG gadgets in order to exchange the
   // given two registers.
-  ROPChain exchangeRegs(XchgState &state, unsigned int reg1,
-                        unsigned int reg2) const;
+  ROPChain
+  exchangeRegs(XchgState &state, unsigned int reg1, unsigned int reg2) const;
 
   ROPChain undoXchgs(XchgState &state) const;
 

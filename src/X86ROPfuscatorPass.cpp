@@ -19,7 +19,7 @@
 
 namespace llvm {
 // ROPfuscator Machine Pass
-void initializeX86ROPfuscatorPass(PassRegistry &);
+void          initializeX86ROPfuscatorPass(PassRegistry &);
 FunctionPass *createX86ROPfuscatorPass();
 } // namespace llvm
 
@@ -32,17 +32,22 @@ namespace {
 //  COMMAND LINE ARGUMENTS
 // ----------------------------------------------------------------
 cl::opt<bool> RopfuscatorPassDisabled(
-    "fno-ropfuscator", cl::desc("Disable code obfuscation via ROP chains"));
+    "fno-ropfuscator",
+    cl::desc("Disable code obfuscation via ROP chains"));
 
 cl::opt<std::string> RopfuscatorConfigFile(
     "ropfuscator-config",
     cl::desc("Specify a configuration file path for obfuscation"),
-    cl::NotHidden, cl::Optional, cl::ValueRequired);
+    cl::NotHidden,
+    cl::Optional,
+    cl::ValueRequired);
 
 cl::opt<std::string> RopfuscatorGadgetLibrary(
     "ropfuscator-library",
-    cl::desc("Specify a library to extract gadgets from"), cl::NotHidden,
-    cl::Optional, cl::ValueRequired);
+    cl::desc("Specify a library to extract gadgets from"),
+    cl::NotHidden,
+    cl::Optional,
+    cl::ValueRequired);
 
 // ----------------------------------------------------------------
 
@@ -115,5 +120,8 @@ using ropf::X86ROPfuscator;
 
 FunctionPass *llvm::createX86ROPfuscatorPass() { return new X86ROPfuscator(); }
 
-INITIALIZE_PASS(X86ROPfuscator, X86_ROPFUSCATOR_PASS_NAME,
-                X86_ROPFUSCATOR_PASS_DESC, false, false)
+INITIALIZE_PASS(X86ROPfuscator,
+                X86_ROPFUSCATOR_PASS_NAME,
+                X86_ROPFUSCATOR_PASS_DESC,
+                false,
+                false)

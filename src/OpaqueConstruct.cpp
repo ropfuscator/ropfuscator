@@ -17,7 +17,8 @@ OpaqueConstruct::~OpaqueConstruct() {}
   const OpaqueStorage OpaqueStorage::R(OpaqueStorage::Type::REG, X86::R, 0)
 #define DECL_STACK_LOCATION(I)                                                 \
   const OpaqueStorage OpaqueStorage::STACK_##I(OpaqueStorage::Type::STACK,     \
-                                               X86::NoRegister, I)
+                                               X86::NoRegister,                \
+                                               I)
 DECL_REG_LOCATION(EAX);
 DECL_REG_LOCATION(ECX);
 DECL_REG_LOCATION(EDX);
@@ -50,21 +51,28 @@ namespace { // implementation details
 // ============================================================
 // symbolic (random) value implementation
 
-void moveConstant(X86AssembleHelper &as, StackState &stack,
-                  unsigned int targetReg, uint32_t value, size_t size) {
+void moveConstant(X86AssembleHelper &as,
+                  StackState &       stack,
+                  unsigned int       targetReg,
+                  uint32_t           value,
+                  size_t             size) {
   // targetReg := resultValue
   if (stack.stack_mangled && !stack.constant_location.empty()) {
     std::vector<int> stackOffsets;
-    uint32_t addend;
+    uint32_t         addend;
     // pick up random constants saved in stack
-    std::sample(stack.constant_location.begin(), stack.constant_location.end(),
-                std::back_inserter(stackOffsets), size, math::Random::engine());
+    std::sample(stack.constant_location.begin(),
+                stack.constant_location.end(),
+                std::back_inserter(stackOffsets),
+                size,
+                math::Random::engine());
     // compute difference
     addend = value;
     for (int offset : stackOffsets) {
       addend -= stack.saved_values.find(offset)->second.value;
     }
-    std::shuffle(stackOffsets.begin(), stackOffsets.end(),
+    std::shuffle(stackOffsets.begin(),
+                 stackOffsets.end(),
                  math::Random::engine());
     as.mov(as.reg(targetReg), as.imm(addend));
     for (int offset : stackOffsets) {
@@ -75,31 +83,37 @@ void moveConstant(X86AssembleHelper &as, StackState &stack,
   }
 }
 
-void moveMixedRegs(X86AssembleHelper &as, StackState &stack,
-                   unsigned int targetReg,
+void moveMixedRegs(X86AssembleHelper &              as,
+                   StackState &                     stack,
+                   unsigned int                     targetReg,
                    const std::vector<unsigned int> &regs) {
   // targetReg := targetReg + sum(regs)
   if (stack.stack_mangled && !stack.constant_location.empty()) {
-    std::vector<int> stackOffsets;
-    uint32_t addend = math::Random::rand();
+    std::vector<int>                        stackOffsets;
+    uint32_t                                addend = math::Random::rand();
     decltype(stack.regs_location)::iterator it, end = stack.regs_location.end();
     if ((it = stack.regs_location.find(targetReg)) != end) {
       stackOffsets.push_back(it->second);
     } else {
       std::sample(stack.constant_location.begin(),
                   stack.constant_location.end(),
-                  std::back_inserter(stackOffsets), 1, math::Random::engine());
+                  std::back_inserter(stackOffsets),
+                  1,
+                  math::Random::engine());
     }
     for (auto reg : regs) {
       if ((it = stack.regs_location.find(reg)) != end) {
         stackOffsets.push_back(it->second);
       } else {
-        std::sample(
-            stack.constant_location.begin(), stack.constant_location.end(),
-            std::back_inserter(stackOffsets), 1, math::Random::engine());
+        std::sample(stack.constant_location.begin(),
+                    stack.constant_location.end(),
+                    std::back_inserter(stackOffsets),
+                    1,
+                    math::Random::engine());
       }
     }
-    std::shuffle(stackOffsets.begin(), stackOffsets.end(),
+    std::shuffle(stackOffsets.begin(),
+                 stackOffsets.end(),
                  math::Random::engine());
     as.mov(as.reg(targetReg), as.imm(addend));
     for (int offset : stackOffsets) {
@@ -126,7 +140,8 @@ void moveMixedRegs(X86AssembleHelper &as, StackState &stack,
 
 class RuntimeValueGenerator {
 public:
-  virtual void compile(X86AssembleHelper &as, StackState &stack,
+  virtual void compile(X86AssembleHelper &            as,
+                       StackState &                   stack,
                        const std::vector<llvm_reg_t> &targetRegs,
                        const std::vector<llvm_reg_t> &sourceRegs) const = 0;
   virtual ~RuntimeValueGenerator() = default;
@@ -134,11 +149,15 @@ public:
 
 class ConstantRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &as, StackState &stack,
+  void compile(X86AssembleHelper &            as,
+               StackState &                   stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     for (llvm_reg_t target : targetRegs) {
-      moveConstant(as, stack, target, math::Random::rand(),
+      moveConstant(as,
+                   stack,
+                   target,
+                   math::Random::rand(),
                    sourceRegs.size() / targetRegs.size());
     }
   }
@@ -149,12 +168,13 @@ public:
 
 class AddRegRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &as, StackState &stack,
+  void compile(X86AssembleHelper &            as,
+               StackState &                   stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     if (targetRegs.size() > 1) {
-      size_t n = sourceRegs.size() / targetRegs.size();
-      auto it = sourceRegs.begin();
+      size_t n  = sourceRegs.size() / targetRegs.size();
+      auto   it = sourceRegs.begin();
       for (llvm_reg_t target : targetRegs) {
         std::vector<llvm_reg_t> regs(it, it + n);
         moveMixedRegs(as, stack, target, regs);
@@ -171,7 +191,8 @@ public:
 
 class RdtscRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &as, StackState &stack,
+  void compile(X86AssembleHelper &            as,
+               StackState &                   stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     if (targetRegs.size() == 1) {
@@ -210,14 +231,15 @@ public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     as.rdtsc();
   }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // not used as of now, so just use default implementation
     compile(as, stack);
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
-  size_t opaquePredicateCount() const override { return 0; }
+  size_t      opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -236,14 +258,15 @@ public:
     int offset = -4 * math::Random::range32(2u, 32u);
     as.mov(as.reg(X86::EAX), as.mem(X86::ESP, offset));
   }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // not used as of now, so just use default implementation
     compile(as, stack);
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
-  size_t opaquePredicateCount() const override { return 0; }
+  size_t      opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -257,17 +280,20 @@ class AddRegRandomGeneratorOC : public OpaqueConstruct {
 public:
   static OpaqueConstruct *create() { return new AddRegRandomGeneratorOC(); }
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    moveMixedRegs(as, stack, X86::EAX,
+    moveMixedRegs(as,
+                  stack,
+                  X86::EAX,
                   {X86::EBX, X86::ECX, X86::EDX, X86::ESI, X86::EDI});
   }
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // not used as of now, so just use default implementation
     compile(as, stack);
     InstrSteganoProcessor stegano;
     stegano.insert(instrs, as, stack, {}, 0, 0);
   }
-  size_t opaquePredicateCount() const override { return 0; }
+  size_t      opaquePredicateCount() const override { return 0; }
   OpaqueState getInput() const override { return {}; }
   OpaqueState getOutput() const override {
     return {{OpaqueStorage::EAX, OpaqueValue::createAny()}};
@@ -287,7 +313,8 @@ public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
 
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+                                 uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
     return new MovConstant32(target, value);
@@ -304,7 +331,8 @@ public:
     }
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // TODO: interleave
     compile(as, stack);
@@ -328,7 +356,7 @@ public:
 
 private:
   OpaqueStorage target;
-  uint32_t value;
+  uint32_t      value;
 };
 
 // This opaque predicate executes the following code:
@@ -343,16 +371,18 @@ private:
 //   al := al | dl
 class MultiplyCompareOpaquePredicate : public OpaqueConstruct {
   // Contextual OP
-  MultiplyCompareOpaquePredicate(uint32_t input1, uint32_t input2,
-                                 uint64_t compvalue, bool negate)
+  MultiplyCompareOpaquePredicate(uint32_t input1,
+                                 uint32_t input2,
+                                 uint64_t compvalue,
+                                 bool     negate)
       : compvalue(compvalue), negate(negate), isInvariantOp(false) {
     inputState.emplace_back(OpaqueStorage::EAX,
                             OpaqueValue::createConstant(input1));
     inputState.emplace_back(OpaqueStorage::EDX,
                             OpaqueValue::createConstant(input2));
     uint64_t multvalue = (uint64_t)input1 * input2;
-    bool al = negate ^ (multvalue == compvalue);
-    bool dl = negate ^ ((multvalue >> 32) == (compvalue >> 32));
+    bool     al        = negate ^ (multvalue == compvalue);
+    bool     dl        = negate ^ ((multvalue >> 32) == (compvalue >> 32));
     outputState.emplace_back(
         OpaqueStorage::EAX,
         OpaqueValue::createConstant((multvalue & 0xffffff00) + (al ? 1 : 0)));
@@ -374,7 +404,7 @@ class MultiplyCompareOpaquePredicate : public OpaqueConstruct {
 public:
   OpaqueState getInput() const override { return inputState; }
   OpaqueState getOutput() const override { return outputState; }
-  bool isInvariant() const { return isInvariantOp; }
+  bool        isInvariant() const { return isInvariantOp; }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     as.mul(as.reg(X86::EDX)); // edx:eax = eax * edx
@@ -392,18 +422,23 @@ public:
     }
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     as.mul(as.reg(X86::EDX)); // edx:eax = eax * edx
     InstrSteganoProcessor stegano;
-    const OpaqueValue *eax = inputState.find(OpaqueStorage::EAX);
-    const OpaqueValue *edx = inputState.find(OpaqueStorage::EDX);
+    const OpaqueValue *   eax = inputState.find(OpaqueStorage::EAX);
+    const OpaqueValue *   edx = inputState.find(OpaqueStorage::EDX);
     if (eax->type == OpaqueValue::Type::CONSTANT &&
         edx->type == OpaqueValue::Type::CONSTANT) {
       uint64_t mult_result =
           (uint64_t)eax->values[0] * (uint64_t)edx->values[0];
       if (math::Random::bit()) {
-        stegano.insert(instrs, as, stack, {}, X86::EDX,
+        stegano.insert(instrs,
+                       as,
+                       stack,
+                       {},
+                       X86::EDX,
                        (uint32_t)(mult_result >> 32));
       } else {
         stegano.insert(instrs, as, stack, {}, X86::EAX, (uint32_t)mult_result);
@@ -442,10 +477,10 @@ public:
   // Contextual OP: almost invariant but has different output for some input
   static std::shared_ptr<MultiplyCompareOpaquePredicate>
   createRandomContextual(bool output) {
-    uint32_t x = math::PrimeNumberGenerator::getPrime32();
-    uint32_t y = math::PrimeNumberGenerator::getPrime32();
-    uint64_t z = (uint64_t)x * y;
-    bool negate = math::Random::bit();
+    uint32_t x      = math::PrimeNumberGenerator::getPrime32();
+    uint32_t y      = math::PrimeNumberGenerator::getPrime32();
+    uint64_t z      = (uint64_t)x * y;
+    bool     negate = math::Random::bit();
     output ^= negate;
     if (!output) {
       uint64_t v;
@@ -467,21 +502,21 @@ public:
   }
 
 private:
-  uint64_t compvalue;
-  bool negate;
-  bool isInvariantOp;
+  uint64_t    compvalue;
+  bool        negate;
+  bool        isInvariantOp;
   OpaqueState inputState, outputState;
 };
 
 class MultiplyCompareBasedOpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<MultiplyCompareOpaquePredicate>> predicates;
-  const OpaqueStorage &target;
-  uint32_t value;
-  std::shared_ptr<RuntimeValueGenerator> rvg;
+  const OpaqueStorage &                                        target;
+  uint32_t                                                     value;
+  std::shared_ptr<RuntimeValueGenerator>                       rvg;
 
 public:
   MultiplyCompareBasedOpaqueConstant(const OpaqueStorage &target,
-                                     uint32_t value,
+                                     uint32_t             value,
                                      std::shared_ptr<RuntimeValueGenerator> rvg,
                                      bool contextualOpEnabled)
       : target(target), value(value), rvg(rvg) {
@@ -494,10 +529,13 @@ public:
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+                                 uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
-    return new MultiplyCompareBasedOpaqueConstant(target, value, rvg,
+    return new MultiplyCompareBasedOpaqueConstant(target,
+                                                  value,
+                                                  rvg,
                                                   contextualOpEnabled);
   }
 
@@ -538,7 +576,8 @@ public:
     // as.inlineasm(fmt::format("# MULTCOMP END 0x{:x}", returnValue()));
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // as.inlineasm(fmt::format("# MULTCOMP BEGIN 0x{:x}", returnValue()));
     std::vector<SteganoInstructions> steglist;
@@ -575,13 +614,17 @@ public:
   size_t opaquePredicateCount() const override { return predicates.size(); }
 
 private:
-  void compileConstant(X86AssembleHelper &as, StackState &stack, uint32_t eax,
-                       uint32_t edx) const {
+  void compileConstant(X86AssembleHelper &as,
+                       StackState &       stack,
+                       uint32_t           eax,
+                       uint32_t           edx) const {
     moveConstant(as, stack, X86::EAX, eax, 3);
     moveConstant(as, stack, X86::EDX, edx, 3);
   }
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
-    rvg->compile(as, stack, {X86::EAX, X86::EDX},
+    rvg->compile(as,
+                 stack,
+                 {X86::EAX, X86::EDX},
                  {X86::ECX, X86::ESI, X86::EBX, X86::EDI});
     // moveMixedRegs(as, stack, X86::EAX, {X86::ECX, X86::ESI});
     // moveMixedRegs(as, stack, X86::EDX, {X86::EBX, X86::EDI});
@@ -590,11 +633,11 @@ private:
 
 struct R3SATVar {
   uint8_t index : 7;
-  bool neg : 1;
+  bool    neg   : 1;
 };
 
 struct R3SATClause {
-  std::array<R3SATVar, 3> vars;
+  std::array<R3SATVar, 3>                        vars;
   template <typename UINT> std::pair<UINT, UINT> to_mask() const {
     std::pair<UINT, UINT> mask = {0, 0};
     for (int i = 0; i < 3; i++) {
@@ -613,12 +656,12 @@ protected:
 public:
   OpaqueState getInput() const override { return inputState; }
   OpaqueState getOutput() const override { return outputState; }
-  bool isInvariant() const { return isInvariantOp; }
+  bool        isInvariant() const { return isInvariantOp; }
 
 protected:
   void genClauses(const UINT *avoid, int nclauses) {
     for (int k = 0; k < nclauses; k++) {
-      UINT maskbits[2];
+      UINT        maskbits[2];
       R3SATClause clause;
       do {
         maskbits[0] = maskbits[1] = 0;
@@ -639,17 +682,18 @@ protected:
     }
   }
 
-  bool negate;
-  bool isInvariantOp;
+  bool                     negate;
+  bool                     isInvariantOp;
   std::vector<R3SATClause> clauses;
-  OpaqueState inputState, outputState;
+  OpaqueState              inputState, outputState;
 };
 
 class Random3SAT32OpaquePredicate
     : public Random3SATOpaquePredicateBase<uint32_t> {
   // Contextual OP 1
-  Random3SAT32OpaquePredicate(uint32_t input, bool negate,
-                              int nclauses = 32 * 6)
+  Random3SAT32OpaquePredicate(uint32_t input,
+                              bool     negate,
+                              int      nclauses = 32 * 6)
       : Random3SATOpaquePredicateBase(negate, false) {
     // input = edx, output = lsb of eax
     inputState.emplace_back(OpaqueStorage::EDX,
@@ -658,8 +702,10 @@ class Random3SAT32OpaquePredicate
   }
 
   // Contextual OP 2
-  Random3SAT32OpaquePredicate(uint32_t input1, uint32_t input2, bool negate,
-                              int nclauses = 32 * 6)
+  Random3SAT32OpaquePredicate(uint32_t input1,
+                              uint32_t input2,
+                              bool     negate,
+                              int      nclauses = 32 * 6)
       : Random3SATOpaquePredicateBase(negate, false) {
     // input = edx, output = lsb of eax
     inputState.emplace_back(OpaqueStorage::EDX,
@@ -679,12 +725,12 @@ class Random3SAT32OpaquePredicate
     // Input: esi - pointer to clause data
     // InOut: al - set result in LSB of al
     // Clobber: bx, ecx, edx, edi, esi
-    auto reg_ptr = as.reg(X86::ESI);
+    auto reg_ptr   = as.reg(X86::ESI);
     auto reg_input = as.reg(X86::EDX);
-    auto reg_info = as.reg(X86::ECX);
-    auto reg_mask = as.reg(X86::EDI);
-    auto l0 = as.label();
-    auto l2 = as.label();
+    auto reg_info  = as.reg(X86::ECX);
+    auto reg_mask  = as.reg(X86::EDI);
+    auto l0        = as.label();
+    auto l2        = as.label();
 
     // asm                  # asm (negate)
     //   or    al, 0x01     #   and   al, 0xfe
@@ -759,7 +805,7 @@ class Random3SAT32OpaquePredicate
 public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     std::vector<uint8_t> clausedata;
-    R3SATVar current = {0, 0};
+    R3SATVar             current = {0, 0};
     for (auto clause : clauses) {
       for (auto var : clause.vars) {
         uint8_t info = (var.index - current.index + 32) % 32;
@@ -778,7 +824,8 @@ public:
     compileSharedCode(as, negate);
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // TODO: interleave
     compile(as, stack);
@@ -789,8 +836,13 @@ public:
   size_t opaquePredicateCount() const override { return 1; }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
-            X86::EDI, X86::ESI, X86::EFLAGS};
+    return {X86::EAX,
+            X86::EBX,
+            X86::ECX,
+            X86::EDX,
+            X86::EDI,
+            X86::ESI,
+            X86::EFLAGS};
   }
 
   // Invariant OP: for all input, generate constant
@@ -824,24 +876,22 @@ public:
   static std::shared_ptr<Random3SAT32OpaquePredicate>
   createRandom(bool output) {
     switch (math::Random::range32(0, 2)) {
-    case 0:
-      return createRandomContextual(output);
-    case 1:
-      return createRandomContextual2(output);
-    default:
-      return createRandomInvariant(output);
+    case 0: return createRandomContextual(output);
+    case 1: return createRandomContextual2(output);
+    default: return createRandomInvariant(output);
     }
   }
 };
 
 class Random3SAT32OpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<Random3SAT32OpaquePredicate>> predicates;
-  const OpaqueStorage &target;
-  uint32_t value;
-  std::shared_ptr<RuntimeValueGenerator> rvg;
+  const OpaqueStorage &                                     target;
+  uint32_t                                                  value;
+  std::shared_ptr<RuntimeValueGenerator>                    rvg;
 
 public:
-  Random3SAT32OpaqueConstant(const OpaqueStorage &target, uint32_t value,
+  Random3SAT32OpaqueConstant(const OpaqueStorage &                  target,
+                             uint32_t                               value,
                              std::shared_ptr<RuntimeValueGenerator> rvg,
                              bool contextualOpEnabled)
       : target(target), value(value), rvg(rvg) {
@@ -854,10 +904,13 @@ public:
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &target, uint32_t value,
+  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+                                 uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
-    return new Random3SAT32OpaqueConstant(target, value, rvg,
+    return new Random3SAT32OpaqueConstant(target,
+                                          value,
+                                          rvg,
                                           contextualOpEnabled);
   }
 
@@ -866,8 +919,13 @@ public:
   uint32_t returnValue() const override { return value; }
 
   std::vector<llvm_reg_t> getClobberedRegs() const override {
-    return {X86::EAX, X86::EBX, X86::ECX,   X86::EDX,
-            X86::EDI, X86::ESI, X86::EFLAGS};
+    return {X86::EAX,
+            X86::EBX,
+            X86::ECX,
+            X86::EDX,
+            X86::EDI,
+            X86::ESI,
+            X86::EFLAGS};
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
@@ -897,7 +955,8 @@ public:
     // as.inlineasm(fmt::format("# R3SAT END 0x{:x}", returnValue()));
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // as.inlineasm(fmt::format("# R3SAT BEGIN 0x{:x}", returnValue()));
     std::vector<SteganoInstructions> steglist;
@@ -932,14 +991,17 @@ public:
   size_t opaquePredicateCount() const override { return predicates.size(); }
 
 private:
-  void compileConstant(X86AssembleHelper &as, StackState &stack,
-                       uint32_t value) const {
+  void compileConstant(X86AssembleHelper &as,
+                       StackState &       stack,
+                       uint32_t           value) const {
     moveConstant(as, stack, X86::EDX, value, 6);
   }
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
     // moveMixedRegs(as, stack, X86::EDX,
     //               {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
-    rvg->compile(as, stack, {X86::EDX},
+    rvg->compile(as,
+                 stack,
+                 {X86::EDX},
                  {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
   }
 };
@@ -950,12 +1012,12 @@ private:
 
 class MovRandomSelectorOC : public OpaqueConstruct {
 public:
-  MovRandomSelectorOC(const OpaqueStorage &target,
+  MovRandomSelectorOC(const OpaqueStorage &        target,
                       const std::vector<uint32_t> &values)
       : target(target), values(values) {
     std::random_shuffle(this->values.begin(), this->values.end());
   }
-  static OpaqueConstruct *create(const OpaqueStorage &target,
+  static OpaqueConstruct *create(const OpaqueStorage &        target,
                                  const std::vector<uint32_t> &values) {
     return new MovRandomSelectorOC(target, values);
   }
@@ -963,11 +1025,17 @@ public:
   void compile(X86AssembleHelper &as, StackState &stack) const override {
     unsigned int targetreg =
         target.type == OpaqueStorage::Type::REG ? target.reg : X86::EAX;
-    unsigned int tmpreg = target.reg == X86::EAX ? X86::EDX : X86::EAX;
-    auto endLabel = as.label();
-    bool labelUsed = false;
-    compileAux(as, as.reg(targetreg), as.reg(tmpreg), endLabel, 0,
-               values.size(), 1, labelUsed);
+    unsigned int tmpreg    = target.reg == X86::EAX ? X86::EDX : X86::EAX;
+    auto         endLabel  = as.label();
+    bool         labelUsed = false;
+    compileAux(as,
+               as.reg(targetreg),
+               as.reg(tmpreg),
+               endLabel,
+               0,
+               values.size(),
+               1,
+               labelUsed);
     if (labelUsed)
       as.putLabel(endLabel);
     if (target.type == OpaqueStorage::Type::STACK) {
@@ -975,7 +1043,8 @@ public:
     }
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // not used as of now, so just use default implementation
     compile(as, stack);
@@ -995,13 +1064,17 @@ public:
   }
 
 private:
-  OpaqueStorage target;
+  OpaqueStorage         target;
   std::vector<uint32_t> values;
 
-  void compileAux(X86AssembleHelper &as, const X86AssembleHelper::Reg &target,
-                  const X86AssembleHelper::Reg &tmpreg,
-                  const X86AssembleHelper::Label &endLabel, uint32_t m,
-                  uint32_t n, uint32_t flag, bool &labelUsed) const {
+  void compileAux(X86AssembleHelper &             as,
+                  const X86AssembleHelper::Reg &  target,
+                  const X86AssembleHelper::Reg &  tmpreg,
+                  const X86AssembleHelper::Label &endLabel,
+                  uint32_t                        m,
+                  uint32_t                        n,
+                  uint32_t                        flag,
+                  bool &                          labelUsed) const {
     if (n == 1) {
       as.mov(target, as.imm(values[m]));
       if (m + n != values.size()) {
@@ -1018,13 +1091,19 @@ private:
         labelUsed = true;
       }
     } else {
-      int n2 = n / 2;
+      int  n2    = n / 2;
       auto label = as.label();
       as.test(as.reg(X86::EAX), as.imm(flag));
       as.je(label);
       compileAux(as, target, tmpreg, endLabel, m, n2, flag << 1, labelUsed);
       as.putLabel(label);
-      compileAux(as, target, tmpreg, endLabel, m + n2, n - n2, flag << 1,
+      compileAux(as,
+                 target,
+                 tmpreg,
+                 endLabel,
+                 m + n2,
+                 n - n2,
+                 flag << 1,
                  labelUsed);
     }
   }
@@ -1050,7 +1129,8 @@ public:
     }
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     if (instrs.instrs.empty()) {
       compile(as, stack);
@@ -1135,7 +1215,7 @@ public:
 //   not implemented. maybe matrix-modulo-inverse based implementation?
 class ValueAdjustingOpaqueConstruct : public OpaqueConstruct {
 public:
-  ValueAdjustingOpaqueConstruct(const OpaqueStorage &target,
+  ValueAdjustingOpaqueConstruct(const OpaqueStorage &        target,
                                 const std::vector<uint32_t> &inputvalues,
                                 const std::vector<uint32_t> &outputvalues)
       : target(target), inputvalues(inputvalues), outputvalues(outputvalues) {
@@ -1145,7 +1225,7 @@ public:
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
-    auto endLabel = as.label();
+    auto endLabel     = as.label();
     bool endLabelUsed = false;
     switch (target.type) {
     case OpaqueStorage::Type::REG:
@@ -1164,7 +1244,8 @@ public:
     }
   }
 
-  void compileStegano(X86AssembleHelper &as, StackState &stack,
+  void compileStegano(X86AssembleHelper &        as,
+                      StackState &               stack,
                       const SteganoInstructions &instrs) const override {
     // not used as of now, so just use default implementation
     compile(as, stack);
@@ -1186,27 +1267,28 @@ public:
       if (target.type == OpaqueStorage::Type::STACK)
         return {X86::EAX, X86::EFLAGS};
       return {X86::EFLAGS};
-    case 2:
-      return {X86::EAX, X86::EDX, X86::EFLAGS};
-    default:
-      return {X86::EAX, X86::ECX, X86::EDX, X86::EFLAGS};
+    case 2: return {X86::EAX, X86::EDX, X86::EFLAGS};
+    default: return {X86::EAX, X86::ECX, X86::EDX, X86::EFLAGS};
     }
   }
 
 private:
-  OpaqueStorage target;
+  OpaqueStorage         target;
   std::vector<uint32_t> inputvalues;
   std::vector<uint32_t> outputvalues;
 
-  void compileAux(X86AssembleHelper &as, uint32_t pos, uint32_t N,
-                  unsigned int targetreg, bool &endLabelUsed,
+  void compileAux(X86AssembleHelper &             as,
+                  uint32_t                        pos,
+                  uint32_t                        N,
+                  unsigned int                    targetreg,
+                  bool &                          endLabelUsed,
                   const X86AssembleHelper::Label &endLabel) const {
     if (N == 1) {
       uint32_t xorval = inputvalues[pos] ^ outputvalues[pos];
       as.lxor(as.reg(targetreg), as.imm(xorval));
     } else {
       std::vector<uint32_t> params;
-      uint32_t shift;
+      uint32_t              shift;
       if (computeParams(pos, N, params, shift)) {
         // tmpreg1: used in N>2, tmpreg2: used in N>3
         unsigned int tmpreg1 = targetreg == X86::EDX ? X86::EAX : X86::EDX;
@@ -1233,9 +1315,9 @@ private:
         assert(N >= 3);
         uint32_t n2 = (N + 1) / 2;
         assert(inputvalues[pos + n2 - 1] < inputvalues[pos + n2]);
-        uint32_t mid = math::Random::range32(inputvalues[pos + n2 - 1] + 1,
+        uint32_t mid    = math::Random::range32(inputvalues[pos + n2 - 1] + 1,
                                              inputvalues[pos + n2]);
-        auto label1 = as.label();
+        auto     label1 = as.label();
         // test if input < mid
         as.cmp(as.reg(targetreg), as.imm(mid));
         as.jb(label1);
@@ -1253,8 +1335,10 @@ private:
   // compute parameters such that:
   // ForAll j: output[j] ==
   //  Sum_i<-{0..N-2} { params[i]*(input[j]>>(shift+i)) } + params[N-1]
-  bool computeParams(uint32_t pos, uint32_t N, std::vector<uint32_t> &params,
-                     uint32_t &shift) const {
+  bool computeParams(uint32_t               pos,
+                     uint32_t               N,
+                     std::vector<uint32_t> &params,
+                     uint32_t &             shift) const {
     math::Matrix mat(N, N);
     for (uint32_t s = 0; s + N < 32 + 2; s++) {
       for (uint32_t i = 0; i < N; i++) {
@@ -1288,8 +1372,11 @@ template <typename Result, typename... Args>
 using oc_factory = Result *(*)(Args...);
 
 std::map<std::string,
-         oc_factory<OpaqueConstruct, const OpaqueStorage &, uint32_t,
-                    std::shared_ptr<RuntimeValueGenerator>, bool>>
+         oc_factory<OpaqueConstruct,
+                    const OpaqueStorage &,
+                    uint32_t,
+                    std::shared_ptr<RuntimeValueGenerator>,
+                    bool>>
     constant_factories = {
         {OPAQUE_CONSTANT_ALGORITHM_MOV, MovConstant32::create},
         {OPAQUE_CONSTANT_ALGORITHM_MULTCOMP,
@@ -1311,8 +1398,10 @@ std::map<std::string, oc_factory<OpaqueConstruct>> random_factories = {
     {OPAQUE_RANDOM_ALGORITHM_NEGSTK, NegativeStackRandomGeneratorOC::create},
 };
 
-std::map<std::string, oc_factory<OpaqueConstruct, const OpaqueStorage &,
-                                 const std::vector<uint32_t> &>>
+std::map<std::string,
+         oc_factory<OpaqueConstruct,
+                    const OpaqueStorage &,
+                    const std::vector<uint32_t> &>>
     selector_factories = {
         {OPAQUE_SELECTOR_ALGORITHM_MOV, MovRandomSelectorOC::create},
 };
@@ -1320,7 +1409,8 @@ std::map<std::string, oc_factory<OpaqueConstruct, const OpaqueStorage &,
 template <typename Result, typename... Args>
 Result *call_factory(
     const std::map<std::string, oc_factory<Result, Args...>> &factories,
-    const std::string &key, Args &&... args) {
+    const std::string &                                       key,
+    Args &&...args) {
   auto it = factories.find(key);
   return it == factories.end() ? nullptr
                                : it->second(std::forward<Args>(args)...);
@@ -1331,18 +1421,25 @@ Result *call_factory(
 // ============================================================
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
-    const OpaqueStorage &target, uint32_t value, const std::string &algorithm,
-    const std::string &inputAlgorithm, bool contextualOpEnabled) {
-  std::shared_ptr<RuntimeValueGenerator> rvg{
+    const OpaqueStorage &target,
+    uint32_t             value,
+    const std::string &  algorithm,
+    const std::string &  inputAlgorithm,
+    bool                 contextualOpEnabled) {
+  std::shared_ptr<RuntimeValueGenerator> rvg {
       call_factory(runtimevaluegen_factories, inputAlgorithm)};
   if (!rvg) {
     dbg_fmt("Warning: unknown opaque input generation algorithm: {}\n",
             inputAlgorithm);
     rvg.reset(AddRegRuntimeValueGenerator::create());
   }
-  std::shared_ptr<OpaqueConstruct> oc{
-      call_factory(constant_factories, algorithm, target, std::move(value),
-                   std::move(rvg), std::move(contextualOpEnabled))};
+  std::shared_ptr<OpaqueConstruct> oc {
+      call_factory(constant_factories,
+                   algorithm,
+                   target,
+                   std::move(value),
+                   std::move(rvg),
+                   std::move(contextualOpEnabled))};
   if (!oc) {
     dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
     oc.reset(MovConstant32::create(target, value, rvg, contextualOpEnabled));
@@ -1351,22 +1448,28 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
 }
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
-    const OpaqueStorage &target, const std::string &algorithm,
-    const std::string &inputAlgorithm, bool contextualOpEnabled) {
+    const OpaqueStorage &target,
+    const std::string &  algorithm,
+    const std::string &  inputAlgorithm,
+    bool                 contextualOpEnabled) {
   uint32_t value = math::Random::rand();
-  return createOpaqueConstant32(target, value, algorithm, inputAlgorithm,
+  return createOpaqueConstant32(target,
+                                value,
+                                algorithm,
+                                inputAlgorithm,
                                 contextualOpEnabled);
 }
 
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createBranchingOpaqueConstant32(
-    const OpaqueStorage &target, const std::vector<uint32_t> &values,
-    const std::string &algorithm) {
-  std::string random_algo = OPAQUE_RANDOM_ALGORITHM_ADDREG,
+    const OpaqueStorage &        target,
+    const std::vector<uint32_t> &values,
+    const std::string &          algorithm) {
+  std::string random_algo   = OPAQUE_RANDOM_ALGORITHM_ADDREG,
               selector_algo = OPAQUE_SELECTOR_ALGORITHM_MOV;
-  size_t pos = algorithm.find("+");
+  size_t pos                = algorithm.find("+");
   if (pos != std::string::npos) {
-    random_algo = algorithm.substr(0, pos);
+    random_algo   = algorithm.substr(0, pos);
     selector_algo = algorithm.substr(pos + 1);
   } else {
     dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
@@ -1395,8 +1498,9 @@ OpaqueConstructFactory::createBranchingOpaqueConstant32(
 
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createBranchingOpaqueConstant32(
-    const OpaqueStorage &target, size_t n_choices,
-    const std::string &algorithm) {
+    const OpaqueStorage &target,
+    size_t               n_choices,
+    const std::string &  algorithm) {
   std::set<uint32_t> values;
   while (values.size() < n_choices) {
     values.insert(math::Random::rand());
@@ -1412,7 +1516,8 @@ OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
 }
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createValueAdjustor(
-    const OpaqueStorage &target, const std::vector<uint32_t> &inputvalues,
+    const OpaqueStorage &        target,
+    const std::vector<uint32_t> &inputvalues,
     const std::vector<uint32_t> &outputvalues) {
   return std::shared_ptr<OpaqueConstruct>(
       new ValueAdjustingOpaqueConstruct(target, inputvalues, outputvalues));

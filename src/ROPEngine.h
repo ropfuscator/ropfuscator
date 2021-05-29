@@ -30,8 +30,8 @@ enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 class ROPChain {
 public:
   std::vector<ChainElem> chain;
-  ChainElem *successor; // jump target at the end of chain
-  FlagSaveMode flagSave;
+  ChainElem *            successor; // jump target at the end of chain
+  FlagSaveMode           flagSave;
   bool hasNormalInstr, hasConditionalJump, hasUnconditionalJump;
   // call target information, if this chain calls other function
   const llvm::GlobalValue *callee;
@@ -73,12 +73,12 @@ public:
 
   void clear() {
     chain.clear();
-    successor = nullptr;
-    flagSave = FlagSaveMode::NOT_SAVED;
-    hasNormalInstr = false;
-    hasConditionalJump = false;
+    successor            = nullptr;
+    flagSave             = FlagSaveMode::NOT_SAVED;
+    hasNormalInstr       = false;
+    hasConditionalJump   = false;
     hasUnconditionalJump = false;
-    callee = nullptr;
+    callee               = nullptr;
   }
 
   // Reiteratively removes adjacent pairs of equal xchg gadgets to reduce the
@@ -105,8 +105,8 @@ enum class ROPChainStatus {
 // correct chain execution and to resume the non-obfuscated code execution
 // afterwards.
 class ROPEngine {
-  ROPChain chain;
-  XchgState state;
+  ROPChain             chain;
+  XchgState            state;
   const BinaryAutopsy &BA;
 
   ROPChainStatus handleArithmeticRI(llvm::MachineInstr *,
@@ -146,15 +146,16 @@ class ROPEngine {
   ROPChainStatus handleCallReg(llvm::MachineInstr *,
                                std::vector<unsigned int> &scratchRegs);
   bool convertOperandToChainPushImm(const llvm::MachineOperand &operand,
-                                    ChainElem &result);
+                                    ChainElem &                 result);
 
 public:
   // Constructor
   ROPEngine(const BinaryAutopsy &BA);
 
-  ROPChainStatus ropify(llvm::MachineInstr &MI,
+  ROPChainStatus ropify(llvm::MachineInstr &       MI,
                         std::vector<unsigned int> &scratchRegs,
-                        bool shouldFlagSaved, ROPChain &resultChain);
+                        bool                       shouldFlagSaved,
+                        ROPChain &                 resultChain);
 
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 };

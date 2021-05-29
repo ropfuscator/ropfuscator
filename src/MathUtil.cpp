@@ -7,7 +7,7 @@ namespace ropf::math {
 
 namespace {
 
-std::random_device rdev;
+std::random_device         rdev;
 std::default_random_engine reng;
 
 void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x, uint64_t &y) {
@@ -34,13 +34,13 @@ template <> struct Divisor<uint32_t> {
 #else
   uint32_t d1, d2;
   Divisor(uint64_t dividend) {
-    d0 = dividend;
+    d0         = dividend;
     uint64_t d = 1 + ((uint64_t)-1) / dividend;
-    d0 = d >> 32;
-    d1 = d;
+    d0         = d >> 32;
+    d1         = d;
   }
 #endif
-  operator uint32_t() const { return d0; }
+       operator uint32_t() const { return d0; }
   void divmod(uint64_t x, uint64_t &quo, uint64_t &rem) const {
     uint64_t result;
 #ifdef __SIZEOF_INT128__
@@ -51,7 +51,7 @@ template <> struct Divisor<uint32_t> {
       uint64_t x2 = (uint32_t)x;
       // (x1x2 * d1d2) >> 64
       // x1d1 + (x1d2 + x2d1) >> 32 + x2d2 >> 64
-      int overflow = 0;
+      int      overflow = 0;
       uint64_t v0, v = (x2 * d2) >> 32;
       v0 = x2 * d1;
       v += v0;
@@ -100,12 +100,12 @@ template <> struct Divisor<uint64_t> {
   uint64_t d0, d1, d2;
   Divisor(uint64_t dividend) {
     // assert(dividend > 1);
-    d0 = dividend;
+    d0            = dividend;
     __uint128_t d = 1 + ((__uint128_t)-1) / dividend;
-    d1 = d >> 64;
-    d2 = d;
+    d1            = d >> 64;
+    d2            = d;
   }
-  operator uint64_t() const { return d0; }
+       operator uint64_t() const { return d0; }
   void divmod(__uint128_t x, __uint128_t &quo, __uint128_t &rem) const {
     __uint128_t result;
     if (x >> 64) {
@@ -113,7 +113,7 @@ template <> struct Divisor<uint64_t> {
       __uint128_t x2 = (uint64_t)x;
       // (x1x2 * d1d2) >> 128
       // x1d1 + (x1d2 + x2d1) >> 64 + x2d2 >> 128
-      int overflow = 0;
+      int         overflow = 0;
       __uint128_t v0, v = (x2 * d2) >> 64;
       v0 = x2 * d1;
       v += v0;
@@ -252,12 +252,12 @@ class PrimeNumberGeneratorImpl {
   static constexpr const uint16_t prime_base_64[16384] = {
 #include "detail/primetestdata64.h"
   };
-  static constexpr const uint16_t prime_base_64_2[8] = {15, 135, 13, 60,
-                                                        15, 117, 65, 29};
+  static constexpr const uint16_t prime_base_64_2[8] =
+      {15, 135, 13, 60, 15, 117, 65, 29};
 
   template <typename UIntT, typename ModT>
-  static bool millerRabinTest(UIntT n, UIntT d, int r, UIntT base,
-                              const ModT &n_mod) {
+  static bool
+  millerRabinTest(UIntT n, UIntT d, int r, UIntT base, const ModT &n_mod) {
     UIntT x = modpow(base, d, n_mod);
     if (x == 1 || x == n - 1) {
       return true;
@@ -293,7 +293,7 @@ class PrimeNumberGeneratorImpl {
     }
     // Miller-Rabin test
     UIntT d = n - 1;
-    int r = 0;
+    int   r = 0;
     while ((d & 0x1) == 0) {
       d >>= 1;
       r++;
@@ -302,7 +302,7 @@ class PrimeNumberGeneratorImpl {
     if constexpr (sizeof(UIntT) <= 4) {
       // < 2**32
       uint32_t hash = (uint32_t)n * 0xad625b89u;
-      UIntT base = prime_base_32[hash >> 24];
+      UIntT    base = prime_base_32[hash >> 24];
       return millerRabinTest(n, d, r, base, divisor);
     } else {
       if (n >> 32) {
@@ -312,7 +312,7 @@ class PrimeNumberGeneratorImpl {
           return false;
         }
         uint32_t hash = (uint32_t)n * 0xad625b89u;
-        base = prime_base_64[hash >> 18];
+        base          = prime_base_64[hash >> 18];
         if (!millerRabinTest(n, d, r, base, divisor)) {
           return false;
         }
@@ -326,7 +326,7 @@ class PrimeNumberGeneratorImpl {
       } else {
         // < 2**32
         uint32_t hash = (uint32_t)n * 0xad625b89u;
-        UIntT base = prime_base_32[hash >> 24];
+        UIntT    base = prime_base_32[hash >> 24];
         return millerRabinTest(n, d, r, base, divisor);
       }
       return true;
