@@ -16,11 +16,12 @@ namespace X86 = llvm::X86;
 const SteganoInstr SteganoInstr::DUMMY = {nullptr};
 
 void SteganoInstructions::split(
-    size_t count, std::vector<SteganoInstructions> &result) const {
+    size_t                            count,
+    std::vector<SteganoInstructions> &result) const {
   if (count == 0) {
     return;
   }
-  size_t n = instrs.size() / count;
+  size_t              n = instrs.size() / count;
   std::vector<size_t> num_elements;
   for (size_t i = 0; i < count; i++) {
     num_elements.push_back(n);
@@ -44,7 +45,8 @@ SteganoInstructions SteganoInstructions::expandWithDummy(size_t newsize) const {
   for (size_t i = 0; i < instrs.size(); i++) {
     orig_indices[i] = true;
   }
-  std::shuffle(orig_indices.begin(), orig_indices.end(),
+  std::shuffle(orig_indices.begin(),
+               orig_indices.end(),
                math::Random::engine());
   SteganoInstructions result;
   result.instrs.reserve(newsize);
@@ -56,16 +58,19 @@ SteganoInstructions SteganoInstructions::expandWithDummy(size_t newsize) const {
 }
 
 void InstrSteganoProcessor::insertDummy(
-    X86AssembleHelper &as, StackState &stack,
-    const std::vector<unsigned int> &tempRegs, unsigned int opaqueReg,
-    uint32_t opaqueValue) {
+    X86AssembleHelper &              as,
+    StackState &                     stack,
+    const std::vector<unsigned int> &tempRegs,
+    unsigned int                     opaqueReg,
+    uint32_t                         opaqueValue) {
   if (stack.constant_location.size() == 0) {
     // do not insert
     return;
   }
   // as.inlineasm("# dummy");
   int stack_offset = stack.constant_location[math::Random::range32(
-      0, stack.constant_location.size() - 1)];
+      0,
+      stack.constant_location.size() - 1)];
   // mutate constant value saved in stack
   if (opaqueReg == 0 || math::Random::bit()) {
     opaqueValue = math::Random::rand();
@@ -82,34 +87,33 @@ void InstrSteganoProcessor::insertDummy(
   }
 }
 
-size_t InstrSteganoProcessor::convertROPChainToStegano(
-    ROPChain &chain, SteganoInstructions &instrs, size_t maxElem) {
+size_t
+InstrSteganoProcessor::convertROPChainToStegano(ROPChain &           chain,
+                                                SteganoInstructions &instrs,
+                                                size_t               maxElem) {
   if (chain.size() == 0) {
     return 0;
   }
   size_t i;
   maxElem = std::min(maxElem, chain.size() - 1);
   for (i = 0; i < maxElem; i++) {
-    const ChainElem &elem = chain.chain[i];
-    bool supported = false;
-    bool popNext = false;
+    const ChainElem &elem      = chain.chain[i];
+    bool             supported = false;
+    bool             popNext   = false;
     if (elem.type != ChainElem::Type::GADGET) {
       break;
     }
     const Microgadget *gadget = elem.microgadget;
     switch (gadget->Type) {
     case GadgetType::INIT:
-      popNext = true;
+      popNext   = true;
       supported = true;
       break;
     case GadgetType::XCHG:
     case GadgetType::COPY:
     case GadgetType::LOAD:
-    case GadgetType::LOAD_1:
-      supported = true;
-      break;
-    default:
-      break;
+    case GadgetType::LOAD_1: supported = true; break;
+    default: break;
     }
     if (!supported || (popNext && i + 1 >= maxElem)) {
       break;
@@ -133,10 +137,13 @@ size_t InstrSteganoProcessor::convertROPChainToStegano(
 }
 
 void InstrSteganoProcessor::insertGadget(
-    const Microgadget *gadget, const ChainElem *poppedValue,
-    X86AssembleHelper &as, StackState &stack,
-    const std::vector<unsigned int> &tempRegs, unsigned int opaqueReg,
-    uint32_t opaqueValue) {
+    const Microgadget *              gadget,
+    const ChainElem *                poppedValue,
+    X86AssembleHelper &              as,
+    StackState &                     stack,
+    const std::vector<unsigned int> &tempRegs,
+    unsigned int                     opaqueReg,
+    uint32_t                         opaqueValue) {
   // as.inlineasm("# stegano instr");
   // find actual location where reg1 and reg2 are stored
   MemLoc x = MemLoc::find(gadget->reg1, stack);
@@ -174,12 +181,8 @@ void InstrSteganoProcessor::insertGadget(
   case GadgetType::XOR:
   case GadgetType::XOR_1:
   case GadgetType::CMOVE:
-  case GadgetType::CMOVB:
-    dbg_fmt("Impl error: not implemented\n");
-    return;
-  default:
-    dbg_fmt("Impl error: unexpected case\n");
-    return;
+  case GadgetType::CMOVB: dbg_fmt("Impl error: not implemented\n"); return;
+  default: dbg_fmt("Impl error: unexpected case\n"); return;
   }
 }
 
@@ -196,9 +199,10 @@ InstrSteganoProcessor::MemLoc::find(unsigned int reg, const StackState &stack) {
   }
 }
 
-void InstrSteganoProcessor::insertXchg(const MemLoc &x, const MemLoc &y,
+void InstrSteganoProcessor::insertXchg(const MemLoc &     x,
+                                       const MemLoc &     y,
                                        X86AssembleHelper &as,
-                                       StackState &stack) {
+                                       StackState &       stack) {
   if (x.isStack()) {
     if (y.isStack()) {
       as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, x.stackOffset));
@@ -216,9 +220,10 @@ void InstrSteganoProcessor::insertXchg(const MemLoc &x, const MemLoc &y,
   }
 }
 
-void InstrSteganoProcessor::insertMov(const MemLoc &dst, const MemLoc &src,
+void InstrSteganoProcessor::insertMov(const MemLoc &     dst,
+                                      const MemLoc &     src,
                                       X86AssembleHelper &as,
-                                      StackState &stack) {
+                                      StackState &       stack) {
   if (src.isStack()) {
     if (dst.isStack()) {
       as.xchg(as.reg(X86::EAX), as.mem(X86::ESP, src.stackOffset));
@@ -239,9 +244,12 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst, const MemLoc &src,
 namespace {
 
 template <typename DstLoc>
-void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
-                   X86AssembleHelper &as, StackState &stack,
-                   unsigned int opaqueReg, uint32_t opaqueValue) {
+void insertMovImpl(const DstLoc &     dstloc,
+                   const ChainElem *  poppedValue,
+                   X86AssembleHelper &as,
+                   StackState &       stack,
+                   unsigned int       opaqueReg,
+                   uint32_t           opaqueValue) {
   switch (poppedValue->type) {
   case ChainElem::Type::IMM_VALUE:
     if (opaqueReg == 0) {
@@ -255,7 +263,7 @@ void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
   case ChainElem::Type::IMM_GLOBAL: {
     uint32_t addend;
     if (opaqueReg == 0) {
-      addend = math::Random::range32(0x1000, 0x10000000);
+      addend      = math::Random::range32(0x1000, 0x10000000);
       opaqueValue = poppedValue->value - addend;
       as.mov(dstloc, as.imm(opaqueValue));
     } else {
@@ -263,8 +271,9 @@ void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
       addend = poppedValue->value - opaqueValue;
       if (addend > 0x10000000) {
         addend = math::Random::range32(0x1000, 0x10000000);
-        as.lxor(dstloc, as.imm((uint32_t)((poppedValue->value - addend) ^
-                                          opaqueValue)));
+        as.lxor(
+            dstloc,
+            as.imm((uint32_t)((poppedValue->value - addend) ^ opaqueValue)));
         opaqueValue = poppedValue->value - addend;
       }
     }
@@ -274,7 +283,7 @@ void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
   case ChainElem::Type::JMP_BLOCK: {
     uint32_t addend;
     if (opaqueReg == 0) {
-      addend = math::Random::range32(0x1000, 0x10000000);
+      addend      = math::Random::range32(0x1000, 0x10000000);
       opaqueValue = -addend;
       as.mov(dstloc, as.imm(opaqueValue));
     } else {
@@ -286,26 +295,25 @@ void insertMovImpl(const DstLoc &dstloc, const ChainElem *poppedValue,
         opaqueValue = -addend;
       }
     }
-    llvm::MachineBasicBlock *targetMBB = poppedValue->jmptarget;
-    auto targetLabel = as.label();
-    X86AssembleHelper as0(*targetMBB, targetMBB->begin());
+    llvm::MachineBasicBlock *targetMBB   = poppedValue->jmptarget;
+    auto                     targetLabel = as.label();
+    X86AssembleHelper        as0(*targetMBB, targetMBB->begin());
     as0.putLabel(targetLabel);
     as.add(dstloc, as.addOffset(targetLabel, addend));
     break;
   }
-  default:
-    dbg_fmt("Impl error: unsupported popped value\n");
-    break;
+  default: dbg_fmt("Impl error: unsupported popped value\n"); break;
   }
 }
 
 } // namespace
 
-void InstrSteganoProcessor::insertMov(const MemLoc &dst,
-                                      const ChainElem *poppedValue,
-                                      X86AssembleHelper &as, StackState &stack,
-                                      unsigned int opaqueReg,
-                                      uint32_t opaqueValue) {
+void InstrSteganoProcessor::insertMov(const MemLoc &     dst,
+                                      const ChainElem *  poppedValue,
+                                      X86AssembleHelper &as,
+                                      StackState &       stack,
+                                      unsigned int       opaqueReg,
+                                      uint32_t           opaqueValue) {
   if (poppedValue == nullptr) {
     dbg_fmt("Impl error: poppedValue == null\n");
     return;
@@ -314,20 +322,29 @@ void InstrSteganoProcessor::insertMov(const MemLoc &dst,
     // reg1 is saved in [esp+reg1_offset]
     // [esp+reg1_offset] = opaqueValue;
     // [esp+reg1_offset] += poppedValue - opaqueValue;
-    insertMovImpl(as.mem(X86::ESP, dst.stackOffset), poppedValue, as, stack,
-                  opaqueReg, opaqueValue);
+    insertMovImpl(as.mem(X86::ESP, dst.stackOffset),
+                  poppedValue,
+                  as,
+                  stack,
+                  opaqueReg,
+                  opaqueValue);
   } else {
     // reg1 is stored as it is
     // reg1 = opaqueValue;
     // reg1 += poppedValue - opaqueValue;
-    insertMovImpl(as.reg(dst.reg), poppedValue, as, stack, opaqueReg,
+    insertMovImpl(as.reg(dst.reg),
+                  poppedValue,
+                  as,
+                  stack,
+                  opaqueReg,
                   opaqueValue);
   }
 }
 
-void InstrSteganoProcessor::insertLoad(const MemLoc &dst, const MemLoc &addr,
+void InstrSteganoProcessor::insertLoad(const MemLoc &     dst,
+                                       const MemLoc &     addr,
                                        X86AssembleHelper &as,
-                                       StackState &stack) {
+                                       StackState &       stack) {
   if (addr.isStack()) {
     if (dst.isStack()) {
       // xchg tmp, dst
@@ -358,8 +375,9 @@ void InstrSteganoProcessor::insertLoad(const MemLoc &dst, const MemLoc &addr,
   }
 }
 
-void InstrSteganoProcessor::insertLoad(const MemLoc &dst, X86AssembleHelper &as,
-                                       StackState &stack) {
+void InstrSteganoProcessor::insertLoad(const MemLoc &     dst,
+                                       X86AssembleHelper &as,
+                                       StackState &       stack) {
   if (dst.isStack()) {
     // xchg tmp, dst
     // mov tmp, [tmp]

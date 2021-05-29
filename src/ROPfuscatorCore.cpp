@@ -53,9 +53,10 @@ std::string findLibraryPath(const std::string &libfile) {
   for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
     // searching for libc in regular files only
     std::error_code ec;
-    for (auto dir_it = llvm::sys::fs::directory_iterator(dir, ec),
+    for (auto dir_it  = llvm::sys::fs::directory_iterator(dir, ec),
               dir_end = llvm::sys::fs::directory_iterator();
-         !ec && dir_it != dir_end; dir_it.increment(ec)) {
+         !ec && dir_it != dir_end;
+         dir_it.increment(ec)) {
       auto st = dir_it->status();
       if (st && st->type() == llvm::sys::fs::file_type::regular_file &&
           llvm::sys::path::filename(dir_it->path()) == libfile) {
@@ -72,7 +73,7 @@ std::string findLibraryPath(const std::string &libfile) {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
   static const int entry_size = static_cast<int>(ROPChainStatus::COUNT);
-  int data[entry_size];
+  int              data[entry_size];
 
   int &operator[](ROPChainStatus status) {
     return data[static_cast<int>(status)];
@@ -95,7 +96,9 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 
   std::ostream &print_to(std::ostream &os, const char *fmt) const {
     const ROPChainStatEntry &entry = *this;
-    fmt::print(os, fmt, entry[ROPChainStatus::OK],
+    fmt::print(os,
+               fmt,
+               entry[ROPChainStatus::OK],
                entry[ROPChainStatus::ERR_NOT_IMPLEMENTED],
                entry[ROPChainStatus::ERR_NO_REGISTER_AVAILABLE],
                entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
@@ -105,7 +108,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
     return os;
   }
 
-  friend std::ostream &operator<<(std::ostream &os,
+  friend std::ostream &operator<<(std::ostream &           os,
                                   const ROPChainStatEntry &entry) {
     return entry.print_to(os, DEBUG_FMT_NORMAL);
   }
@@ -117,8 +120,14 @@ struct ROPfuscatorCore::ROPChainStatEntry {
   }
 
   static std::string header_string(const char *fmt) {
-    return fmt::format(fmt, "ropfuscated", "not-implemented", "no-register",
-                       "no-gadget", "unsupported", "unsupported-esp", "total");
+    return fmt::format(fmt,
+                       "ropfuscated",
+                       "not-implemented",
+                       "no-register",
+                       "no-gadget",
+                       "unsupported",
+                       "unsupported-esp",
+                       "total");
   }
 };
 #endif
@@ -133,10 +142,10 @@ namespace {
 
 // base class
 struct ROPChainPushInst {
-  std::shared_ptr<OpaqueConstruct> opaqueConstant;
+  std::shared_ptr<OpaqueConstruct>     opaqueConstant;
   std::shared_ptr<SteganoInstructions> steganoInstr;
   virtual void compile(X86AssembleHelper &, StackState &) = 0;
-  virtual ~ROPChainPushInst() = default;
+  virtual ~ROPChainPushInst()                             = default;
 };
 
 // immediate (immediate operand, etc)
@@ -169,7 +178,7 @@ struct PUSH_IMM : public ROPChainPushInst {
 // global variable (immediate operand, etc)
 struct PUSH_GV : public ROPChainPushInst {
   const llvm::GlobalValue *gv;
-  int64_t offset;
+  int64_t                  offset;
   PUSH_GV(const llvm::GlobalValue *gv, int64_t offset)
       : gv(gv), offset(offset) {}
   virtual void compile(X86AssembleHelper &as, StackState &stack) override {
@@ -198,7 +207,7 @@ struct PUSH_GV : public ROPChainPushInst {
 // gadget with single or multiple addresses
 struct PUSH_GADGET : public ROPChainPushInst {
   const Symbol *anchor;
-  uint32_t offset;
+  uint32_t      offset;
   explicit PUSH_GADGET(const Symbol *anchor, uint32_t offset)
       : anchor(anchor), offset(offset) {}
   virtual void compile(X86AssembleHelper &as, StackState &stack) override {
@@ -265,9 +274,11 @@ struct PUSH_EFLAGS : public ROPChainPushInst {
   virtual ~PUSH_EFLAGS() = default;
 };
 
-void generateChainLabels(std::string &chainLabel, std::string &resumeLabel,
-                         StringRef funcName, int chainID) {
-  chainLabel = fmt::format("{}_chain_{}", funcName.str(), chainID);
+void generateChainLabels(std::string &chainLabel,
+                         std::string &resumeLabel,
+                         StringRef    funcName,
+                         int          chainID) {
+  chainLabel  = fmt::format("{}_chain_{}", funcName.str(), chainID);
   resumeLabel = fmt::format("resume_{}", chainLabel);
 
   // replacing $ with _
@@ -281,15 +292,15 @@ void putLabelInMBB(MachineBasicBlock &MBB, X86AssembleHelper::Label label) {
 
 } // namespace
 
-ROPfuscatorCore::ROPfuscatorCore(llvm::Module &module,
+ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
                                  const ROPfuscatorConfig &config)
     : config(config), BA(nullptr), TII(nullptr) {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  total_chain_elems = 0;
+  total_chain_elems   = 0;
   stegano_chain_elems = 0;
 #endif
   total_func_count = 0;
-  curr_func_count = 0;
+  curr_func_count  = 0;
   for (auto &f : module.getFunctionList()) {
     if (!f.empty())
       total_func_count++;
@@ -300,10 +311,14 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.printInstrStat) {
     dbg_fmt(
-        "{}\t{}\t{}\n", "op-id", "op-name",
+        "{}\t{}\t{}\n",
+        "op-id",
+        "op-name",
         ROPChainStatEntry::header_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     for (auto &kv : instr_stat) {
-      dbg_fmt("{}\t{}\t{}\n", kv.first, TII->getName(kv.first),
+      dbg_fmt("{}\t{}\t{}\n",
+              kv.first,
+              TII->getName(kv.first),
               kv.second.to_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     }
     dbg_fmt("============================================================\n");
@@ -316,15 +331,17 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
-void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
-                                     MachineInstr &MI, int chainID,
+void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
+                                     MachineBasicBlock &         MBB,
+                                     MachineInstr &              MI,
+                                     int                         chainID,
                                      const ObfuscationParameter &param) {
   auto as = X86AssembleHelper(MBB, MI.getIterator());
 
-  bool isLastInstrInBlock = MI.getNextNode() == nullptr;
-  bool resumeLabelRequired = false;
-  std::map<int, int> espOffsetMap;
-  int espoffset = 0;
+  bool                        isLastInstrInBlock  = MI.getNextNode() == nullptr;
+  bool                        resumeLabelRequired = false;
+  std::map<int, int>          espOffsetMap;
+  int                         espoffset = 0;
   std::vector<const Symbol *> versionedSymbols;
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -353,20 +370,24 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   X86AssembleHelper::Label asChainLabel, asResumeLabel;
   if (config.globalConfig.useChainLabel) {
     std::string chainLabel, resumeLabel;
-    generateChainLabels(chainLabel, resumeLabel, MBB.getParent()->getName(),
+    generateChainLabels(chainLabel,
+                        resumeLabel,
+                        MBB.getParent()->getName(),
                         chainID);
-    asChainLabel = as.label(chainLabel);
+    asChainLabel  = as.label(chainLabel);
     asResumeLabel = as.label(resumeLabel);
   } else {
-    asChainLabel = as.label();
+    asChainLabel  = as.label();
     asResumeLabel = as.label();
   }
 
   // instruction steganography: convert part of ROP chain into stegano
   SteganoInstructions steganoInstrs;
   if (param.opaquePredicateEnabled && param.opaqueSteganoEnabled) {
-    size_t count = InstrSteganoProcessor().convertROPChainToStegano(
-        chain, steganoInstrs, chain.size() / 2);
+    size_t count =
+        InstrSteganoProcessor().convertROPChainToStegano(chain,
+                                                         steganoInstrs,
+                                                         chain.size() / 2);
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
     stegano_chain_elems += count;
 #else
@@ -401,7 +422,8 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       ROPChainPushInst *push = new PUSH_IMM(elem->value);
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, param.opaqueConstantAlgorithm,
+            OpaqueStorage::EAX,
+            param.opaqueConstantAlgorithm,
             param.opaqueInputGenAlgorithm,
             param.opaquePredicateContextualEnabled);
       }
@@ -418,7 +440,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         uint32_t value =
             elem->value - math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+            OpaqueStorage::EAX,
+            value,
+            param.opaqueConstantAlgorithm,
             param.opaqueInputGenAlgorithm,
             param.opaquePredicateContextualEnabled);
       }
@@ -431,14 +455,16 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       const Symbol *sym = BA->getRandomSymbol();
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
-      std::vector<uint32_t> offsets;
-      int num_branches = 1;
+      std::vector<uint32_t>        offsets;
+      int                          num_branches = 1;
       if (param.opaqueBranchDivergenceEnabled)
         num_branches = std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
                                 addresses.size());
       // pick num_branches elements randomly
-      std::sample(addresses.begin(), addresses.end(),
-                  std::back_inserter(offsets), num_branches,
+      std::sample(addresses.begin(),
+                  addresses.end(),
+                  std::back_inserter(offsets),
+                  num_branches,
                   math::Random::engine());
       for (uint32_t &offset : offsets) {
         offset -= sym->Address;
@@ -459,18 +485,22 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         if (num_branches > 1) {
           opaqueConstant =
               OpaqueConstructFactory::createBranchingOpaqueConstant32(
-                  OpaqueStorage::EAX, offsets.size(),
+                  OpaqueStorage::EAX,
+                  offsets.size(),
                   param.opaqueBranchDivergenceAlgorithm);
         } else {
           opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, param.opaqueConstantAlgorithm,
+              OpaqueStorage::EAX,
+              param.opaqueConstantAlgorithm,
               param.opaqueInputGenAlgorithm,
               param.opaquePredicateContextualEnabled);
         }
         auto opaqueValues =
             *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
-        auto adjuster = OpaqueConstructFactory::createValueAdjustor(
-            OpaqueStorage::EAX, opaqueValues, offsets);
+        auto adjuster =
+            OpaqueConstructFactory::createValueAdjustor(OpaqueStorage::EAX,
+                                                        opaqueValues,
+                                                        offsets);
         push->opaqueConstant =
             OpaqueConstructFactory::compose(adjuster, opaqueConstant);
       }
@@ -488,9 +518,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
       if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
-        uint32_t value = -math::Random::range32(0x1000, 0x10000000);
+        uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-            OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+            OpaqueStorage::EAX,
+            value,
+            param.opaqueConstantAlgorithm,
             param.opaqueInputGenAlgorithm,
             param.opaquePredicateContextualEnabled);
       }
@@ -505,13 +537,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         for (auto it = MBB.succ_begin(); it != MBB.succ_end(); ++it) {
           if (MBB.isLayoutSuccessor(*it)) {
             auto *targetMBB = *it;
-            targetLabel = asResumeLabel;
+            targetLabel     = asResumeLabel;
             putLabelInMBB(*targetMBB, targetLabel);
             break;
           }
         }
       } else {
-        targetLabel = asResumeLabel;
+        targetLabel         = asResumeLabel;
         resumeLabelRequired = true;
       }
       if (targetLabel.symbol) {
@@ -519,9 +551,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
         if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
           // we have to limit value range, so that
           // linker will not complain about integer overflow in relocation
-          uint32_t value = -math::Random::range32(0x1000, 0x10000000);
+          uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
           push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX, value, param.opaqueConstantAlgorithm,
+              OpaqueStorage::EAX,
+              value,
+              param.opaqueConstantAlgorithm,
               param.opaqueInputGenAlgorithm,
               param.opaquePredicateContextualEnabled);
         }
@@ -567,7 +601,8 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
   if (param.opaquePredicateEnabled && param.opaqueSteganoEnabled &&
       !steganoInstrs.instrs.empty()) {
     size_t opaqueConstantCount =
-        std::count_if(pushchain.begin(), pushchain.end(),
+        std::count_if(pushchain.begin(),
+                      pushchain.end(),
                       [](std::shared_ptr<ROPChainPushInst> inst) -> bool {
                         return !!inst->opaqueConstant;
                       });
@@ -600,7 +635,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
 
   // save registers (and flags if necessary) on top of the stack
   std::set<unsigned int> savedRegs;
-  StackState stackState;
+  StackState             stackState;
 
   // compute clobbered registers
   if (param.opaquePredicateEnabled) {
@@ -622,11 +657,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &chain, MachineBasicBlock &MBB,
     as.lea(as.reg(X86::ESP), as.mem(X86::ESP, espoffset));
     // save registers (and flags)
     int offset = 0;
-    stackRegLayout.insert(stackRegLayout.begin(), savedRegs.begin(),
+    stackRegLayout.insert(stackRegLayout.begin(),
+                          savedRegs.begin(),
                           savedRegs.end());
     if (param.obfuscateStackSavedValues) {
       stackRegLayout.resize(2 * savedRegs.size(), X86::NoRegister);
-      std::shuffle(stackRegLayout.begin() + 1, stackRegLayout.end(),
+      std::shuffle(stackRegLayout.begin() + 1,
+                   stackRegLayout.end(),
                    math::Random::engine());
       stackState.stack_mangled = true;
     }
@@ -721,12 +758,15 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         config.globalConfig.libraryPath = path;
       }
     }
-    
-    dbg_fmt("[*] Using library path for gadget: {}\n", config.globalConfig.libraryPath);
+
+    dbg_fmt("[*] Using library path for gadget: {}\n",
+            config.globalConfig.libraryPath);
 
     if (config.globalConfig.linkedLibraries.empty()) {
-      for (std::string libname : {"libgcc_s.so.1", "libpthread.so.0",
-                                  "libm.so.6", "libstdc++.so.6"}) {
+      for (std::string libname : {"libgcc_s.so.1",
+                                  "libpthread.so.0",
+                                  "libm.so.6",
+                                  "libstdc++.so.6"}) {
         std::string path = findLibraryPath(libname);
         if (!path.empty()) {
           config.globalConfig.linkedLibraries.push_back(path);
@@ -749,18 +789,22 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     TII = target.getInstrInfo();
   }
 
-  std::string funcName = MF.getName().str();
-  ObfuscationParameter param = config.getParameter(funcName);
+  std::string          funcName = MF.getName().str();
+  ObfuscationParameter param    = config.getParameter(funcName);
   if (!param.obfuscationEnabled) {
     if (config.globalConfig.showProgress) {
-      dbg_fmt("[*] skipping    [{2:4d}/{1:4d}] {0}...\n", funcName,
-              total_func_count, curr_func_count);
+      dbg_fmt("[*] skipping    [{2:4d}/{1:4d}] {0}...\n",
+              funcName,
+              total_func_count,
+              curr_func_count);
     }
     return;
   }
   if (config.globalConfig.showProgress) {
-    dbg_fmt("[*] obfuscating [{2:4d}/{1:4d}] {0}...\n", funcName,
-            total_func_count, curr_func_count);
+    dbg_fmt("[*] obfuscating [{2:4d}/{1:4d}] {0}...\n",
+            funcName,
+            total_func_count,
+            curr_func_count);
   }
 
   // stats
@@ -778,7 +822,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     // safely clobbered to compute temporary data
     ScratchRegMap MBBScratchRegs = performLivenessAnalysis(MBB);
 
-    ROPChain chain0; // merged chain
+    ROPChain      chain0; // merged chain
     MachineInstr *prevMI = nullptr;
     for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
       MachineInstr &MI = *it;
@@ -809,7 +853,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       //   adc ecx, edx  # true,  true
       //   adc ecx, 1    # true,  true
 
-      ROPChain result;
+      ROPChain       result;
       ROPChainStatus status =
           ROPEngine(*BA).ropify(MI, MIScratchRegs, shouldFlagSaved, result);
 
@@ -826,7 +870,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
       if (status != ROPChainStatus::OK) {
         DEBUG_WITH_TYPE(PROCESSED_INSTR,
-                        dbg_fmt("{}\t✗ Unsupported instruction{}\n", COLOR_RED,
+                        dbg_fmt("{}\t✗ Unsupported instruction{}\n",
+                                COLOR_RED,
                                 COLOR_RESET));
 
         if (chain0.valid()) {
@@ -870,8 +915,10 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
   // print obfuscation stats for this function
   DEBUG_WITH_TYPE(OBF_STATS,
-                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n", funcName,
-                          obfuscated, processed,
+                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
+                          funcName,
+                          obfuscated,
+                          processed,
                           (obfuscated * 100) / processed));
 }
 

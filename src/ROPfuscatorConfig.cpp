@@ -9,7 +9,7 @@
 #define TOML_HAVE_FAILWITH_REPLACEMENT
 
 namespace toml {
-template <typename... Args>[[noreturn]] void failwith(Args &&... args) {
+template <typename... Args> [[noreturn]] void failwith(Args &&...args) {
   std::stringstream ss;
   // this will expand to ss << args_0, ss << args_1, ...
   int _dummy[] = {(ss << args, 0)...};
@@ -33,16 +33,19 @@ namespace {
 
 template <typename T>
 inline bool parseOption(const toml::Value &section,
-                        const std::string &sectionname, const std::string &key,
-                        T &ref) {
+                        const std::string &sectionname,
+                        const std::string &key,
+                        T &                ref) {
   if (const toml::Value *v = section.find(key)) {
     if (!v->is<T>()) {
       dbg_fmt("TOML parse warning: {}.{} should have type {}, thus ignored\n",
-              sectionname, key, toml::internal::type_name<T>());
+              sectionname,
+              key,
+              toml::internal::type_name<T>());
       return false;
     }
     const auto &value = v->as<T>();
-    ref = value;
+    ref               = value;
     DEBUG_WITH_TYPE(OBF_CONFIG,
                     dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
     return true;
@@ -53,7 +56,9 @@ inline bool parseOption(const toml::Value &section,
 
 std::string str_tolower(const std::string &s) {
   std::string s_lower = s;
-  std::transform(s_lower.begin(), s_lower.end(), s_lower.begin(),
+  std::transform(s_lower.begin(),
+                 s_lower.end(),
+                 s_lower.begin(),
                  [](unsigned char c) { return std::tolower(c); });
   return s_lower;
 }
@@ -76,32 +81,44 @@ std::set<std::string> validBranchDivergenceAlgorithmNames = {
     OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV,
 };
 
-void parseFunctionOptions(const toml::Value &config,
-                          const std::string &tomlSect,
+void parseFunctionOptions(const toml::Value &   config,
+                          const std::string &   tomlSect,
                           ObfuscationParameter &funcParam) {
 
   // Obfuscation enabled
-  parseOption(config, tomlSect, CONFIG_OBF_ENABLED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OBF_ENABLED,
               funcParam.obfuscationEnabled);
 
   // Opaque predicates enabled
-  parseOption(config, tomlSect, CONFIG_OPA_PRED_ENABLED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_PRED_ENABLED,
               funcParam.opaquePredicateEnabled);
 
   // Obfuscation of immediate operand enabled
-  parseOption(config, tomlSect, CONFIG_OPA_OBF_IMM_OPERAND,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_OBF_IMM_OPERAND,
               funcParam.obfuscateImmediateOperand);
 
   // Opaque predicates (contextual OP) enabled
-  parseOption(config, tomlSect, CONFIG_OPA_PRED_CONTEXTUAL_ENABLED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_PRED_CONTEXTUAL_ENABLED,
               funcParam.opaquePredicateContextualEnabled);
 
   // Obfuscation of branch target enabled
-  parseOption(config, tomlSect, CONFIG_OPA_OBF_BRANCH_TARGET,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_OBF_BRANCH_TARGET,
               funcParam.obfuscateBranchTarget);
 
   // Obfuscation of stack saved values enabled
-  parseOption(config, tomlSect, CONFIG_OPA_OBF_STACK_SAVED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_OBF_STACK_SAVED,
               funcParam.obfuscateStackSavedValues);
 
   // Opaque predicates algorithm
@@ -116,7 +133,9 @@ void parseFunctionOptions(const toml::Value &config,
       funcParam.opaqueConstantAlgorithm = op_algo;
     }
   }
-  if (parseOption(config, tomlSect, CONFIG_OPA_PRED_INPUT_ALGO,
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_OPA_PRED_INPUT_ALGO,
                   op_input_algo)) {
     op_input_algo = str_tolower(op_input_algo);
     if (validOpaquePredicateInputAlgorithmNames.count(op_input_algo) == 0) {
@@ -129,15 +148,21 @@ void parseFunctionOptions(const toml::Value &config,
   }
 
   // Opaque predicate steganography enabled
-  parseOption(config, tomlSect, CONFIG_OPA_STEGANO_ENABLED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPA_STEGANO_ENABLED,
               funcParam.opaqueSteganoEnabled);
 
   // Branch divergence enabled
-  parseOption(config, tomlSect, CONFIG_BRANCH_DIV_ENABLED,
+  parseOption(config,
+              tomlSect,
+              CONFIG_BRANCH_DIV_ENABLED,
               funcParam.opaqueBranchDivergenceEnabled);
 
   // Branch divergence max depth
-  parseOption(config, tomlSect, CONFIG_BRANCH_DIV_MAX,
+  parseOption(config,
+              tomlSect,
+              CONFIG_BRANCH_DIV_MAX,
               (int &)funcParam.opaqueBranchDivergenceMaxBranches);
 
   // Branch divergence algorithm
@@ -159,9 +184,9 @@ void parseFunctionOptions(const toml::Value &config,
 ObfuscationParameter
 ROPfuscatorConfig::getParameter(const std::string &funcname) const {
   for (auto &kv : functionsParameter) {
-    auto &function_name = kv.first;
+    auto &function_name         = kv.first;
     auto &function_ob_parameter = kv.second;
-    auto function_regex = std::regex(function_name);
+    auto  function_regex        = std::regex(function_name);
 
     if (std::regex_match(funcname, function_regex)) {
       return function_ob_parameter;
@@ -179,7 +204,8 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
 
   toml::ParseResult parseResult = toml::parseFile(filename);
   if (!parseResult.valid()) {
-    fmt::print(stderr, "Error while parsing configuration file:\n {}",
+    fmt::print(stderr,
+               "Error while parsing configuration file:\n {}",
                parseResult.errorReason);
     exit(-1);
   }
@@ -187,7 +213,7 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   const toml::Value &configuration_data = parseResult.value;
 
   // setting default values
-  globalConfig = GlobalConfig();
+  globalConfig     = GlobalConfig();
   defaultParameter = ObfuscationParameter();
 
   // =====================================
@@ -195,41 +221,59 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
   if (auto *general_section = configuration_data.find(CONFIG_GENERAL_SECTION)) {
 
     // Obfuscation enabled
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_OBF_ENABLED,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_OBF_ENABLED,
                 globalConfig.obfuscationEnabled);
 
     // Custom library path
-    parseOption(*general_section, CONFIG_GENERAL_SECTION,
-                CONFIG_CUSTOM_LIB_PATH, globalConfig.libraryPath);
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_CUSTOM_LIB_PATH,
+                globalConfig.libraryPath);
 
     // library SHA1 hash
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_LIB_SHA1,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_LIB_SHA1,
                 globalConfig.librarySHA1);
     globalConfig.librarySHA1 = str_tolower(globalConfig.librarySHA1);
 
     // linked libraries
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_LINKED_LIBS,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_LINKED_LIBS,
                 globalConfig.linkedLibraries);
 
     // Avoid multiversion symbols
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_AVOID_MULTIVER,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_AVOID_MULTIVER,
                 globalConfig.avoidMultiversionSymbol);
 
     // Search in segment
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_SEARCH_SEGMENT,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_SEARCH_SEGMENT,
                 globalConfig.searchSegmentForGadget);
 
     // Show obfuscation progress
-    parseOption(*general_section, CONFIG_GENERAL_SECTION, CONFIG_SHOW_PROGRESS,
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_SHOW_PROGRESS,
                 globalConfig.showProgress);
 
     // Print instruction statistics
-    parseOption(*general_section, CONFIG_GENERAL_SECTION,
-                CONFIG_PRINT_INSTR_STAT, globalConfig.printInstrStat);
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_PRINT_INSTR_STAT,
+                globalConfig.printInstrStat);
 
     // Print instruction statistics
-    parseOption(*general_section, CONFIG_GENERAL_SECTION,
-                CONFIG_USE_CHAIN_LABEL, globalConfig.useChainLabel);
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_USE_CHAIN_LABEL,
+                globalConfig.useChainLabel);
   }
 
   // =====================================
@@ -259,7 +303,7 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
 
     // parsing [functions.*] sections
     for (auto &kv : functions_section->as<toml::Table>()) {
-      std::string sectname = CONFIG_FUNCTIONS_SECTION "." + kv.first;
+      std::string        sectname = CONFIG_FUNCTIONS_SECTION "." + kv.first;
       const toml::Value &subsection_data = kv.second;
 
       // ignoring default since it was parsed already
@@ -271,12 +315,15 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
 
       std::string function_name;
       // ignoring subsection if it doesn't have a name entry
-      if (!parseOption(subsection_data, sectname, CONFIG_FUNCTION_NAME,
+      if (!parseOption(subsection_data,
+                       sectname,
+                       CONFIG_FUNCTION_NAME,
                        function_name)) {
         fmt::print(stderr,
                    "Warning: subsection {} does not contain a {} entry. "
                    "Ignoring subsection.\n",
-                   sectname, CONFIG_FUNCTION_NAME);
+                   sectname,
+                   CONFIG_FUNCTION_NAME);
         continue;
       }
 

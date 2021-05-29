@@ -10,15 +10,15 @@
 namespace ropf {
 
 // algorithms for opaque constant
-const std::string OPAQUE_CONSTANT_ALGORITHM_MOV = "mov";
-const std::string OPAQUE_CONSTANT_ALGORITHM_R3SAT32 = "r3sat32";
+const std::string OPAQUE_CONSTANT_ALGORITHM_MOV      = "mov";
+const std::string OPAQUE_CONSTANT_ALGORITHM_R3SAT32  = "r3sat32";
 const std::string OPAQUE_CONSTANT_ALGORITHM_MULTCOMP = "multcomp";
 
 // algorithms for random
 const std::string OPAQUE_RANDOM_ALGORITHM_CONSTANT = "const";
-const std::string OPAQUE_RANDOM_ALGORITHM_ADDREG = "addreg";
-const std::string OPAQUE_RANDOM_ALGORITHM_RDTSC = "rdtsc";
-const std::string OPAQUE_RANDOM_ALGORITHM_NEGSTK = "negativestack";
+const std::string OPAQUE_RANDOM_ALGORITHM_ADDREG   = "addreg";
+const std::string OPAQUE_RANDOM_ALGORITHM_RDTSC    = "rdtsc";
+const std::string OPAQUE_RANDOM_ALGORITHM_NEGSTK   = "negativestack";
 
 // algorithms for selector
 const std::string OPAQUE_SELECTOR_ALGORITHM_MOV = "mov";
@@ -127,15 +127,16 @@ struct OpaqueValue {
   }
 
 private:
-  OpaqueValue(Type type, const std::vector<uint32_t> &values,
-              compute_fun_type compute)
+  OpaqueValue(Type                         type,
+              const std::vector<uint32_t> &values,
+              compute_fun_type             compute)
       : type(type), values(values), compute(compute) {}
 };
 
 /// Opaque predicate input/output condition
 struct OpaqueState {
   std::vector<std::pair<OpaqueStorage, OpaqueValue>> state;
-  OpaqueValue find(OpaqueStorage);
+  OpaqueValue                                        find(OpaqueStorage);
   uint64_t findConcrete(OpaqueStorage);
   OpaqueState(std::initializer_list<std::pair<OpaqueStorage, OpaqueValue>> l)
       : state(l) {}
@@ -183,7 +184,8 @@ public:
   /// @param as assembler to generate instruction
   /// @param stack current stack offset and saved registers
   /// @param instrs stegano instructions which should be interleaved
-  virtual void compileStegano(X86AssembleHelper &as, StackState &stack,
+  virtual void compileStegano(X86AssembleHelper &        as,
+                              StackState &               stack,
                               const SteganoInstructions &instrs) const = 0;
   /// return the number of opaque predicates (stegano insertion points)
   virtual size_t opaquePredicateCount() const = 0;
@@ -200,18 +202,23 @@ public:
   /// @param algorithm opaque constant algorithm (default: "mov")
   /// @param inputAlgorithm runtime input value algorithm (default: "addreg")
   /// @param contextualOpEnabled true if contextual opaque predicate is enabled
-  static std::shared_ptr<OpaqueConstruct> createOpaqueConstant32(
-      const OpaqueStorage &target, uint32_t value, const std::string &algorithm,
-      const std::string &inputAlgorithm, bool contextualOpEnabled);
+  static std::shared_ptr<OpaqueConstruct>
+  createOpaqueConstant32(const OpaqueStorage &target,
+                         uint32_t             value,
+                         const std::string &  algorithm,
+                         const std::string &  inputAlgorithm,
+                         bool                 contextualOpEnabled);
 
   /// create a 32-bit opaque constant with random result value.
   /// @param target target location into which the value is stored
   /// @param algorithm opaque constant algorithm
   /// @param inputAlgorithm runtime input value algorithm
   /// @param contextualOpEnabled true if contextual opaque predicate is enabled
-  static std::shared_ptr<OpaqueConstruct> createOpaqueConstant32(
-      const OpaqueStorage &target, const std::string &algorithm,
-      const std::string &inputAlgorithm, bool contextualOpEnabled);
+  static std::shared_ptr<OpaqueConstruct>
+  createOpaqueConstant32(const OpaqueStorage &target,
+                         const std::string &  algorithm,
+                         const std::string &  inputAlgorithm,
+                         bool                 contextualOpEnabled);
 
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
@@ -219,9 +226,9 @@ public:
   /// @param algorithm opaque constant algorithm, in the form of
   ///  "randomgenerator+selector"
   static std::shared_ptr<OpaqueConstruct>
-  createBranchingOpaqueConstant32(const OpaqueStorage &target,
+  createBranchingOpaqueConstant32(const OpaqueStorage &        target,
                                   const std::vector<uint32_t> &values,
-                                  const std::string &algorithm);
+                                  const std::string &          algorithm);
 
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
@@ -229,11 +236,12 @@ public:
   /// @param algorithm opaque constant algorithm, in the form of
   ///  "randomgenerator+selector"
   static std::shared_ptr<OpaqueConstruct>
-  createBranchingOpaqueConstant32(const OpaqueStorage &target, size_t n_choices,
-                                  const std::string &algorithm);
+  createBranchingOpaqueConstant32(const OpaqueStorage &target,
+                                  size_t               n_choices,
+                                  const std::string &  algorithm);
 
   static std::shared_ptr<OpaqueConstruct>
-  createValueAdjustor(const OpaqueStorage &target,
+  createValueAdjustor(const OpaqueStorage &        target,
                       const std::vector<uint32_t> &inputvalues,
                       const std::vector<uint32_t> &outputvalues);
 

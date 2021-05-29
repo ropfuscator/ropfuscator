@@ -24,21 +24,24 @@ void XchgGraph::addEdge(int reg1, int reg2) {
   adj[reg2].push_back(reg1);
 }
 
-bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
+bool XchgGraph::checkPath(int  src,
+                          int  dest,
+                          int  pred[],
+                          int  dist[],
                           bool visited[]) const {
   list<int> queue;
 
   for (int i = 0; i < N_REGS; i++) {
     visited[i] = false;
-    dist[i] = INT_MAX;
-    pred[i] = -1;
+    dist[i]    = INT_MAX;
+    pred[i]    = -1;
   }
 
   if (src == dest)
     return true;
 
   visited[src] = true;
-  dist[src] = 0;
+  dist[src]    = 0;
   queue.push_back(src);
 
   while (!queue.empty()) {
@@ -49,8 +52,8 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
     for (unsigned int i = 0; i < adj[u].size(); i++) {
       if (!visited[adj[u][i]]) {
         visited[adj[u][i]] = true;
-        dist[adj[u][i]] = dist[u] + 1;
-        pred[adj[u][i]] = u;
+        dist[adj[u][i]]    = dist[u] + 1;
+        pred[adj[u][i]]    = u;
         queue.push_back(adj[u][i]);
 
         if (adj[u][i] == dest)
@@ -63,10 +66,10 @@ bool XchgGraph::checkPath(int src, int dest, int pred[], int dist[],
 }
 
 XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
-  XchgPath result;
+  XchgPath    result;
   vector<int> path;
-  int pred[N_REGS], dist[N_REGS], crawl;
-  bool visited[N_REGS];
+  int         pred[N_REGS], dist[N_REGS], crawl;
+  bool        visited[N_REGS];
 
   // dbg_fmt("[getPath] Trying to exchange {} with {}\n", src, dest);
   // src = state.searchLogicalReg(src);
@@ -124,7 +127,8 @@ XchgPath XchgGraph::fixPath(XchgState &state, XchgPath path) const {
 XchgPath XchgGraph::reorderRegisters(XchgState &state) const {
   XchgPath result;
 
-  result.insert(result.end(), state.xchgStack.rbegin(),
+  result.insert(result.end(),
+                state.xchgStack.rbegin(),
                 state.xchgStack.rend()); //, tmp;
 
   DEBUG_WITH_TYPE(XCHG_CHAIN, dbg_fmt("Exchanging back...\n"));

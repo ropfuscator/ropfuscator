@@ -38,6 +38,6 @@ void addReg(llvm::MachineInstr &MI, int reg, ScratchRegMap &regs);
 
 ScratchRegMap performLivenessAnalysis(llvm::MachineBasicBlock &MBB);
 
-}
+} // namespace ropf
 
 #endif

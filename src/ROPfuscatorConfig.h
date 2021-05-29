@@ -11,35 +11,35 @@ namespace ropf {
 // =========================
 // CONFIGURATION FILE STRINGS
 
-#define CONFIG_GENERAL_SECTION "general"
+#define CONFIG_GENERAL_SECTION   "general"
 #define CONFIG_FUNCTIONS_SECTION "functions"
 #define CONFIG_FUNCTIONS_DEFAULT "default"
 
 // general section
-#define CONFIG_OBF_ENABLED "obfuscation_enabled"
-#define CONFIG_SEARCH_SEGMENT "search_segment_for_gadget"
-#define CONFIG_AVOID_MULTIVER "avoid_multiversion_symbol"
-#define CONFIG_CUSTOM_LIB_PATH "custom_library_path"
-#define CONFIG_LIB_SHA1 "library_hash_sha1"
-#define CONFIG_LINKED_LIBS "linked_libraries"
-#define CONFIG_SHOW_PROGRESS "show_progress"
+#define CONFIG_OBF_ENABLED      "obfuscation_enabled"
+#define CONFIG_SEARCH_SEGMENT   "search_segment_for_gadget"
+#define CONFIG_AVOID_MULTIVER   "avoid_multiversion_symbol"
+#define CONFIG_CUSTOM_LIB_PATH  "custom_library_path"
+#define CONFIG_LIB_SHA1         "library_hash_sha1"
+#define CONFIG_LINKED_LIBS      "linked_libraries"
+#define CONFIG_SHOW_PROGRESS    "show_progress"
 #define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
-#define CONFIG_USE_CHAIN_LABEL "use_chain_label"
+#define CONFIG_USE_CHAIN_LABEL  "use_chain_label"
 
 // functions section
-#define CONFIG_FUNCTION_NAME "name"
-#define CONFIG_OPA_PRED_ENABLED "opaque_predicates_enabled"
-#define CONFIG_OPA_PRED_ALGO "opaque_predicates_algorithm"
+#define CONFIG_FUNCTION_NAME       "name"
+#define CONFIG_OPA_PRED_ENABLED    "opaque_predicates_enabled"
+#define CONFIG_OPA_PRED_ALGO       "opaque_predicates_algorithm"
 #define CONFIG_OPA_PRED_INPUT_ALGO "opaque_predicates_input_algorithm"
 #define CONFIG_OPA_PRED_CONTEXTUAL_ENABLED                                     \
   "opaque_predicates_contextual_enabled"
-#define CONFIG_OPA_OBF_IMM_OPERAND "obfuscate_immediate_operand"
+#define CONFIG_OPA_OBF_IMM_OPERAND   "obfuscate_immediate_operand"
 #define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
-#define CONFIG_OPA_OBF_STACK_SAVED "obfuscate_stack_saved_values"
-#define CONFIG_OPA_STEGANO_ENABLED "opaque_stegano_enabled"
-#define CONFIG_BRANCH_DIV_ENABLED "branch_divergence_enabled"
-#define CONFIG_BRANCH_DIV_MAX "branch_divergence_max_branches"
-#define CONFIG_BRANCH_DIV_ALGO "branch_divergence_algorithm"
+#define CONFIG_OPA_OBF_STACK_SAVED   "obfuscate_stack_saved_values"
+#define CONFIG_OPA_STEGANO_ENABLED   "opaque_stegano_enabled"
+#define CONFIG_BRANCH_DIV_ENABLED    "branch_divergence_enabled"
+#define CONFIG_BRANCH_DIV_MAX        "branch_divergence_max_branches"
+#define CONFIG_BRANCH_DIV_ALGO       "branch_divergence_algorithm"
 
 //===========================
 
@@ -117,8 +117,8 @@ struct GlobalConfig {
 };
 
 struct ROPfuscatorConfig {
-  ObfuscationParameter defaultParameter;
-  GlobalConfig globalConfig;
+  ObfuscationParameter                        defaultParameter;
+  GlobalConfig                                globalConfig;
   std::map<std::string, ObfuscationParameter> functionsParameter;
 
   ObfuscationParameter getParameter(const std::string &funcname) const;

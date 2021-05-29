@@ -44,7 +44,7 @@ struct ChainElem {
   static ChainElem fromGadget(const Microgadget *gadget) {
     ChainElem e;
 
-    e.type = Type::GADGET;
+    e.type        = Type::GADGET;
     e.microgadget = gadget;
 
     return e;
@@ -54,7 +54,7 @@ struct ChainElem {
   static ChainElem fromImmediate(int64_t value) {
     ChainElem e;
 
-    e.type = Type::IMM_VALUE;
+    e.type  = Type::IMM_VALUE;
     e.value = value;
 
     return e;
@@ -64,9 +64,9 @@ struct ChainElem {
   static ChainElem fromGlobal(const llvm::GlobalValue *global, int64_t offset) {
     ChainElem e;
 
-    e.type = Type::IMM_GLOBAL;
+    e.type   = Type::IMM_GLOBAL;
     e.global = global;
-    e.value = offset;
+    e.value  = offset;
 
     return e;
   }
@@ -75,7 +75,7 @@ struct ChainElem {
   static ChainElem fromJmpTarget(llvm::MachineBasicBlock *jmptarget) {
     ChainElem e;
 
-    e.type = Type::JMP_BLOCK;
+    e.type      = Type::JMP_BLOCK;
     e.jmptarget = jmptarget;
 
     return e;
@@ -93,9 +93,9 @@ struct ChainElem {
   // Factory method (type: ESP_PUSH)
   static ChainElem createStackPointerPush() {
     static int esp_id = 0;
-    ChainElem e;
+    ChainElem  e;
 
-    e.type = Type::ESP_PUSH;
+    e.type   = Type::ESP_PUSH;
     e.esp_id = ++esp_id;
 
     return e;
@@ -105,8 +105,8 @@ struct ChainElem {
   static ChainElem createStackPointerOffset(int64_t value, int esp_id) {
     ChainElem e;
 
-    e.type = Type::ESP_OFFSET;
-    e.value = value;
+    e.type   = Type::ESP_OFFSET;
+    e.value  = value;
     e.esp_id = esp_id;
 
     return e;
@@ -117,20 +117,13 @@ struct ChainElem {
       return false;
 
     switch (A.type) {
-    case Type::GADGET:
-      return A.microgadget == B.microgadget;
-    case Type::IMM_VALUE:
-      return A.value == B.value;
-    case Type::IMM_GLOBAL:
-      return A.global == B.global && A.value == B.value;
-    case Type::JMP_BLOCK:
-      return A.jmptarget == B.jmptarget;
-    case Type::JMP_FALLTHROUGH:
-      return true;
-    case Type::ESP_PUSH:
-      return A.esp_id == B.esp_id;
-    case Type::ESP_OFFSET:
-      return A.esp_id == B.esp_id && A.value == B.value;
+    case Type::GADGET: return A.microgadget == B.microgadget;
+    case Type::IMM_VALUE: return A.value == B.value;
+    case Type::IMM_GLOBAL: return A.global == B.global && A.value == B.value;
+    case Type::JMP_BLOCK: return A.jmptarget == B.jmptarget;
+    case Type::JMP_FALLTHROUGH: return true;
+    case Type::ESP_PUSH: return A.esp_id == B.esp_id;
+    case Type::ESP_OFFSET: return A.esp_id == B.esp_id && A.value == B.value;
     }
     return false;
   }
@@ -145,21 +138,15 @@ struct ChainElem {
     case Type::GADGET:
       fmt::print(os, "GADGET\t:{}\n", microgadget->asmInstr);
       break;
-    case Type::IMM_VALUE:
-      fmt::print(os, "IMM_VALUE\t:{}\n", value);
-      break;
+    case Type::IMM_VALUE: fmt::print(os, "IMM_VALUE\t:{}\n", value); break;
     case Type::IMM_GLOBAL:
       fmt::print(os, "IMM_GLOBAL:\t:{} + {}\n", *global, value);
       break;
     case Type::JMP_BLOCK:
       fmt::print(os, "JMP_BLOCK\t:{}\n", jmptarget->getNumber());
       break;
-    case Type::JMP_FALLTHROUGH:
-      fmt::print(os, "JMP_FALLTHROUGH\n");
-      break;
-    case Type::ESP_PUSH:
-      fmt::print(os, "ESP_PUSH\t:id={}\n", esp_id);
-      break;
+    case Type::JMP_FALLTHROUGH: fmt::print(os, "JMP_FALLTHROUGH\n"); break;
+    case Type::ESP_PUSH: fmt::print(os, "ESP_PUSH\t:id={}\n", esp_id); break;
     case Type::ESP_OFFSET:
       fmt::print(os, "ESP_OFFSET\t:{}, id={}\n", value, esp_id);
       break;

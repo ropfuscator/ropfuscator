@@ -27,7 +27,7 @@ public:
 
   struct ImmGlobal {
     const llvm::GlobalValue *global;
-    int64_t offset;
+    int64_t                  offset;
 
     void add(llvm::MachineInstrBuilder &builder) const {
       builder.addGlobalAddress(global, offset);
@@ -50,9 +50,9 @@ public:
 
   struct Mem {
     llvm_reg_t reg;
-    int scale;
+    int        scale;
     llvm_reg_t index;
-    int offset;
+    int        offset;
     llvm_reg_t seg;
 
     void add(llvm::MachineInstrBuilder &builder) const {
@@ -61,19 +61,22 @@ public:
     }
   };
 
-  X86AssembleHelper(llvm::MachineBasicBlock &block,
+  X86AssembleHelper(llvm::MachineBasicBlock &         block,
                     llvm::MachineBasicBlock::iterator position)
       : block(block), position(position), ctx(block.getParent()->getContext()),
         TII(block.getParent()->getTarget().getMCInstrInfo()) {}
 
   // --- operand builder ---
-  Imm imm(uint64_t value) const { return {value}; }
+  Imm       imm(uint64_t value) const { return {value}; }
   ImmGlobal imm(const llvm::GlobalValue *global, int64_t offset) const {
     return {global, offset};
   }
   Reg reg(llvm_reg_t r) const { return {r}; }
-  Mem mem(llvm_reg_t r, int ofs = 0, llvm_reg_t idx = llvm::X86::NoRegister,
-          int scale = 1, llvm_reg_t segment = llvm::X86::NoRegister) const {
+  Mem mem(llvm_reg_t r,
+          int        ofs     = 0,
+          llvm_reg_t idx     = llvm::X86::NoRegister,
+          int        scale   = 1,
+          llvm_reg_t segment = llvm::X86::NoRegister) const {
     return {r, scale, idx, ofs, segment};
   }
   Label label() const { return label(_newLabelName()); }
@@ -213,10 +216,10 @@ public:
   }
 
 private:
-  llvm::MachineBasicBlock &block;
+  llvm::MachineBasicBlock &         block;
   llvm::MachineBasicBlock::iterator position;
-  llvm::MCContext &ctx;
-  const llvm::MCInstrInfo *TII;
+  llvm::MCContext &                 ctx;
+  const llvm::MCInstrInfo *         TII;
 
   void _instr(unsigned int opcode) const {
     BuildMI(block, position, nullptr, TII->get(opcode));
@@ -243,8 +246,8 @@ private:
   }
 
   template <typename T2, typename T3>
-  void _instrd(unsigned int opcode, Reg operand1, T2 operand2,
-               T3 operand3) const {
+  void
+  _instrd(unsigned int opcode, Reg operand1, T2 operand2, T3 operand3) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand1.add(builder);
@@ -253,8 +256,8 @@ private:
   }
 
   template <typename T2, typename T3>
-  void _instrd0(unsigned int opcode, Reg operand1, T2 operand2,
-                T3 operand3) const {
+  void
+  _instrd0(unsigned int opcode, Reg operand1, T2 operand2, T3 operand3) const {
     auto builder =
         BuildMI(block, position, nullptr, TII->get(opcode), operand1.reg);
     operand2.add(builder);
@@ -272,25 +275,33 @@ private:
     auto *gv = module->getGlobalVariable(name, true);
     if (!gv) {
       auto *voidT = llvm::Type::getVoidTy(module->getContext());
-      gv = new llvm::GlobalVariable(*module, voidT, true,
-                                    llvm::GlobalValue::ExternalLinkage, nullptr,
+      gv          = new llvm::GlobalVariable(*module,
+                                    voidT,
+                                    true,
+                                    llvm::GlobalValue::ExternalLinkage,
+                                    nullptr,
                                     name);
     }
     return gv;
   }
 
-  llvm::GlobalValue *_createData(std::string name, const void *data,
-                                 size_t size) const {
+  llvm::GlobalValue *
+  _createData(std::string name, const void *data, size_t size) const {
     auto *data_alloc = block.getParent()->createExternalSymbolName(
         llvm::StringRef((const char *)data, size));
     llvm::StringRef dataRef(data_alloc, size);
-    auto *module = const_cast<llvm::Module *>(
+    auto *          module = const_cast<llvm::Module *>(
         block.getParent()->getFunction().getParent());
-    llvm::Constant *constant = llvm::ConstantDataArray::getString(
-        module->getContext(), dataRef, false);
-    auto gv = new llvm::GlobalVariable(*module, constant->getType(), true,
+    llvm::Constant *constant =
+        llvm::ConstantDataArray::getString(module->getContext(),
+                                           dataRef,
+                                           false);
+    auto gv = new llvm::GlobalVariable(*module,
+                                       constant->getType(),
+                                       true,
                                        llvm::GlobalValue::PrivateLinkage,
-                                       constant, name);
+                                       constant,
+                                       name);
     return gv;
   }
 };
@@ -298,21 +309,21 @@ private:
 struct StackState {
   struct Value {
     unsigned int reg;
-    uint32_t value;
+    uint32_t     value;
   };
   std::map<unsigned int, int> regs_location;
-  std::vector<int> constant_location;
-  std::map<int, Value> saved_values;
-  int stack_offset;
-  bool stack_mangled;
+  std::vector<int>            constant_location;
+  std::map<int, Value>        saved_values;
+  int                         stack_offset;
+  bool                        stack_mangled;
 
   void addReg(unsigned int reg, int offset) {
     regs_location.emplace(reg, offset);
-    saved_values.emplace(offset, Value{reg, 0});
+    saved_values.emplace(offset, Value {reg, 0});
   }
   void addConst(uint32_t value, int offset) {
     constant_location.push_back(offset);
-    saved_values.emplace(offset, Value{llvm::X86::NoRegister, value});
+    saved_values.emplace(offset, Value {llvm::X86::NoRegister, value});
   }
 };
 

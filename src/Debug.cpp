@@ -29,7 +29,7 @@ public:
 std::ostream &debugs() {
   static struct debug_stream_impl {
     llvm_raw_ostream_wrapper_ostream buf;
-    std::ostream os;
+    std::ostream                     os;
     debug_stream_impl() : buf(llvm::dbgs()), os(&buf) {}
   } debug_stream;
 
@@ -46,7 +46,7 @@ std::ostream &operator<<(std::ostream &os, const llvm::StringRef &s) {
 
 #define DEFINE_OUTPUT_FUNC_FOR_LLVM_TYPE(T)                                    \
   std::ostream &operator<<(std::ostream &os, const llvm::T &value) {           \
-    llvm::raw_os_ostream raw_os{os};                                           \
+    llvm::raw_os_ostream raw_os {os};                                          \
     raw_os << value;                                                           \
     return os;                                                                 \
   }
