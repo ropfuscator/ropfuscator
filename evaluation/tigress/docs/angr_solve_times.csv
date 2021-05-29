@@ -1,108 +1,108 @@
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-900, 294.52
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-180, 87.91
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-70, 67.39
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-450, 178.57
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-750, 150.38
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-110, 78.02
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-800, 1060.50
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-250, 38.78
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-160, 85.71
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-950, 93.49
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-150, 71.84
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-90, 29.16
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-200, 39.51
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-850, 141.97
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-190, 75.56
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-140, 57.32
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-120, 91.11
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-700, 189.59
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-650, 646.30
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-500, 39.40
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-350, 166.61
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-10, 28.42
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-300, 141.73
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-400, 43.22
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-100, 30.35
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-550, 213.73
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-60, 54.35
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-30, 29.34
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-130, 34.06
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-40, 28.17
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-80, 28.05
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-20, 28.37
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-50, 29.53
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-600, 213.44
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-1000, 44.89
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-170, 34.60
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-900, 331.56
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-180, 96.40
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-70, 65.58
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-450, 184.42
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-750, 161.67
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-110, 101.67
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-800, 1100.14
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-250, 39.19
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-160, 95.16
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-950, 95.37
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-150, 78.00
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-90, 29.35
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-200, 38.49
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-850, 143.85
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-190, 83.54
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-140, 62.20
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-120, 94.12
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-700, 190.85
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-650, 654.20
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-500, 43.24
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-350, 172.58
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-10, 27.32
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-300, 139.45
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-400, 46.89
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-100, 31.64
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-550, 219.86
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-60, 56.75
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-30, 30.90
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-130, 35.28
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-40, 31.03
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-80, 30.88
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-20, 27.13
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-50, 31.01
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-600, 223.77
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-1000, 44.18
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-170, 36.13
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-900, 338.94
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-180, 102.74
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-70, 73.74
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-450, 204.62
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-750, 168.01
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-110, 88.33
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-800, 1193.06
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-250, 41.26
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-160, 99.47
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-950, 96.93
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-150, 82.85
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-90, 30.27
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-200, 40.67
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-850, 149.40
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-190, 87.43
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-140, 61.44
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-120, 93.33
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-700, 194.23
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-650, 787.08
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-500, 49.00
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-350, 203.79
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-10, 30.72
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-300, 158.29
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-400, 49.56
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-100, 35.52
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-550, 245.11
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-60, 61.06
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-30, 32.59
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-130, 35.55
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-40, 34.42
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-80, 32.41
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-20, 30.72
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-50, 36.76
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-600, 237.74
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-1000, 50.90
-python /home/giulio/dev/research/ropfuscator/evaluation/tigress/scripts/solve_tigress_chall.py /home/giulio/dev/research/llvm-10.0.1.src/build/bin/vanilla-tigsam-170, 38.92
+vanilla-tigsam-900, 294.52
+vanilla-tigsam-180, 87.91
+vanilla-tigsam-70, 67.39
+vanilla-tigsam-450, 178.57
+vanilla-tigsam-750, 150.38
+vanilla-tigsam-110, 78.02
+vanilla-tigsam-800, 1060.50
+vanilla-tigsam-250, 38.78
+vanilla-tigsam-160, 85.71
+vanilla-tigsam-950, 93.49
+vanilla-tigsam-150, 71.84
+vanilla-tigsam-90, 29.16
+vanilla-tigsam-200, 39.51
+vanilla-tigsam-850, 141.97
+vanilla-tigsam-190, 75.56
+vanilla-tigsam-140, 57.32
+vanilla-tigsam-120, 91.11
+vanilla-tigsam-700, 189.59
+vanilla-tigsam-650, 646.30
+vanilla-tigsam-500, 39.40
+vanilla-tigsam-350, 166.61
+vanilla-tigsam-10, 28.42
+vanilla-tigsam-300, 141.73
+vanilla-tigsam-400, 43.22
+vanilla-tigsam-100, 30.35
+vanilla-tigsam-550, 213.73
+vanilla-tigsam-60, 54.35
+vanilla-tigsam-30, 29.34
+vanilla-tigsam-130, 34.06
+vanilla-tigsam-40, 28.17
+vanilla-tigsam-80, 28.05
+vanilla-tigsam-20, 28.37
+vanilla-tigsam-50, 29.53
+vanilla-tigsam-600, 213.44
+vanilla-tigsam-1000, 44.89
+vanilla-tigsam-170, 34.60
+vanilla-tigsam-900, 331.56
+vanilla-tigsam-180, 96.40
+vanilla-tigsam-70, 65.58
+vanilla-tigsam-450, 184.42
+vanilla-tigsam-750, 161.67
+vanilla-tigsam-110, 101.67
+vanilla-tigsam-800, 1100.14
+vanilla-tigsam-250, 39.19
+vanilla-tigsam-160, 95.16
+vanilla-tigsam-950, 95.37
+vanilla-tigsam-150, 78.00
+vanilla-tigsam-90, 29.35
+vanilla-tigsam-200, 38.49
+vanilla-tigsam-850, 143.85
+vanilla-tigsam-190, 83.54
+vanilla-tigsam-140, 62.20
+vanilla-tigsam-120, 94.12
+vanilla-tigsam-700, 190.85
+vanilla-tigsam-650, 654.20
+vanilla-tigsam-500, 43.24
+vanilla-tigsam-350, 172.58
+vanilla-tigsam-10, 27.32
+vanilla-tigsam-300, 139.45
+vanilla-tigsam-400, 46.89
+vanilla-tigsam-100, 31.64
+vanilla-tigsam-550, 219.86
+vanilla-tigsam-60, 56.75
+vanilla-tigsam-30, 30.90
+vanilla-tigsam-130, 35.28
+vanilla-tigsam-40, 31.03
+vanilla-tigsam-80, 30.88
+vanilla-tigsam-20, 27.13
+vanilla-tigsam-50, 31.01
+vanilla-tigsam-600, 223.77
+vanilla-tigsam-1000, 44.18
+vanilla-tigsam-170, 36.13
+vanilla-tigsam-900, 338.94
+vanilla-tigsam-180, 102.74
+vanilla-tigsam-70, 73.74
+vanilla-tigsam-450, 204.62
+vanilla-tigsam-750, 168.01
+vanilla-tigsam-110, 88.33
+vanilla-tigsam-800, 1193.06
+vanilla-tigsam-250, 41.26
+vanilla-tigsam-160, 99.47
+vanilla-tigsam-950, 96.93
+vanilla-tigsam-150, 82.85
+vanilla-tigsam-90, 30.27
+vanilla-tigsam-200, 40.67
+vanilla-tigsam-850, 149.40
+vanilla-tigsam-190, 87.43
+vanilla-tigsam-140, 61.44
+vanilla-tigsam-120, 93.33
+vanilla-tigsam-700, 194.23
+vanilla-tigsam-650, 787.08
+vanilla-tigsam-500, 49.00
+vanilla-tigsam-350, 203.79
+vanilla-tigsam-10, 30.72
+vanilla-tigsam-300, 158.29
+vanilla-tigsam-400, 49.56
+vanilla-tigsam-100, 35.52
+vanilla-tigsam-550, 245.11
+vanilla-tigsam-60, 61.06
+vanilla-tigsam-30, 32.59
+vanilla-tigsam-130, 35.55
+vanilla-tigsam-40, 34.42
+vanilla-tigsam-80, 32.41
+vanilla-tigsam-20, 30.72
+vanilla-tigsam-50, 36.76
+vanilla-tigsam-600, 237.74
+vanilla-tigsam-1000, 50.90
+vanilla-tigsam-170, 38.92
