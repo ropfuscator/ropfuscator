@@ -16,8 +16,24 @@ def main():
 
     with open(sys.argv[1], "r") as f:
         df = pandas.read_csv(f, names=["Tigress Sample", "Execution Time [s]"])
-    
-    print(df.groupby('Tigress Sample').mean())
+
+    mean_df = df.groupby('Tigress Sample').mean()
+
+    min_t = 15
+    delta_t = 15
+    max_t = 1200  # from experiments
+
+    print(
+        "Slowest sample (in solving time [s]) in increments of 15 secs starting from 15 secs:")
+    for t in range(min_t, max_t, delta_t):
+        ranged_df = mean_df[mean_df['Execution Time [s]'].between(
+            t, t + delta_t)]
+
+        if ranged_df.size > 0:
+            print(
+                f"{t} < t <= {t + delta_t} [s]:", end="")
+            print(
+                f"\t{ranged_df.idxmax().values[0]}\t{ranged_df.max().values[0]:0.2f}")
 
 
 if __name__ == "__main__":
