@@ -7,3 +7,6 @@
 [submodule "evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO"]
 	path = evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO
 	url = https://github.com/serge1/ELFIO.git
+[submodule "thirdparty/chocolate-doom"]
+	path = thirdparty/chocolate-doom
+	url = git@github.com:peperunas/chocolate-doom.git
