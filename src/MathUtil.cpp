@@ -64,7 +64,9 @@ template <> struct Divisor<uint32_t> {
       v >>= 32;
       result = x1 * d1 + v + overflow;
     } else {
+      uint64_t v1 = x * d2;
       uint64_t v2 = x * d1;
+
       v2 += (v1 >> 32);
       result = v2 >> 32;
     }
