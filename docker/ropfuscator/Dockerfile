@@ -21,14 +21,14 @@ RUN apt-get update && apt-get install -y \
 ############################################################
 ### retrieve LLVM source tree
 
-ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/llvm-10.0.0.src.tar.xz /usr/local/src
-ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang-10.0.0.src.tar.xz /usr/local/src
+ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz /usr/local/src
+ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz /usr/local/src
 
 WORKDIR /usr/local/src
-RUN tar -xf llvm-10.0.0.src.tar.xz && rm llvm-10.0.0.src.tar.xz
+RUN tar -xf llvm-10.0.1.src.tar.xz && rm llvm-10.0.1.src.tar.xz
 
-WORKDIR /usr/local/src/llvm-10.0.0.src/tools
-RUN tar -xf ../../clang-10.0.0.src.tar.xz && rm ../../clang-10.0.0.src.tar.xz
+WORKDIR /usr/local/src/llvm-10.0.1.src/tools
+RUN tar -xf ../../clang-10.0.1.src.tar.xz && rm ../../clang-10.0.1.src.tar.xz
 
 ############################################################
 ### add ropfuscator (essential files for build)
@@ -40,7 +40,7 @@ COPY patch/llvm-10.patch ./
 COPY thirdparty/fmt/include/ ./thirdparty/fmt/include/
 COPY thirdparty/tinytoml/include/ ./thirdparty/tinytoml/include/
 
-WORKDIR /usr/local/src/llvm-10.0.0.src/lib/Target/X86
+WORKDIR /usr/local/src/llvm-10.0.1.src/lib/Target/X86
 RUN ln -s ../../../../ropfuscator .
 RUN patch < ropfuscator/llvm-10.patch && rm ropfuscator/llvm-10.patch
 
@@ -55,7 +55,7 @@ RUN cmake \
     -DCMAKE_CXX_COMPILER=clang++-10 \
     -DLLVM_TARGETS_TO_BUILD=X86 \
     -GNinja \
-    /usr/local/src/llvm-10.0.0.src
+    /usr/local/src/llvm-10.0.1.src
 
 
 ############################################################
@@ -102,7 +102,7 @@ COPY librop/ ./librop
 COPY thirdparty/chocolate-doom ./thirdparty/chocolate-doom
 
 # reload CMakeLists.txt
-RUN touch /usr/local/src/llvm-10.0.0.src/lib/Target/X86/CMakeLists.txt
+RUN touch /usr/local/src/llvm-10.0.1.src/lib/Target/X86/CMakeLists.txt
 WORKDIR /usr/local/src/build-ropfuscator
 RUN ninja llc clang
 RUN strip -s bin/llc bin/clang
