@@ -70,8 +70,4 @@ foreach(filename ${files})
     ${ROPF_IR_FLAGS_ROPFBIN}
     ASMFLAGS
     ${ROPF_ASM_FLAGS_ROPFBIN})
-
-  # generate_ropfuscated_asm( ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
-  # ${ropfuscated_exec_name}
-  # "${ROPF_IR_FLAGS_ROPFBIN}" "${ROPF_ASM_FLAGS_ROPFBIN}")
 endforeach()
