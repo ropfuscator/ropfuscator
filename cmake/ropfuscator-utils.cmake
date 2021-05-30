@@ -1,23 +1,35 @@
-macro(generate_ropfuscated_asm source_file out_name ir_flags asm_flags)
-  get_filename_component(filename ${source_file} NAME_WE)
+macro(generate_ropfuscated_asm)
+  set(oneValueArgs SOURCE OUTNAME)
+  set(multiValueArgs HEADERS IRFLAGS ASMFLAGS)
+
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        ${ARGN})
+
+  get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
   add_custom_command(
-    OUTPUT ${out_name}.s
-    DEPENDS ${input_source}
-    COMMAND $<TARGET_FILE:clang> ARGS ${ir_flags} ${source_file} -o
-            ${out_name}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${asm_flags} ${out_name}.bc -o
-            ${out_name}.s)
+    OUTPUT ${ARG_OUTNAME}.s
+    DEPENDS ${ARG_SOURCE}
+    COMMAND $<TARGET_FILE:clang> ARGS ${ARG_IRFLAGS} ${ARG_SOURCE}
+            ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:llc> ARGS ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc -o
+            ${ARG_OUTNAME}.s)
 endmacro()
 
-macro(generate_clean_asm source_file out_name ir_flags asm_flags)
-  get_filename_component(filename ${source_file} NAME_WE)
+macro(generate_clean_asm)
+  set(oneValueArgs SOURCE OUTNAME)
+  set(multiValueArgs HEADERS IRFLAGS ASMFLAGS)
+
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        ${ARGN})
+
+  get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
   add_custom_command(
-    OUTPUT ${out_name}.s
-    DEPENDS ${input_source}
-    COMMAND $<TARGET_FILE:clang> ARGS ${ir_flags} ${source_file} -o
-            ${out_name}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${asm_flags}
-            ${out_name}.bc -o ${out_name}.s)
+    OUTPUT ${ARG_OUTNAME}.s
+    DEPENDS ${ARG_SOURCE}
+    COMMAND $<TARGET_FILE:clang> ARGS ${ARG_IRFLAGS} ${ARG_SOURCE}
+            ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${ARG_ASMFLAGS}
+            ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
 endmacro()

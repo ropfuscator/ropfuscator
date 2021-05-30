@@ -39,8 +39,15 @@ foreach(filename ${files})
 
   add_dependencies(ropfuscator-examples ${exec_name})
 
-  generate_clean_asm(${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c ${exec_name}
-                     "${ROPF_IR_FLAGS_STDBIN}" "${ROPF_ASM_FLAGS_STDBIN}")
+  generate_clean_asm(
+    SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+    OUTNAME
+    ${exec_name}
+    IRFLAGS
+    ${ROPF_IR_FLAGS_STDBIN}
+    ASMFLAGS
+    ${ROPF_ASM_FLAGS_STDBIN})
 
   # ############################################################################
   # ROPfuscated binaries
@@ -55,6 +62,16 @@ foreach(filename ${files})
   endif()
 
   generate_ropfuscated_asm(
-    ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c ${ropfuscated_exec_name}
-    "${ROPF_IR_FLAGS_ROPFBIN}" "${ROPF_ASM_FLAGS_ROPFBIN}")
+    SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+    OUTNAME
+    ${ropfuscated_exec_name}
+    IRFLAGS
+    ${ROPF_IR_FLAGS_ROPFBIN}
+    ASMFLAGS
+    ${ROPF_ASM_FLAGS_ROPFBIN})
+
+  # generate_ropfuscated_asm( ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
+  # ${ropfuscated_exec_name}
+  # "${ROPF_IR_FLAGS_ROPFBIN}" "${ROPF_ASM_FLAGS_ROPFBIN}")
 endforeach()
