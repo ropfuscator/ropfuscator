@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra ASM)
 
+include("cmake/ropfuscator-utils.cmake")
+
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
 option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop."
        OFF)
