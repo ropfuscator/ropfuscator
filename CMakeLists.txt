@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra ASM)
 
 option(ROPF_PROFILE "Enable profiling in ropfuscated program." OFF)
-option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop." OFF)
+option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop."
+       OFF)
 
 set(CMAKE_C_FLAGS "-m32 -fpie")
 set(CMAKE_ASM_FLAGS "-m32 -fpie")
@@ -12,9 +13,14 @@ set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm)
 set(ROPF_ASM_FLAGS -march=x86)
 
+# prefer 32-bit library locations
+set(CMAKE_LIBRARY_PATH
+    "${CMAKE_LIBRARY_PATH};/usr/lib/i386-linux-gnu;/usr/lib32"
+    CACHE PATH "asd")
+
 # we should use librop
-if (NOT USE_LIBC)
-    set(ROPF_ASM_FLAGS ${ROPF_ASM_FLAGS} --ropfuscator-library=$<TARGET_FILE:rop>)
+if(NOT USE_LIBC)
+  set(ROPF_ASM_FLAGS ${ROPF_ASM_FLAGS} --ropfuscator-library=$<TARGET_FILE:rop>)
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES DEBUG)
@@ -22,7 +28,6 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
       ${ROPF_ASM_FLAGS}
       -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis)
 endif()
-
 
 add_subdirectory("librop")
 add_subdirectory("binutils" EXCLUDE_FROM_ALL)
