@@ -16,7 +16,7 @@ set(ROPF_ASM_FLAGS -march=x86)
 # prefer 32-bit library locations
 set(CMAKE_LIBRARY_PATH
     "${CMAKE_LIBRARY_PATH};/usr/lib/i386-linux-gnu;/usr/lib32"
-    CACHE PATH "asd")
+    CACHE PATH "")
 
 # we should use librop
 if(NOT USE_LIBC)
