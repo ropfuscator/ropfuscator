@@ -2,13 +2,18 @@
 ### PREBUILD STAGE #########################################
 ############################################################
 
-FROM ubuntu:18.04 as prebuild
+FROM i386/ubuntu:18.04 as prebuild
+
+# install Kitware's APT repo (for CMake)
+RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \ 
+    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
 
 RUN apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc-multilib \
-    g++-multilib \
+    gcc \
+    g++ \
     ninja-build \
     patch \
     && rm -rf /var/lib/apt/lists/*
@@ -57,15 +62,21 @@ RUN cmake \
 ### BUILD STAGE ############################################
 ############################################################
 
-FROM ubuntu:18.04 as build
+FROM i386/ubuntu:18.04 as build
+
+# install Kitware's APT repo (for CMake)
+RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \ 
+    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
 
 RUN apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc-multilib \
-    g++-multilib \
+    gcc \
+    g++ \
     ninja-build \
     patch \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=prebuild /usr/local/src/ /usr/local/src/
@@ -88,6 +99,7 @@ COPY binutils/ ./binutils/
 COPY configs/ ./configs/
 COPY testcase/ ./testcase/
 COPY librop/ ./librop
+COPY thirdparty/chocolate-doom ./thirdparty/chocolate-doom
 
 # reload CMakeLists.txt
 RUN touch /usr/local/src/llvm-10.0.0.src/lib/Target/X86/CMakeLists.txt
@@ -100,14 +112,22 @@ RUN strip -s bin/llc bin/clang
 ### RELEASE IMAGE ##########################################
 ############################################################
 
-FROM ubuntu:18.04 as runtime
+FROM i386/ubuntu:18.04 as runtime
+
+# install Kitware's APT repo (for CMake)
+RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \ 
+    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
 
 RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc-multilib \
-    g++-multilib \
-    libc6:i386 \
+    gcc \ 
+    g++ \
+    libsdl2-mixer-dev \
+    libsdl2-net-dev \
+    libsdl2-dev \
+    libc6 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/src/build-ropfuscator/bin/llc /usr/local/bin/
