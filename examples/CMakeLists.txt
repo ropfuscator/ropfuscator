@@ -2,7 +2,7 @@ add_custom_target(ropfuscator-examples)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
-set(ROPF_ASM_FLAGS_STDBIN ${ROPF_ASM_FLAGS} -fno-ropfuscator)
+set(ROPF_ASM_FLAGS_STDBIN ${ROPF_ASM_FLAGS})
 set(ROPF_IR_FLAGS_STDBIN ${ROPF_IR_FLAGS})
 
 set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS})
@@ -39,13 +39,8 @@ foreach(filename ${files})
 
   add_dependencies(ropfuscator-examples ${exec_name})
 
-  add_custom_command(
-    OUTPUT ${exec_name}.s
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
-    COMMAND $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_STDBIN}
-            ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${exec_name}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_STDBIN} ${exec_name}.bc -o
-            ${exec_name}.s)
+  generate_clean_asm(${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c ${exec_name}
+                     "${ROPF_IR_FLAGS_STDBIN}" "${ROPF_ASM_FLAGS_STDBIN}")
 
   # ############################################################################
   # ROPfuscated binaries
@@ -59,12 +54,7 @@ foreach(filename ${files})
     target_link_libraries(${ropfuscated_exec_name} rop)
   endif()
 
-  add_custom_command(
-    OUTPUT ${ropfuscated_exec_name}.s
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c
-    COMMAND
-      $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_ROPFBIN}
-      ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c -o ${ropfuscated_exec_name}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN}
-            ${ropfuscated_exec_name}.bc -o ${ropfuscated_exec_name}.s)
+  generate_ropfuscated_asm(
+    ${CMAKE_CURRENT_SOURCE_DIR}/${exec_name}.c ${ropfuscated_exec_name}
+    "${ROPF_IR_FLAGS_ROPFBIN}" "${ROPF_ASM_FLAGS_ROPFBIN}")
 endforeach()
