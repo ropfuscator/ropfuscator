@@ -2,7 +2,7 @@
 ### PREBUILD STAGE #########################################
 ############################################################
 
-FROM i386/ubuntu:18.04 as prebuild
+FROM ubuntu:18.04 as prebuild
 
 # install Kitware's APT repo (for CMake)
 RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
@@ -12,8 +12,8 @@ RUN apt update && apt install -y apt-transport-https ca-certificates gnupg softw
 RUN apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc \
-    g++ \
+    gcc-multilib \
+    g++-multilib \
     ninja-build \
     patch \
     && rm -rf /var/lib/apt/lists/*
@@ -52,7 +52,7 @@ RUN cmake \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER=clang-10 \
-    -DCMAKE_CXX_COMPILER=clang++-10 \
+    -DCMAKE_CXX_COMPILER=clang++-multilib-10 \
     -DLLVM_TARGETS_TO_BUILD=X86 \
     -GNinja \
     /usr/local/src/llvm-10.0.1.src
@@ -62,7 +62,7 @@ RUN cmake \
 ### BUILD STAGE ############################################
 ############################################################
 
-FROM i386/ubuntu:18.04 as build
+FROM ubuntu:18.04 as build
 
 # install Kitware's APT repo (for CMake)
 RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
@@ -72,8 +72,8 @@ RUN apt update && apt install -y apt-transport-https ca-certificates gnupg softw
 RUN apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc \
-    g++ \
+    gcc-multilib \
+    g++-multilib \
     ninja-build \
     patch \
     zlib1g-dev \
@@ -112,7 +112,7 @@ RUN strip -s bin/llc bin/clang
 ### RELEASE IMAGE ##########################################
 ############################################################
 
-FROM i386/ubuntu:18.04 as runtime
+FROM ubuntu:18.04 as runtime
 
 # install Kitware's APT repo (for CMake)
 RUN apt update && apt install -y apt-transport-https ca-certificates gnupg software-properties-common wget && \
@@ -122,8 +122,8 @@ RUN apt update && apt install -y apt-transport-https ca-certificates gnupg softw
 RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y \
     clang-10 \
     cmake \
-    gcc \ 
-    g++ \
+    gcc-multilib \ 
+    g++-multilib \
     libsdl2-mixer-dev \
     libsdl2-net-dev \
     libsdl2-dev \
