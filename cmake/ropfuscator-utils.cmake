@@ -7,11 +7,17 @@ macro(generate_ropfuscated_asm)
 
   get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
+  # constructing the includes directives
+  get_directory_property(CURRENT_DIR_INCLUDES DIRECTORY . INCLUDE_DIRECTORIES)
+  foreach(dir ${CURRENT_DIR_INCLUDES})
+    string(APPEND INCLUDES_DIRECTIVE "-I${dir} ")
+  endforeach()
+
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${ARG_SOURCE}
-    COMMAND $<TARGET_FILE:clang> ARGS ${ARG_IRFLAGS} ${ARG_SOURCE}
-            ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
+            ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc -o
             ${ARG_OUTNAME}.s)
 endmacro()
@@ -25,10 +31,16 @@ macro(generate_clean_asm)
 
   get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
+  # constructing the includes directives
+  get_directory_property(CURRENT_DIR_INCLUDES DIRECTORY . INCLUDE_DIRECTORIES)
+  foreach(dir ${CURRENT_DIR_INCLUDES})
+    string(APPEND INCLUDES_DIRECTIVE "-I${dir} ")
+  endforeach()
+
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${ARG_SOURCE}
-    COMMAND $<TARGET_FILE:clang> ARGS ${ARG_IRFLAGS} ${ARG_SOURCE}
+    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS} ${ARG_SOURCE}
             ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${ARG_ASMFLAGS}
             ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
