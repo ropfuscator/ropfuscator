@@ -9,6 +9,14 @@ macro(generate_ropfuscated_asm)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         ${ARGN})
 
+  if(NOT ARG_SOURCE)
+    message(FATAL_ERROR "Source file not specified!")
+  endif()
+
+  if(NOT ARG_OUTNAME)
+    message(FATAL_ERROR "Output name not specified!")
+  endif()
+  
   #
   # getting includes directories set for current directory
   #
