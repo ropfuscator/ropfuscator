@@ -23,10 +23,18 @@ macro(generate_ropfuscated_asm)
 
   get_directory_property(CURRENT_DIR_INCLUDES DIRECTORY . INCLUDE_DIRECTORIES)
 
-  foreach(dir ${CURRENT_DIR_INCLUDES})
-    string(APPEND INCLUDES_DIRECTIVE "-I${dir} ")
-  endforeach()
+  # since this is a macro and it's going to be inlined wherever this is going to
+  # be called, we might clobber the argument list by recursively add the include
+  # directory when the macro is called in a loop. To avoid this, we are setting
+  # a temporary "flag" variable to avoid this behaviour.
+  if(NOT CURRENT_DIR_INCLUDES_FLAG)
+    foreach(dir ${CURRENT_DIR_INCLUDES})
+      string(APPEND INCLUDES_DIRECTIVE "-I${dir} ")
+    endforeach()
 
+    set(CURRENT_DIR_INCLUDES_FLAG True)
+  endif()
+  
   #
   # macro variables
   #
@@ -75,7 +83,7 @@ macro(generate_clean_asm)
   if(NOT ARG_OUTNAME)
     message(FATAL_ERROR "Output name not specified!")
   endif()
-  
+
   # add no-ropfuscator flag to user defined flags
   list(APPEND ARG_ASMFLAGS -fno-ropfuscator)
 
