@@ -5,6 +5,11 @@ macro(generate_ropfuscated_asm)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         ${ARGN})
 
+  if(ROPF_PROFILE)
+    set(ROPF_IR_FLAGS ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS}
+                      -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
+  endif()
+
   get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
   # constructing the includes directives
@@ -16,10 +21,10 @@ macro(generate_ropfuscated_asm)
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${ARG_SOURCE}
-    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
-            ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc -o
-            ${ARG_OUTNAME}.s)
+    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ROPF_IR_FLAGS}
+            ${ARG_IRFLAGS} ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS} ${ARG_ASMFLAGS}
+            ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
 endmacro()
 
 macro(generate_clean_asm)
@@ -29,6 +34,11 @@ macro(generate_clean_asm)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         ${ARGN})
 
+  if(ROPF_PROFILE)
+    set(ROPF_IR_FLAGS ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS}
+                      -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
+  endif()
+
   get_filename_component(filename ${ARG_SOURCE} NAME_WE)
 
   # constructing the includes directives
@@ -40,8 +50,8 @@ macro(generate_clean_asm)
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${ARG_SOURCE}
-    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
-            ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${ARG_ASMFLAGS}
-            ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
+    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ROPF_IR_FLAGS}
+            ${ARG_IRFLAGS} ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${ROPF_ASM_FLAGS}
+            ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
 endmacro()
