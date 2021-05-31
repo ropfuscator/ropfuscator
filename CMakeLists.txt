@@ -14,6 +14,7 @@ set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm)
 set(ROPF_ASM_FLAGS -march=x86)
+set(ROPF_OBF_CONFDIR ${CMAKE_CURRENT_SOURCE_DIR}/configs)
 
 # prefer 32-bit library locations
 set(CMAKE_LIBRARY_PATH
