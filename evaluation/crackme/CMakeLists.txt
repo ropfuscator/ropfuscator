@@ -10,20 +10,6 @@ foreach (filename ${files})
     get_filename_component(src_dir ${filename} DIRECTORY)
     get_filename_component(exec_name ${filename} NAME_WE)
 
-    #######################
-    # options handling
-    #######################
-
-    if (ROPF_PROFILE)
-        # ropfuscated binaries
-        set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS} ${COMPILER_PROFILING_FLAGS} -fprofile-instr-generate=${ropfuscated_exec_name}.profdata)
-        target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
-    endif ()
-
-    #######################
-    # ROPfuscated binaries
-    #######################
-
     add_custom_command(
         OUTPUT
         ${exec_name}.bc
@@ -40,6 +26,10 @@ foreach (filename ${files})
         set(ropfuscated_exec_name "eval.${exec_name}.${config}")
 
         add_executable(${ropfuscated_exec_name} ${ropfuscated_exec_name}.s)
+        
+        if (ROPF_PROFILE)
+            target_link_options(${ropfuscated_exec_name} PRIVATE ${LINKER_PROFILING_FLAGS})
+        endif ()
 
         add_dependencies(ropfuscator-evaluation-crackme ${ropfuscated_exec_name})
         target_link_libraries(${ropfuscated_exec_name} c)
