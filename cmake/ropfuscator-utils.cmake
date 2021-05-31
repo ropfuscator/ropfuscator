@@ -26,6 +26,7 @@ macro(generate_ropfuscated_asm)
   set(CLANG_FLAGS ${ROPF_IR_FLAGS} ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
                   ${ARG_SOURCE})
   set(LLC_FLAGS ${ROPF_ASM_FLAGS} ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
+  set(DEPENDENCIES ${ARG_SOURCE})
 
   #
   # options handling
@@ -36,9 +37,14 @@ macro(generate_ropfuscated_asm)
          -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
   endif()
 
+  if(ARG_OBF_CONFIG)
+    list(APPEND LLC_FLAGS -ropfuscator-config=${configfile})
+    list(APPEND DEPENDENCIES ${ARG_OBF_CONFIG})
+  endif()
+
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
-    DEPENDS ${ARG_SOURCE}
+    DEPENDS ${DEPENDENCIES}
     COMMAND $<TARGET_FILE:clang> ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
 endmacro()
