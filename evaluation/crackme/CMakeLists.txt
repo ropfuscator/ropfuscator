@@ -28,7 +28,10 @@ foreach(filename ${files})
     endif()
 
     add_dependencies(ropfuscator-evaluation-crackme ${ropfuscated_exec_name})
-    target_link_libraries(${ropfuscated_exec_name} c)
+
+    if(NOT USE_LIBC)
+      target_link_libraries(${ropfuscated_exec_name} rop)
+    endif()
 
     add_custom_command(
       OUTPUT ${ropfuscated_exec_name}.s
