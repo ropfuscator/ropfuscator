@@ -40,8 +40,8 @@ macro(generate_clean_asm)
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${ARG_SOURCE}
-    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS} ${ARG_SOURCE}
-            ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
+    COMMAND $<TARGET_FILE:clang> ARGS ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
+            ${ARG_SOURCE} ${ARG_HEADERS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS -fno-ropfuscator ${ARG_ASMFLAGS}
             ${ARG_OUTNAME}.bc -o ${ARG_OUTNAME}.s)
 endmacro()
