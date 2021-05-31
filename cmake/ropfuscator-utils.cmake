@@ -16,7 +16,7 @@ macro(generate_ropfuscated_asm)
   if(NOT ARG_OUTNAME)
     message(FATAL_ERROR "Output name not specified!")
   endif()
-  
+
   #
   # getting includes directories set for current directory
   #
@@ -68,6 +68,14 @@ macro(generate_clean_asm)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         ${ARGN})
 
+  if(NOT ARG_SOURCE)
+    message(FATAL_ERROR "Source file not specified!")
+  endif()
+
+  if(NOT ARG_OUTNAME)
+    message(FATAL_ERROR "Output name not specified!")
+  endif()
+  
   # add no-ropfuscator flag to user defined flags
   list(APPEND ARG_ASMFLAGS -fno-ropfuscator)
 
