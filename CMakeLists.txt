@@ -14,7 +14,10 @@ set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm)
 set(ROPF_ASM_FLAGS -march=x86)
+
+# ropfuscator configuration files
 set(ROPF_OBFUSCATIONS_CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/configs)
+file(GLOB ROPF_CONFIGURATION_FILES ${ROPF_OBFUSCATIONS_CONFIG_DIR}/*.conf)
 
 # prefer 32-bit library locations
 set(CMAKE_LIBRARY_PATH
