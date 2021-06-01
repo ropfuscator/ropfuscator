@@ -1,4 +1,4 @@
-add_library(rop SHARED librop.c)
+add_library(rop STATIC librop.c)
 
 set(VERSION_MAJOR 0)
 set(VERSION_MINOR 1)
