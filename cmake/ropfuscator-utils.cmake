@@ -49,7 +49,6 @@ macro(generate_ropfuscated_asm)
   #
 
   if(ROPF_PROFILE)
-    # message("YO")
     list(APPEND CLANG_FLAGS ${COMPILER_PROFILING_FLAGS}
          -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
   endif()
