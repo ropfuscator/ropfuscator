@@ -54,7 +54,7 @@ macro(generate_ropfuscated_asm)
   endif()
 
   if(ARG_OBF_CONFIG)
-    list(APPEND LLC_FLAGS -ropfuscator-config=${configfile})
+    list(APPEND LLC_FLAGS -ropfuscator-config=${ARG_OBF_CONFIG})
     list(APPEND DEPENDENCIES ${ARG_OBF_CONFIG})
   endif()
 
