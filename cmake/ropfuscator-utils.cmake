@@ -29,7 +29,7 @@ macro(generate_ropfuscated_asm)
   # a temporary "flag" variable to avoid this behaviour.
   if(NOT CURRENT_DIR_INCLUDES_FLAG)
     foreach(dir ${CURRENT_DIR_INCLUDES})
-      string(APPEND INCLUDES_DIRECTIVE "-I${dir} ")
+      list(APPEND INCLUDES_DIRECTIVE "-I${dir}")
     endforeach()
 
     set(CURRENT_DIR_INCLUDES_FLAG True)
@@ -49,8 +49,10 @@ macro(generate_ropfuscated_asm)
   #
 
   if(ROPF_PROFILE)
+  # message("YO")
     list(APPEND CLANG_FLAGS ${COMPILER_PROFILING_FLAGS}
          -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
+         message(${CLANG_FLAGS})
   endif()
 
   if(ARG_OBF_CONFIG)
