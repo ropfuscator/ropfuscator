@@ -9,7 +9,7 @@ option(USE_LIBC "Extract gadgets from libc instead of ropfuscator's librop."
 
 set(CMAKE_C_FLAGS "-m32 -fpie")
 set(CMAKE_ASM_FLAGS "-m32 -fpie")
-set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie -Wl,-rpath,${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie")
 set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
 set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
 set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm)
