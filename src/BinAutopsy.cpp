@@ -696,8 +696,8 @@ void BinaryAutopsy::addGadget(std::shared_ptr<Microgadget> gadget) {
   case X86::POP32rmr: {
     gadget->reg1 = inst.getOperand(0).getReg();
     gadget->reg2 = X86::NoRegister;
-    gadget->Type = GadgetType::INIT;
-    GadgetPrimitives[GadgetType::INIT].push_back(gadget);
+    gadget->Type = GadgetType::MOV;
+    GadgetPrimitives[GadgetType::MOV].push_back(gadget);
     break;
   }
   // add REG1, REG2: add

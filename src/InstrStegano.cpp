@@ -105,7 +105,7 @@ InstrSteganoProcessor::convertROPChainToStegano(ROPChain &           chain,
     }
     const Microgadget *gadget = elem.microgadget;
     switch (gadget->Type) {
-    case GadgetType::INIT:
+    case GadgetType::MOV:
       popNext   = true;
       supported = true;
       break;
@@ -149,7 +149,7 @@ void InstrSteganoProcessor::insertGadget(
   MemLoc x = MemLoc::find(gadget->reg1, stack);
   MemLoc y = MemLoc::find(gadget->reg2, stack);
   switch (gadget->Type) {
-  case GadgetType::INIT:
+  case GadgetType::MOV:
     // reg1 := poppedValue
     insertMov(x, poppedValue, as, stack, opaqueReg, opaqueValue);
     break;
