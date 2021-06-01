@@ -34,7 +34,7 @@ macro(generate_ropfuscated_asm)
 
     set(CURRENT_DIR_INCLUDES_FLAG True)
   endif()
-  
+
   #
   # macro variables
   #
@@ -49,10 +49,10 @@ macro(generate_ropfuscated_asm)
   #
 
   if(ROPF_PROFILE)
-  # message("YO")
+    # message("YO")
     list(APPEND CLANG_FLAGS ${COMPILER_PROFILING_FLAGS}
          -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
-         message(${CLANG_FLAGS})
+    message(${CLANG_FLAGS})
   endif()
 
   if(ARG_OBF_CONFIG)
