@@ -289,7 +289,7 @@ ROPEngine::handleArithmeticRI(MachineInstr *             MI,
   unsigned int    dest_reg = MI->getOperand(0).getReg();
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1)
+  builder.append(GadgetType::MOV, SCRATCH_1)
       .append(ChainElem::fromImmediate(imm));
   builder.append(gadget_type, dest_reg, SCRATCH_1);
   builder.reorder();
@@ -365,7 +365,7 @@ ROPEngine::handleArithmeticRM(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (src != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
@@ -422,17 +422,17 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *             MI,
   if (src == X86::NoRegister) {
     // lea dst, [disp]
     // -> mov dst, disp
-    builder.append(GadgetType::INIT, dst).append(disp_elem);
+    builder.append(GadgetType::MOV, dst).append(disp_elem);
   } else {
     // lea dst, [src + disp]
 
     if (src != dst) {
       // -> mov dst, disp; add dst, src
-      builder.append(GadgetType::INIT, dst).append(disp_elem);
+      builder.append(GadgetType::MOV, dst).append(disp_elem);
       builder.append(GadgetType::ADD, dst, src);
     } else {
       // -> mov scratch, disp; add dst, scratch
-      builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+      builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
       builder.append(GadgetType::ADD, dst, SCRATCH_1);
     }
   }
@@ -469,7 +469,7 @@ ROPEngine::handleMov32rm(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (src != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
@@ -516,8 +516,8 @@ ROPEngine::handleMov32mr(MachineInstr *             MI,
 
     disp_elem =
         ChainElem::createStackPointerOffset(disp_elem.value, esp_elem.esp_id);
-    builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-    builder.append(GadgetType::INIT, SCRATCH_2).append(esp_elem);
+    builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
+    builder.append(GadgetType::MOV, SCRATCH_2).append(esp_elem);
     builder.append(GadgetType::ADD, SCRATCH_1, SCRATCH_2);
     builder.append(GadgetType::STORE, SCRATCH_1, src);
     builder.reorder();
@@ -528,7 +528,7 @@ ROPEngine::handleMov32mr(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (dst != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::STORE, SCRATCH_1, src);
@@ -573,10 +573,10 @@ ROPEngine::handleMov32mi(MachineInstr *             MI,
 
     disp_elem =
         ChainElem::createStackPointerOffset(disp_elem.value, esp_elem.esp_id);
-    builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
-    builder.append(GadgetType::INIT, SCRATCH_2).append(esp_elem);
+    builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
+    builder.append(GadgetType::MOV, SCRATCH_2).append(esp_elem);
     builder.append(GadgetType::ADD, SCRATCH_1, SCRATCH_2);
-    builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
+    builder.append(GadgetType::MOV, SCRATCH_2).append(imm_elem);
     builder.append(GadgetType::STORE, SCRATCH_1, SCRATCH_2);
     builder.reorder();
     builder.normalInstrFlag = true;
@@ -586,8 +586,8 @@ ROPEngine::handleMov32mi(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_2).append(imm_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (dst != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::STORE, SCRATCH_1, SCRATCH_2);
@@ -631,7 +631,7 @@ ROPEngine::handleMov32ri(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, dst).append(imm_elem);
+  builder.append(GadgetType::MOV, dst).append(imm_elem);
   builder.reorder();
   builder.normalInstrFlag = true;
 
@@ -663,8 +663,8 @@ ROPEngine::handleCmp32mi(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_2).append(imm_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (dst != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, dst);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
@@ -710,7 +710,7 @@ ROPEngine::handleCmp32ri(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_2).append(imm_elem);
+  builder.append(GadgetType::MOV, SCRATCH_2).append(imm_elem);
   builder.append(GadgetType::COPY, SCRATCH_1, reg);
   builder.append(GadgetType::SUB, SCRATCH_1, SCRATCH_2);
   builder.reorder();
@@ -743,7 +743,7 @@ ROPEngine::handleCmp32rm(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, SCRATCH_1).append(disp_elem);
+  builder.append(GadgetType::MOV, SCRATCH_1).append(disp_elem);
   if (src != X86::NoRegister)
     builder.append(GadgetType::ADD, SCRATCH_1, src);
   builder.append(GadgetType::LOAD_1, SCRATCH_1);
@@ -829,9 +829,9 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *             MI,
 
   ROPChainBuilder builder(BA, scratchRegs);
 
-  builder.append(GadgetType::INIT, reverse ? SCRATCH_1 : SCRATCH_2)
+  builder.append(GadgetType::MOV, reverse ? SCRATCH_1 : SCRATCH_2)
       .append(ChainElem::fromJmpTarget(MI->getOperand(0).getMBB()));
-  builder.append(GadgetType::INIT, reverse ? SCRATCH_2 : SCRATCH_1)
+  builder.append(GadgetType::MOV, reverse ? SCRATCH_2 : SCRATCH_1)
       .append(ChainElem::createJmpFallthrough());
   builder.append(cmov_type, SCRATCH_1, SCRATCH_2);
   builder.reorder();

@@ -8,7 +8,7 @@ namespace ropf {
 
 enum class GadgetType {
   UNDEFINED,
-  INIT,
+  MOV,
   XCHG,
   COPY,
   LOAD,
