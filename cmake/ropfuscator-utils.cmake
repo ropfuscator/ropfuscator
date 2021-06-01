@@ -60,7 +60,7 @@ macro(generate_ropfuscated_asm)
 
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
-    DEPENDS ${DEPENDENCIES}
+    DEPENDS ${DEPENDENCIES} rop
     COMMAND $<TARGET_FILE:clang> ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
 endmacro()
