@@ -10,3 +10,6 @@
 [submodule "thirdparty/chocolate-doom"]
 	path = thirdparty/chocolate-doom
 	url = git@github.com:peperunas/chocolate-doom.git
+[submodule "thirdparty/yamagi-quake2"]
+	path = thirdparty/yamagi-quake2
+	url = git@bitbucket.org:peperunas/yamagi-quake2.git
