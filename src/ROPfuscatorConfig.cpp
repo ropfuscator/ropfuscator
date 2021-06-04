@@ -200,12 +200,12 @@ ROPfuscatorConfig::getParameter(const std::string &funcname) const {
 }
 
 void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
-  dbg_fmt("[*] Loading obfuscation configuration from file {}.\n", filename);
+  dbg_fmt("[*] Loading obfuscation configuration \"{}\".\n", filename);
 
   toml::ParseResult parseResult = toml::parseFile(filename);
   if (!parseResult.valid()) {
     fmt::print(stderr,
-               "Error while parsing configuration file:\n {}",
+               "Error while parsing configuration file: {}\n",
                parseResult.errorReason);
     exit(-1);
   }
