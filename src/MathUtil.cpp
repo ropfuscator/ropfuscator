@@ -310,28 +310,33 @@ class PrimeNumberGeneratorImpl {
       if (n >> 32) {
         // >= 2**32
         UIntT base = 2;
+
         if (!millerRabinTest(n, d, r, base, divisor)) {
           return false;
         }
+
         uint32_t hash = (uint32_t)n * 0xad625b89u;
         base          = prime_base_64[hash >> 18];
+
         if (!millerRabinTest(n, d, r, base, divisor)) {
           return false;
         }
+
         if (n >> 49) {
           base = prime_base_64_2[base >> 13];
+
           if (!millerRabinTest(n, d, r, base, divisor)) {
             return false;
           }
         }
+
         return true;
-      } else {
-        // < 2**32
-        uint32_t hash = (uint32_t)n * 0xad625b89u;
-        UIntT    base = prime_base_32[hash >> 24];
-        return millerRabinTest(n, d, r, base, divisor);
       }
-      return true;
+      // < 2**32
+      uint32_t hash = (uint32_t)n * 0xad625b89u;
+      UIntT    base = prime_base_32[hash >> 24];
+
+      return millerRabinTest(n, d, r, base, divisor);
     }
   }
 };
@@ -345,6 +350,7 @@ uint32_t PrimeNumberGenerator::getPrime32() {
     }
   }
 }
+
 uint64_t PrimeNumberGenerator::getPrime64() { // caution: very slow!
   for (;;) {
     uint64_t v = PrimeNumberGeneratorImpl::getRandom64();

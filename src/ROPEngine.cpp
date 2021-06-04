@@ -286,7 +286,7 @@ ROPEngine::handleArithmeticRI(MachineInstr *             MI,
   default: return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
-  unsigned int    dest_reg = MI->getOperand(0).getReg();
+  Register        dest_reg = MI->getOperand(0).getReg();
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::MOV, SCRATCH_1)
@@ -302,9 +302,9 @@ ROPChainStatus
 ROPEngine::handleArithmeticRR(MachineInstr *             MI,
                               std::vector<unsigned int> &scratchRegs) {
   // extract operands
-  unsigned int dst  = MI->getOperand(0).getReg();
-  unsigned int src1 = MI->getOperand(1).getReg();
-  unsigned int src2 = MI->getOperand(2).getReg();
+  Register dst  = MI->getOperand(0).getReg();
+  Register src1 = MI->getOperand(1).getReg();
+  Register src2 = MI->getOperand(2).getReg();
 
   if (dst != src1)
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -356,8 +356,8 @@ ROPEngine::handleArithmeticRM(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(2).getReg(); // may be NoRegister
+  Register dst = MI->getOperand(0).getReg();
+  Register src = MI->getOperand(2).getReg(); // may be NoRegister
 
   ChainElem disp_elem;
   if (!convertOperandToChainPushImm(MI->getOperand(5), disp_elem))
@@ -380,9 +380,9 @@ ROPChainStatus
 ROPEngine::handleXor32RR(MachineInstr *             MI,
                          std::vector<unsigned int> &scratchRegs) {
   // extract operands
-  unsigned int dst  = MI->getOperand(0).getReg();
-  unsigned int src1 = MI->getOperand(1).getReg();
-  unsigned int src2 = MI->getOperand(2).getReg();
+  Register dst  = MI->getOperand(0).getReg();
+  Register src1 = MI->getOperand(1).getReg();
+  Register src2 = MI->getOperand(2).getReg();
 
   // only handle xor eax, eax which is widely used and gadgets are often found
   if (dst != src1 || dst != src2)
@@ -399,12 +399,12 @@ ROPEngine::handleXor32RR(MachineInstr *             MI,
 
 ROPChainStatus ROPEngine::handleLea32r(MachineInstr *             MI,
                                        std::vector<unsigned int> &scratchRegs) {
-  unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg();
+  Register dst = MI->getOperand(0).getReg();
+  Register src = MI->getOperand(1).getReg();
   // int64_t op_scale = MI->getOperand(2).getImm();
-  unsigned int                indexReg   = MI->getOperand(3).getReg();
+  Register                    indexReg   = MI->getOperand(3).getReg();
   const llvm::MachineOperand &op_disp    = MI->getOperand(4);
-  unsigned int                segmentReg = MI->getOperand(5).getReg();
+  Register                    segmentReg = MI->getOperand(5).getReg();
 
   // lea op_dst, op_segment:[op_reg1 + op_scale * op_reg2 + op_disp]
   // skip scaled-index addressing mode
@@ -460,9 +460,9 @@ ROPEngine::handleMov32rm(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg(); // may be NoRegister
-  ChainElem    disp_elem;
+  Register  dst = MI->getOperand(0).getReg();
+  Register  src = MI->getOperand(1).getReg(); // may be NoRegister
+  ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -497,9 +497,9 @@ ROPEngine::handleMov32mr(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
-  unsigned int src = MI->getOperand(5).getReg();
-  ChainElem    disp_elem;
+  Register  dst = MI->getOperand(0).getReg(); // may be NoRegister
+  Register  src = MI->getOperand(5).getReg();
+  ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(3), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -557,7 +557,7 @@ ROPEngine::handleMov32mi(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
+  Register dst = MI->getOperand(0).getReg(); // may be NoRegister
 
   ChainElem disp_elem;
 
@@ -604,8 +604,8 @@ ROPEngine::handleMov32rr(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg();
+  Register dst = MI->getOperand(0).getReg();
+  Register src = MI->getOperand(1).getReg();
 
   ROPChainBuilder builder(BA, scratchRegs);
 
@@ -623,8 +623,8 @@ ROPEngine::handleMov32ri(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
-  ChainElem    imm_elem;
+  Register  dst = MI->getOperand(0).getReg();
+  ChainElem imm_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(1), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -650,8 +650,8 @@ ROPEngine::handleCmp32mi(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg(); // may be NoRegister
-  ChainElem    imm_elem;
+  Register  dst = MI->getOperand(0).getReg(); // may be NoRegister
+  ChainElem imm_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(5), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -682,8 +682,8 @@ ROPEngine::handleCmp32rr(MachineInstr *             MI,
   if (MI->getOperand(0).getReg() == 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  unsigned int reg1 = MI->getOperand(0).getReg();
-  unsigned int reg2 = MI->getOperand(1).getReg();
+  Register reg1 = MI->getOperand(0).getReg();
+  Register reg2 = MI->getOperand(1).getReg();
 
   ROPChainBuilder builder(BA, scratchRegs);
 
@@ -702,8 +702,8 @@ ROPEngine::handleCmp32ri(MachineInstr *             MI,
   if (MI->getOperand(0).getReg() == 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  unsigned int reg = MI->getOperand(0).getReg();
-  ChainElem    imm_elem;
+  Register  reg = MI->getOperand(0).getReg();
+  ChainElem imm_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(1), imm_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -734,9 +734,9 @@ ROPEngine::handleCmp32rm(MachineInstr *             MI,
     return ROPChainStatus::ERR_UNSUPPORTED;
 
   // extract operands
-  unsigned int dst = MI->getOperand(0).getReg();
-  unsigned int src = MI->getOperand(1).getReg(); // may be NoRegister
-  ChainElem    disp_elem;
+  Register  dst = MI->getOperand(0).getReg();
+  Register  src = MI->getOperand(1).getReg(); // may be NoRegister
+  ChainElem disp_elem;
 
   if (!convertOperandToChainPushImm(MI->getOperand(4), disp_elem))
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -875,7 +875,7 @@ ROPEngine::handleCallReg(MachineInstr *             MI,
   if (!MI->getOperand(0).isReg() || MI->getOperand(0).getReg() == 0)
     return ROPChainStatus::ERR_UNSUPPORTED;
 
-  unsigned int    reg = MI->getOperand(0).getReg();
+  Register        reg = MI->getOperand(0).getReg();
   ROPChainBuilder builder(BA, scratchRegs);
 
   builder.append(GadgetType::JMP, reg);

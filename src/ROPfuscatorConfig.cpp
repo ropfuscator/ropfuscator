@@ -49,12 +49,12 @@ inline bool parseOption(const toml::Value &section,
     DEBUG_WITH_TYPE(OBF_CONFIG,
                     dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
     return true;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
-std::string str_tolower(const std::string &s) {
+std::string strTolower(const std::string &s) {
   std::string s_lower = s;
   std::transform(s_lower.begin(),
                  s_lower.end(),
@@ -124,7 +124,7 @@ void parseFunctionOptions(const toml::Value &   config,
   // Opaque predicates algorithm
   std::string op_algo, op_input_algo;
   if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
-    op_algo = str_tolower(op_algo);
+    op_algo = strTolower(op_algo);
     if (validOpaquePredicateAlgorithmNames.count(op_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
               "algorithm. Algorithm configuration is ignored.\n",
@@ -137,7 +137,7 @@ void parseFunctionOptions(const toml::Value &   config,
                   tomlSect,
                   CONFIG_OPA_PRED_INPUT_ALGO,
                   op_input_algo)) {
-    op_input_algo = str_tolower(op_input_algo);
+    op_input_algo = strTolower(op_input_algo);
     if (validOpaquePredicateInputAlgorithmNames.count(op_input_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
               "input algorithm. Algorithm configuration is ignored.\n",
@@ -168,7 +168,7 @@ void parseFunctionOptions(const toml::Value &   config,
   // Branch divergence algorithm
   std::string branch_div_algo;
   if (parseOption(config, tomlSect, CONFIG_BRANCH_DIV_ALGO, branch_div_algo)) {
-    branch_div_algo = str_tolower(branch_div_algo);
+    branch_div_algo = strTolower(branch_div_algo);
     if (validBranchDivergenceAlgorithmNames.count(branch_div_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as a branch divergence "
               "algorithm. Algorithm configuration is ignored.\n",
@@ -237,7 +237,7 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
                 CONFIG_GENERAL_SECTION,
                 CONFIG_LIB_SHA1,
                 globalConfig.librarySHA1);
-    globalConfig.librarySHA1 = str_tolower(globalConfig.librarySHA1);
+    globalConfig.librarySHA1 = strTolower(globalConfig.librarySHA1);
 
     // linked libraries
     parseOption(*general_section,
