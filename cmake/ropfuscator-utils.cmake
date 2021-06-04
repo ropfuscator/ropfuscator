@@ -42,7 +42,7 @@ macro(generate_ropfuscated_asm)
   set(CLANG_FLAGS ${ROPF_IR_FLAGS} ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
                   ${ARG_SOURCE})
   set(LLC_FLAGS ${ROPF_ASM_FLAGS} ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
-  set(DEPENDENCIES ${ARG_SOURCE})
+  set(DEPENDENCIES clang llc ${ARG_SOURCE})
 
   #
   # options handling
