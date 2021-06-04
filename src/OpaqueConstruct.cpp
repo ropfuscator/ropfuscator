@@ -5,7 +5,6 @@
 #include "X86AssembleHelper.h"
 #include "X86TargetMachine.h"
 #include <algorithm>
-#include <random>
 
 namespace ropf {
 
@@ -347,9 +346,8 @@ public:
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     if (target.type == OpaqueStorage::Type::REG) {
       return {target.reg};
-    } else {
-      return {};
     }
+    return {};
   }
 
   size_t opaquePredicateCount() const override { return 1; }
@@ -638,7 +636,7 @@ struct R3SATVar {
 
 struct R3SATClause {
   std::array<R3SATVar, 3>                        vars;
-  template <typename UINT> std::pair<UINT, UINT> to_mask() const {
+  template <typename UINT> std::pair<UINT, UINT> toMask() const {
     std::pair<UINT, UINT> mask = {0, 0};
     for (int i = 0; i < 3; i++) {
       (vars[i].neg ? mask.second : mask.first) |= (UINT)1 << vars[i].index;
@@ -1407,10 +1405,10 @@ std::map<std::string,
 };
 
 template <typename Result, typename... Args>
-Result *call_factory(
-    const std::map<std::string, oc_factory<Result, Args...>> &factories,
-    const std::string &                                       key,
-    Args &&...args) {
+Result *
+callFactory(const std::map<std::string, oc_factory<Result, Args...>> &factories,
+            const std::string &                                       key,
+            Args &&...args) {
   auto it = factories.find(key);
   return it == factories.end() ? nullptr
                                : it->second(std::forward<Args>(args)...);
@@ -1427,19 +1425,19 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
     const std::string &  inputAlgorithm,
     bool                 contextualOpEnabled) {
   std::shared_ptr<RuntimeValueGenerator> rvg {
-      call_factory(runtimevaluegen_factories, inputAlgorithm)};
+      callFactory(runtimevaluegen_factories, inputAlgorithm)};
   if (!rvg) {
     dbg_fmt("Warning: unknown opaque input generation algorithm: {}\n",
             inputAlgorithm);
     rvg.reset(AddRegRuntimeValueGenerator::create());
   }
   std::shared_ptr<OpaqueConstruct> oc {
-      call_factory(constant_factories,
-                   algorithm,
-                   target,
-                   std::move(value),
-                   std::move(rvg),
-                   std::move(contextualOpEnabled))};
+      callFactory(constant_factories,
+                  algorithm,
+                  target,
+                  std::move(value),
+                  std::move(rvg),
+                  std::move(contextualOpEnabled))};
   if (!oc) {
     dbg_fmt("Warning: unknown opaque predicate algorithm: {}\n", algorithm);
     oc.reset(MovConstant32::create(target, value, rvg, contextualOpEnabled));
@@ -1477,7 +1475,7 @@ OpaqueConstructFactory::createBranchingOpaqueConstant32(
   }
   std::shared_ptr<OpaqueConstruct> randomOC, selectorOC;
   // random generator
-  if (OpaqueConstruct *p = call_factory(random_factories, random_algo)) {
+  if (OpaqueConstruct *p = callFactory(random_factories, random_algo)) {
     randomOC.reset(p);
   } else {
     dbg_fmt("Warning: unknown random algorithm: {}\n", random_algo);
@@ -1486,7 +1484,7 @@ OpaqueConstructFactory::createBranchingOpaqueConstant32(
   }
   // selector
   if (OpaqueConstruct *oc =
-          call_factory(selector_factories, selector_algo, target, values)) {
+          callFactory(selector_factories, selector_algo, target, values)) {
     selectorOC.reset(oc);
   } else {
     dbg_fmt("Warning: unknown selector algorithm: {}\n", selector_algo);

@@ -1,6 +1,5 @@
 #include "XchgGraph.h"
 #include "Debug.h"
-#include <algorithm>
 #include <limits.h>
 #include <list>
 

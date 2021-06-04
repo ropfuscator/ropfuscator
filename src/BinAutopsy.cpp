@@ -22,7 +22,6 @@
 #include "InstPrinter/X86IntelInstPrinter.h"
 #endif
 
-#include <assert.h>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <fstream>
@@ -632,6 +631,7 @@ const Microgadget *BinaryAutopsy::findGadget(GadgetType   type,
                                              unsigned int reg1,
                                              unsigned int reg2) const {
   auto it = GadgetPrimitives.find(GadgetType::XCHG);
+
   if (it == GadgetPrimitives.end() || it->second.empty()) {
     return nullptr;
   }
@@ -641,6 +641,7 @@ const Microgadget *BinaryAutopsy::findGadget(GadgetType   type,
       return g.get();
     }
   }
+
   return nullptr;
 }
 
@@ -970,7 +971,7 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
 
   for (auto &edge : path) {
     // in XCHG instructions the operands order doesn't matter
-    auto found = findGadget(GadgetType::XCHG, edge.first, edge.second);
+    const auto *found = findGadget(GadgetType::XCHG, edge.first, edge.second);
 
     if (!found)
       found = findGadget(GadgetType::XCHG, edge.second, edge.first);
@@ -1005,7 +1006,8 @@ unsigned int BinaryAutopsy::getEffectiveReg(const XchgState &state,
 }
 
 void BinaryAutopsy::debugPrintGadgets() const {
-  auto regInfo = target.getMCRegisterInfo();
+  const auto *regInfo = target.getMCRegisterInfo();
+
   for (auto &kv : GadgetPrimitives) {
     dbg_fmt("Gadgets of type {}:\n", (int)kv.first);
     for (auto &g : kv.second) {
@@ -1015,6 +1017,7 @@ void BinaryAutopsy::debugPrintGadgets() const {
               g->reg1,
               regInfo->getName(g->reg2),
               g->reg2);
+
       for (uint64_t addr : g->addresses) {
         dbg_fmt(" 0x{:x}", addr);
       }

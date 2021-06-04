@@ -94,7 +94,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
   static constexpr const char *DEBUG_FMT_SIMPLE =
       "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}";
 
-  std::ostream &print_to(std::ostream &os, const char *fmt) const {
+  std::ostream &printTo(std::ostream &os, const char *fmt) const {
     const ROPChainStatEntry &entry = *this;
     fmt::print(os,
                fmt,
@@ -110,16 +110,16 @@ struct ROPfuscatorCore::ROPChainStatEntry {
 
   friend std::ostream &operator<<(std::ostream &           os,
                                   const ROPChainStatEntry &entry) {
-    return entry.print_to(os, DEBUG_FMT_NORMAL);
+    return entry.printTo(os, DEBUG_FMT_NORMAL);
   }
 
-  std::string to_string(const char *fmt) const {
+  std::string toString(const char *fmt) const {
     std::stringstream ss;
-    print_to(ss, fmt);
+    printTo(ss, fmt);
     return ss.str();
   }
 
-  static std::string header_string(const char *fmt) {
+  static std::string headerString(const char *fmt) {
     return fmt::format(fmt,
                        "ropfuscated",
                        "not-implemented",
@@ -314,12 +314,12 @@ ROPfuscatorCore::~ROPfuscatorCore() {
         "{}\t{}\t{}\n",
         "op-id",
         "op-name",
-        ROPChainStatEntry::header_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+        ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     for (auto &kv : instr_stat) {
       dbg_fmt("{}\t{}\t{}\n",
               kv.first,
               TII->getName(kv.first),
-              kv.second.to_string(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+              kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     }
     dbg_fmt("============================================================\n");
     dbg_fmt("Total ROP chain elements: {}\n", total_chain_elems);
