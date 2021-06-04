@@ -343,6 +343,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
   std::map<int, int>          espOffsetMap;
   int                         espoffset = 0;
   std::vector<const Symbol *> versionedSymbols;
+  std::vector<unsigned>       gadgetIdxToObfuscate;
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems += chain.size();
@@ -413,13 +414,45 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     espoffset -= 4;
   }
 
-  // Pushes each chain element on the stack in reverse order
-  for (auto elem = chain.rbegin(); elem != chain.rend(); ++elem) {
-    switch (elem->type) {
+  // gadget addresses stuff
+  if (param.opaqueGadgetAddressesEnabled &&
+      param.gadgetAddressesObfuscationPercentage != 100) {
+    // enumerate total number of gadget addresses in chain
+    u_int16_t idx = 0;
+    u_int16_t numberGadgetToObfuscate;
 
+    // saving the indices of all the gadgets in the chain.
+    // we will decide the ones to keep later
+    for (auto x : chain) {
+      if (x.type == ChainElem::Type::GADGET) {
+        gadgetIdxToObfuscate.emplace_back(idx);
+      }
+
+      idx++;
+    }
+
+    numberGadgetToObfuscate =
+        floor(gadgetIdxToObfuscate.size() /
+              (100 / param.gadgetAddressesObfuscationPercentage));
+
+    // shuffling array with indices
+    std::random_shuffle(gadgetIdxToObfuscate.begin(),
+                        gadgetIdxToObfuscate.end());
+
+    // removing last indices, keeping only the required number of addresses
+    for (idx = 0; idx < numberGadgetToObfuscate; idx++) {
+      gadgetIdxToObfuscate.pop_back();
+    }
+  }
+
+  u_int16_t idx = 0;
+  // Pushes each chain element on the stack in reverse order
+  for (auto elem : chain) {
+    switch (elem.type) {
     case ChainElem::Type::IMM_VALUE: {
       // Push the immediate value onto the stack
-      ROPChainPushInst *push = new PUSH_IMM(elem->value);
+      ROPChainPushInst *push = new PUSH_IMM(elem.value);
+
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
@@ -427,18 +460,19 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
             param.opaqueInputGenAlgorithm,
             param.opaquePredicateContextualEnabled);
       }
+
       pushchain.emplace_back(push);
       break;
     }
 
     case ChainElem::Type::IMM_GLOBAL: {
       // Push the global symbol onto the stack
-      ROPChainPushInst *push = new PUSH_GV(elem->global, elem->value);
+      ROPChainPushInst *push = new PUSH_GV(elem.global, elem.value);
+
       if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
-        uint32_t value =
-            elem->value - math::Random::range32(0x1000, 0x10000000);
+        uint32_t value = elem.value - math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
             value,
@@ -446,6 +480,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
             param.opaqueInputGenAlgorithm,
             param.opaquePredicateContextualEnabled);
       }
+
       pushchain.emplace_back(push);
       break;
     }
@@ -454,18 +489,22 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Get a random symbol to reference this gadget in memory
       const Symbol *sym = BA->getRandomSymbol();
       // Choose a random address in the gadget
-      const std::vector<uint64_t> &addresses = elem->microgadget->addresses;
+      const std::vector<uint64_t> &addresses = elem.microgadget->addresses;
       std::vector<uint32_t>        offsets;
       int                          num_branches = 1;
-      if (param.opaqueBranchDivergenceEnabled)
+
+      if (param.opaqueBranchDivergenceEnabled) {
         num_branches = std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
                                 addresses.size());
+      }
+
       // pick num_branches elements randomly
       std::sample(addresses.begin(),
                   addresses.end(),
                   std::back_inserter(offsets),
                   num_branches,
                   math::Random::engine());
+
       for (uint32_t &offset : offsets) {
         offset -= sym->Address;
       }
@@ -480,7 +519,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       }
 
       ROPChainPushInst *push = new PUSH_GADGET(sym, offsets[0]);
-      if (param.opaquePredicateEnabled) {
+
+      // if we should obfuscate the addresses and the current
+      // index has been selected to be obfuscated
+      if (param.opaqueGadgetAddressesEnabled &&
+          (std::find(gadgetIdxToObfuscate.begin(),
+                     gadgetIdxToObfuscate.end(),
+                     idx) != gadgetIdxToObfuscate.end())) {
         std::shared_ptr<OpaqueConstruct> opaqueConstant;
         if (num_branches > 1) {
           opaqueConstant =
@@ -495,6 +540,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
               param.opaqueInputGenAlgorithm,
               param.opaquePredicateContextualEnabled);
         }
+
         auto opaqueValues =
             *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
         auto adjuster =
@@ -504,12 +550,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
         push->opaqueConstant =
             OpaqueConstructFactory::compose(adjuster, opaqueConstant);
       }
+
       pushchain.emplace_back(push);
       break;
     }
 
     case ChainElem::Type::JMP_BLOCK: {
-      MachineBasicBlock *targetMBB = elem->jmptarget;
+      MachineBasicBlock *targetMBB = elem.jmptarget;
       MBB.addSuccessorWithoutProb(targetMBB);
       auto targetLabel = as.label();
       putLabelInMBB(*targetMBB, targetLabel);
@@ -576,25 +623,26 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // push esp
       ROPChainPushInst *push = new PUSH_ESP();
       pushchain.emplace_back(push);
-      espOffsetMap[elem->esp_id] = espoffset;
+      espOffsetMap[elem.esp_id] = espoffset;
       break;
     }
 
     case ChainElem::Type::ESP_OFFSET: {
       // push $(imm - espoffset)
-      auto it = espOffsetMap.find(elem->esp_id);
+      auto it = espOffsetMap.find(elem.esp_id);
       if (it == espOffsetMap.end()) {
         dbg_fmt("Internal error: ESP_OFFSET should precede corresponding "
                 "ESP_PUSH\n");
         exit(1);
       }
-      ROPChainPushInst *push = new PUSH_IMM(elem->value - it->second);
+      ROPChainPushInst *push = new PUSH_IMM(elem.value - it->second);
       pushchain.emplace_back(push);
       break;
     }
     }
 
     espoffset -= 4;
+    idx++;
   }
 
   // instruction steganography: embed stegano instrs into opaque constants

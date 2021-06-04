@@ -42,10 +42,12 @@ inline bool parseOption(const toml::Value &section,
               sectionname,
               key,
               toml::internal::type_name<T>());
+
       return false;
     }
     const auto &value = v->as<T>();
     ref               = value;
+
     DEBUG_WITH_TYPE(OBF_CONFIG,
                     dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
     return true;
@@ -175,6 +177,28 @@ void parseFunctionOptions(const toml::Value &   config,
               branch_div_algo);
     } else {
       funcParam.opaqueBranchDivergenceAlgorithm = branch_div_algo;
+    }
+  }
+
+  // Gadget addresses obfuscation enabled
+  parseOption(config,
+              tomlSect,
+              CONFIG_OBF_GADGET_ADDRESSES_ENABLED,
+              funcParam.opaqueGadgetAddressesEnabled);
+
+  int addresses_obfuscation_percentage;
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_OBF_GADGET_ADDRESSED_PERCENTAGE,
+                  addresses_obfuscation_percentage)) {
+    if (addresses_obfuscation_percentage < 0 ||
+        addresses_obfuscation_percentage > 100) {
+      dbg_fmt("Ignoring address obfuscation percentage \"{}\". It should be a "
+              "value between 0 and 100. Ignoring.",
+              addresses_obfuscation_percentage);
+    } else {
+      funcParam.gadgetAddressesObfuscationPercentage =
+          addresses_obfuscation_percentage;
     }
   }
 }
