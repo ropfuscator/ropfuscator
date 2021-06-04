@@ -33,6 +33,9 @@ namespace ropf {
 #define CONFIG_OPA_PRED_INPUT_ALGO "opaque_predicates_input_algorithm"
 #define CONFIG_OPA_PRED_CONTEXTUAL_ENABLED                                     \
   "opaque_predicates_contextual_enabled"
+#define CONFIG_OBF_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses"
+#define CONFIG_OBF_GADGET_ADDRESSED_PERCENTAGE                                 \
+  "gadget_addresses_obfuscation_percentage"
 #define CONFIG_OPA_OBF_IMM_OPERAND   "obfuscate_immediate_operand"
 #define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
 #define CONFIG_OPA_OBF_STACK_SAVED   "obfuscate_stack_saved_values"
@@ -63,6 +66,10 @@ struct ObfuscationParameter {
   bool opaqueSteganoEnabled;
   /// true if branch divergence is enabled for this function
   bool opaqueBranchDivergenceEnabled;
+  /// true if gadget addresses should be obfuscated with opaque constants
+  bool opaqueGadgetAddressesEnabled;
+  /// percentage of total addresses to obfuscate for this function
+  unsigned int gadgetAddressesObfuscationPercentage;
   /// maximum number of branches in branch divergence
   unsigned int opaqueBranchDivergenceMaxBranches;
   /// opaque constant algorithm for this function
@@ -77,6 +84,8 @@ struct ObfuscationParameter {
         obfuscateImmediateOperand(true), opaquePredicateContextualEnabled(true),
         obfuscateBranchTarget(true), obfuscateStackSavedValues(true),
         opaqueSteganoEnabled(false), opaqueBranchDivergenceEnabled(false),
+        opaqueGadgetAddressesEnabled(true),
+        gadgetAddressesObfuscationPercentage(100),
         opaqueBranchDivergenceMaxBranches(32),
         opaqueConstantAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
         opaqueInputGenAlgorithm(OPAQUE_RANDOM_ALGORITHM_ADDREG),
