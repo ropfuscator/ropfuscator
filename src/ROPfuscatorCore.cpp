@@ -414,6 +414,10 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     espoffset -= 4;
   }
 
+  // reversing the chain as we are going to push the values in reverse
+  // order on the stack
+  std::reverse(chain.begin(), chain.end());
+
   // gadget addresses stuff
   if (param.opaqueGadgetAddressesEnabled &&
       param.gadgetAddressesObfuscationPercentage != 100) {
