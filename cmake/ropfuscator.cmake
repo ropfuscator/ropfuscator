@@ -18,7 +18,8 @@ set(ROPF_SOURCES
     ${ROPF_SRCDIR}/ROPfuscatorConfig.cpp
     ${ROPF_SRCDIR}/ROPfuscatorCore.cpp
     ${ROPF_SRCDIR}/X86ROPfuscatorPass.cpp
-    ${ROPF_SRCDIR}/XchgGraph.cpp)
+    ${ROPF_SRCDIR}/XchgGraph.cpp
+    ${ROPF_SRCDIR}/Utils.cpp)
 
 set(sources ${sources} ${ROPF_SOURCES})
 
