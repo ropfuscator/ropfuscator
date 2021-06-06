@@ -87,6 +87,10 @@ void parseFunctionOptions(const toml::Value &   config,
                           const std::string &   tomlSect,
                           ObfuscationParameter &funcParam) {
 
+  /* =========================
+   * TOGGLES PARSING
+   */
+
   // Obfuscation enabled
   parseOption(config,
               tomlSect,
@@ -123,6 +127,28 @@ void parseFunctionOptions(const toml::Value &   config,
               CONFIG_OPAQUE_STACK_VALUES_ENABLED,
               funcParam.opaqueSavedStackValuesEnabled);
 
+  // Opaque predicate steganography enabled
+  parseOption(config,
+              tomlSect,
+              CONFIG_STEGANOGRAPHY_ENABLED,
+              funcParam.opaqueSteganoEnabled);
+
+  // Branch divergence enabled
+  parseOption(config,
+              tomlSect,
+              CONFIG_BRANCH_DIVERGENCE_ENABLED,
+              funcParam.branchDivergenceEnabled);
+
+  // Gadget addresses obfuscation enabled
+  parseOption(config,
+              tomlSect,
+              CONFIG_OPAQUE_GADGET_ADDRESSES_ENABLED,
+              funcParam.opaqueGadgetAddressesEnabled);
+
+  /* =========================
+   * STRINGS PARSING
+   */
+
   // Opaque predicates algorithm
   std::string op_algo, op_input_algo;
   if (parseOption(config,
@@ -138,6 +164,7 @@ void parseFunctionOptions(const toml::Value &   config,
       funcParam.opaqueConstantsAlgorithm = op_algo;
     }
   }
+
   if (parseOption(config,
                   tomlSect,
                   CONFIG_OPAQUE_PREDICATES_INPUT_ALGORITHM,
@@ -151,24 +178,6 @@ void parseFunctionOptions(const toml::Value &   config,
       funcParam.opaqueInputGenAlgorithm = op_input_algo;
     }
   }
-
-  // Opaque predicate steganography enabled
-  parseOption(config,
-              tomlSect,
-              CONFIG_STEGANOGRAPHY_ENABLED,
-              funcParam.opaqueSteganoEnabled);
-
-  // Branch divergence enabled
-  parseOption(config,
-              tomlSect,
-              CONFIG_BRANCH_DIVERGENCE_ENABLED,
-              funcParam.branchDivergenceEnabled);
-
-  // Branch divergence max depth
-  parseOption(config,
-              tomlSect,
-              CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES,
-              (int &)funcParam.branchDivergenceMaxBranches);
 
   // Branch divergence algorithm
   std::string branch_div_algo;
@@ -186,12 +195,17 @@ void parseFunctionOptions(const toml::Value &   config,
     }
   }
 
-  // Gadget addresses obfuscation enabled
+  /* =========================
+   * VALUES PARSING
+   */
+
+  // Branch divergence max depth
   parseOption(config,
               tomlSect,
-              CONFIG_OPAQUE_GADGET_ADDRESSES_ENABLED,
-              funcParam.opaqueGadgetAddressesEnabled);
+              CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES,
+              (int &)funcParam.branchDivergenceMaxBranches);
 
+  // gadget addresses percentage
   int addresses_obfuscation_percentage;
   if (parseOption(config,
                   tomlSect,
@@ -208,6 +222,7 @@ void parseFunctionOptions(const toml::Value &   config,
     }
   }
 
+  // immediates percentage
   int immediates_obfuscation_percentage;
   if (parseOption(config,
                   tomlSect,
@@ -225,6 +240,7 @@ void parseFunctionOptions(const toml::Value &   config,
     }
   }
 
+  // branches percentage
   int branches_obfuscation_percentage;
   if (parseOption(config,
                   tomlSect,
