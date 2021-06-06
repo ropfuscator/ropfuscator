@@ -21,6 +21,7 @@
 #include "X86RegisterInfo.h"
 #include "X86Subtarget.h"
 #include "X86TargetMachine.h"
+#include "Utils.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
@@ -509,9 +510,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
       if (param.opaquePredicatesEnabled &&
           param.opaqueImmediateOperandsEnabled &&
-          (std::find(immediatesIdxToObfuscate.begin(),
-                     immediatesIdxToObfuscate.end(),
-                     idx) != immediatesIdxToObfuscate.end())) {
+          contains(immediatesIdxToObfuscate, idx)) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
             param.opaqueConstantsAlgorithm,
@@ -529,9 +528,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
       if (param.opaquePredicatesEnabled &&
           param.opaqueImmediateOperandsEnabled &&
-          (std::find(immediatesIdxToObfuscate.begin(),
-                     immediatesIdxToObfuscate.end(),
-                     idx) != immediatesIdxToObfuscate.end())) {
+          contains(immediatesIdxToObfuscate, idx)) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value = elem.value - math::Random::range32(0x1000, 0x10000000);
@@ -585,9 +582,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // if we should obfuscate the addresses and the current
       // index has been selected to be obfuscated
       if (param.opaqueGadgetAddressesEnabled &&
-          (std::find(gadgetsIdxToObfuscate.begin(),
-                     gadgetsIdxToObfuscate.end(),
-                     idx) != gadgetsIdxToObfuscate.end())) {
+          contains(gadgetsIdxToObfuscate, idx)) {
         std::shared_ptr<OpaqueConstruct> opaqueConstant;
         if (num_branches > 1) {
           opaqueConstant =
@@ -625,9 +620,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
       ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
       if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled &&
-          (std::find(branchIdxToObfuscate.begin(),
-                     branchIdxToObfuscate.end(),
-                     idx) != branchIdxToObfuscate.end())) {
+          contains(branchIdxToObfuscate, idx)) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
@@ -661,9 +654,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       if (targetLabel.symbol) {
         ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
         if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled &&
-            (std::find(branchIdxToObfuscate.begin(),
-                       branchIdxToObfuscate.end(),
-                       idx) != branchIdxToObfuscate.end())) {
+            contains(branchIdxToObfuscate, idx)) {
           // we have to limit value range, so that
           // linker will not complain about integer overflow in relocation
           uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
