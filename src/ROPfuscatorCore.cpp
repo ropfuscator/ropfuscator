@@ -420,35 +420,27 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
   // handle obfuscation of gadget addresses
   if (param.opaqueGadgetAddressesEnabled) {
-    // enumerate total number of gadget addresses in chain
-    u_int16_t idx = 0;
+    std::default_random_engine rng = math::Random::engine();
+    size_t                     numberGadgetsToObfuscate;
+    std::vector<size_t>        gadgetAddrIndices;
 
     // saving the indices of all the gadgets in the chain.
     // we will decide the ones to keep later
-    for (auto x : chain) {
-      if (x.type == ChainElem::Type::GADGET) {
-        gadgetIdxToObfuscate.emplace_back(idx);
-      }
-
-      idx++;
-    }
-
-    if (param.gadgetAddressesObfuscationPercentage < 100) {
-      u_int16_t numberGadgetToObfuscate;
-
-      numberGadgetToObfuscate =
-          floor(gadgetIdxToObfuscate.size() /
-                (100 / param.gadgetAddressesObfuscationPercentage));
-
-      // shuffling array with indices
-      std::random_shuffle(gadgetIdxToObfuscate.begin(),
-                          gadgetIdxToObfuscate.end());
-
-      // removing last indices, keeping only the required number of addresses
-      for (idx = 0; idx < numberGadgetToObfuscate; idx++) {
-        gadgetIdxToObfuscate.pop_back();
+    for (size_t i = 0; i < chain.size(); i++) {
+      if (chain.chain[i].type == ChainElem::Type::GADGET) {
+        gadgetAddrIndices.emplace_back(i);
       }
     }
+
+    numberGadgetsToObfuscate = gadgetAddrIndices.size() *
+                               param.gadgetAddressesObfuscationPercentage / 100;
+
+    // select N indices to be obfuscated (preserve the order)
+    std::sample(gadgetAddrIndices.begin(),
+                gadgetAddrIndices.end(),
+                std::back_inserter(gadgetIdxToObfuscate),
+                numberGadgetsToObfuscate,
+                rng);
   }
 
   u_int16_t idx = 0;
