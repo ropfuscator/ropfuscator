@@ -418,9 +418,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     size_t                     numberImmediatesToObfuscate;
     std::vector<size_t>        buf_indices;
 
-    printf("Immediates percentage: %d\n",
-           param.opaqueImmediateOperandsPercentage);
-
     // saving the indices of all the immediates in the chain.
     // we will decide the ones to keep later
     for (size_t i = 0; i < chain.size(); i++) {
