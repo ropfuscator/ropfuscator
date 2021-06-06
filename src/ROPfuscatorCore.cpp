@@ -384,7 +384,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
   // instruction steganography: convert part of ROP chain into stegano
   SteganoInstructions steganoInstrs;
-  if (param.opaquePredicateEnabled && param.opaqueSteganoEnabled) {
+  if (param.opaquePredicatesEnabled && param.opaqueSteganoEnabled) {
     size_t count =
         InstrSteganoProcessor().convertROPChainToStegano(chain,
                                                          steganoInstrs,
@@ -451,12 +451,12 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Push the immediate value onto the stack
       ROPChainPushInst *push = new PUSH_IMM(elem.value);
 
-      if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
+      if (param.opaquePredicatesEnabled && param.opaqueImmediateOperandsEnabled) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
-            param.opaqueConstantAlgorithm,
+            param.opaqueConstantsAlgorithm,
             param.opaqueInputGenAlgorithm,
-            param.opaquePredicateContextualEnabled);
+            param.contextualOpaquePredicatesEnabled);
       }
 
       pushchain.emplace_back(push);
@@ -467,16 +467,16 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Push the global symbol onto the stack
       ROPChainPushInst *push = new PUSH_GV(elem.global, elem.value);
 
-      if (param.opaquePredicateEnabled && param.obfuscateImmediateOperand) {
+      if (param.opaquePredicatesEnabled && param.opaqueImmediateOperandsEnabled) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value = elem.value - math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
             value,
-            param.opaqueConstantAlgorithm,
+            param.opaqueConstantsAlgorithm,
             param.opaqueInputGenAlgorithm,
-            param.opaquePredicateContextualEnabled);
+            param.contextualOpaquePredicatesEnabled);
       }
 
       pushchain.emplace_back(push);
@@ -491,8 +491,8 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       std::vector<uint32_t>        offsets;
       int                          num_branches = 1;
 
-      if (param.opaqueBranchDivergenceEnabled) {
-        num_branches = std::min((size_t)param.opaqueBranchDivergenceMaxBranches,
+      if (param.branchDivergenceEnabled) {
+        num_branches = std::min((size_t)param.branchDivergenceMaxBranches,
                                 addresses.size());
       }
 
@@ -530,13 +530,13 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
               OpaqueConstructFactory::createBranchingOpaqueConstant32(
                   OpaqueStorage::EAX,
                   offsets.size(),
-                  param.opaqueBranchDivergenceAlgorithm);
+                  param.branchDivergenceAlgorithm);
         } else {
           opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
               OpaqueStorage::EAX,
-              param.opaqueConstantAlgorithm,
+              param.opaqueConstantsAlgorithm,
               param.opaqueInputGenAlgorithm,
-              param.opaquePredicateContextualEnabled);
+              param.contextualOpaquePredicatesEnabled);
         }
 
         auto opaqueValues =
@@ -560,16 +560,16 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       putLabelInMBB(*targetMBB, targetLabel);
 
       ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
-      if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+      if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
             value,
-            param.opaqueConstantAlgorithm,
+            param.opaqueConstantsAlgorithm,
             param.opaqueInputGenAlgorithm,
-            param.opaquePredicateContextualEnabled);
+            param.contextualOpaquePredicatesEnabled);
       }
       pushchain.emplace_back(push);
       break;
@@ -593,16 +593,16 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       }
       if (targetLabel.symbol) {
         ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
-        if (param.opaquePredicateEnabled && param.obfuscateBranchTarget) {
+        if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled) {
           // we have to limit value range, so that
           // linker will not complain about integer overflow in relocation
           uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
           push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
               OpaqueStorage::EAX,
               value,
-              param.opaqueConstantAlgorithm,
+              param.opaqueConstantsAlgorithm,
               param.opaqueInputGenAlgorithm,
-              param.opaquePredicateContextualEnabled);
+              param.contextualOpaquePredicatesEnabled);
         }
         pushchain.emplace_back(push);
       } else {
@@ -644,7 +644,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
   }
 
   // instruction steganography: embed stegano instrs into opaque constants
-  if (param.opaquePredicateEnabled && param.opaqueSteganoEnabled &&
+  if (param.opaquePredicatesEnabled && param.opaqueSteganoEnabled &&
       !steganoInstrs.instrs.empty()) {
     size_t opaqueConstantCount =
         std::count_if(pushchain.begin(),
@@ -684,7 +684,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
   StackState             stackState;
 
   // compute clobbered registers
-  if (param.opaquePredicateEnabled) {
+  if (param.opaquePredicatesEnabled) {
     for (auto &push : pushchain) {
       if (auto &op = push->opaqueConstant) {
         auto clobbered = op->getClobberedRegs();
@@ -706,7 +706,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     stackRegLayout.insert(stackRegLayout.begin(),
                           savedRegs.begin(),
                           savedRegs.end());
-    if (param.obfuscateStackSavedValues) {
+    if (param.opaqueSavedStackValuesEnabled) {
       stackRegLayout.resize(2 * savedRegs.size(), X86::NoRegister);
       std::shuffle(stackRegLayout.begin() + 1,
                    stackRegLayout.end(),

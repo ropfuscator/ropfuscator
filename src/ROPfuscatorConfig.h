@@ -10,39 +10,56 @@ namespace ropf {
 
 // =========================
 // CONFIGURATION FILE STRINGS
+// =========================
 
 #define CONFIG_GENERAL_SECTION   "general"
 #define CONFIG_FUNCTIONS_SECTION "functions"
 #define CONFIG_FUNCTIONS_DEFAULT "default"
 
-// general section
-#define CONFIG_OBF_ENABLED      "obfuscation_enabled"
-#define CONFIG_SEARCH_SEGMENT   "search_segment_for_gadget"
-#define CONFIG_AVOID_MULTIVER   "avoid_multiversion_symbol"
-#define CONFIG_CUSTOM_LIB_PATH  "custom_library_path"
-#define CONFIG_LIB_SHA1         "library_hash_sha1"
-#define CONFIG_LINKED_LIBS      "linked_libraries"
-#define CONFIG_SHOW_PROGRESS    "show_progress"
-#define CONFIG_PRINT_INSTR_STAT "print_instr_stat"
-#define CONFIG_USE_CHAIN_LABEL  "use_chain_label"
+// =========================
+// General configuration options
+// =========================
 
-// functions section
-#define CONFIG_FUNCTION_NAME       "name"
-#define CONFIG_OPA_PRED_ENABLED    "opaque_predicates_enabled"
-#define CONFIG_OPA_PRED_ALGO       "opaque_predicates_algorithm"
-#define CONFIG_OPA_PRED_INPUT_ALGO "opaque_predicates_input_algorithm"
-#define CONFIG_OPA_PRED_CONTEXTUAL_ENABLED                                     \
-  "opaque_predicates_contextual_enabled"
-#define CONFIG_OBF_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses_enabled"
-#define CONFIG_OBF_GADGET_ADDRESSED_PERCENTAGE                                 \
+#define CONFIG_OBFUSCATION_ENABLED "obfuscation_enabled"
+#define CONFIG_SEARCH_SEGMENT      "search_segment_for_gadget"
+#define CONFIG_AVOID_MULTIVER      "avoid_multiversion_symbol"
+#define CONFIG_CUSTOM_LIB_PATH     "custom_library_path"
+#define CONFIG_LIB_SHA1            "library_hash_sha1"
+#define CONFIG_LINKED_LIBS         "linked_libraries"
+#define CONFIG_SHOW_PROGRESS       "show_progress"
+#define CONFIG_PRINT_INSTR_STAT    "print_instr_stat"
+#define CONFIG_USE_CHAIN_LABEL     "use_chain_label"
+
+// =========================
+// Functions-specific options
+// =========================
+
+#define CONFIG_FUNCTION_NAME "name"
+
+// opaque predicates
+#define CONFIG_OPAQUE_PREDICATED_ENABLED   "opaque_predicates_enabled"
+#define CONFIG_OPAQUE_PREDICATES_ALGORITHM "opaque_predicates_algorithm"
+#define CONFIG_OPAQUE_PREDICATES_INPUT_ALGORITHM                               \
+  "opaque_predicates_input_algorithm"
+#define CONFIG_CONTEXTUAL_OPAQUE_PREDICATES_ENABLED                            \
+  "contextual_opaque_predicates_enabled"
+
+// opaque constants
+#define CONFIG_OPAQUE_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses_enabled"
+#define CONFIG_OPAQUE_GADGET_ADDRESSES_PERCENTAGE                              \
   "gadget_addresses_obfuscation_percentage"
-#define CONFIG_OPA_OBF_IMM_OPERAND   "obfuscate_immediate_operand"
-#define CONFIG_OPA_OBF_BRANCH_TARGET "obfuscate_branch_target"
-#define CONFIG_OPA_OBF_STACK_SAVED   "obfuscate_stack_saved_values"
-#define CONFIG_OPA_STEGANO_ENABLED   "opaque_stegano_enabled"
-#define CONFIG_BRANCH_DIV_ENABLED    "branch_divergence_enabled"
-#define CONFIG_BRANCH_DIV_MAX        "branch_divergence_max_branches"
-#define CONFIG_BRANCH_DIV_ALGO       "branch_divergence_algorithm"
+#define CONFIG_OPAQUE_IMMEDIATE_OPERANDS_ENABLED                               \
+  "opaque_immediate_operands_enabled"
+#define CONFIG_OPAQUE_BRANCH_TARGETS_ENABLED "opaque_branch_targets_enabled"
+#define CONFIG_OPAQUE_STACK_VALUES_ENABLED   "opaque_saved_stack_values_enabled"
+
+// branch divergence
+#define CONFIG_BRANCH_DIVERGENCE_ENABLED      "branch_divergence_enabled"
+#define CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES "branch_divergence_max_branches"
+#define CONFIG_BRANCH_DIVERGENCE_ALGORITHM    "branch_divergence_algorithm"
+
+// steganography
+#define CONFIG_STEGANOGRAPHY_ENABLED "opaque_stegano_enabled"
 
 //===========================
 
@@ -51,45 +68,46 @@ struct ObfuscationParameter {
   /// true if obfuscation is enabled for this function
   bool obfuscationEnabled;
   /// true if opaque construct is enabled for this function
-  bool opaquePredicateEnabled;
+  bool opaquePredicatesEnabled;
   /// true if obfuscation of immediate operand is enabled for this function
-  /// (only effective if opaquePredicateEnabled == true)
-  bool obfuscateImmediateOperand;
+  /// (only effective if opaquePredicatesEnabled == true)
+  bool opaqueImmediateOperandsEnabled;
   /// true if contextual opaque predicate is enabled
-  bool opaquePredicateContextualEnabled;
+  bool contextualOpaquePredicatesEnabled;
   /// true if obfuscation of branch address is enabled for this function
-  /// (only effective if opaquePredicateEnabled == true)
-  bool obfuscateBranchTarget;
+  /// (only effective if opaquePredicatesEnabled == true)
+  bool opaqueBranchTargetsEnabled;
   /// true if save dummy constants
-  bool obfuscateStackSavedValues;
+  bool opaqueSavedStackValuesEnabled;
   /// true if instruction steganography into opaque predicates enabled
   bool opaqueSteganoEnabled;
   /// true if branch divergence is enabled for this function
-  bool opaqueBranchDivergenceEnabled;
+  bool branchDivergenceEnabled;
   /// true if gadget addresses should be obfuscated with opaque constants
   bool opaqueGadgetAddressesEnabled;
   /// percentage of total addresses to obfuscate for this function
   unsigned int gadgetAddressesObfuscationPercentage;
   /// maximum number of branches in branch divergence
-  unsigned int opaqueBranchDivergenceMaxBranches;
+  unsigned int branchDivergenceMaxBranches;
   /// opaque constant algorithm for this function
-  std::string opaqueConstantAlgorithm;
+  std::string opaqueConstantsAlgorithm;
   /// opaque predicate input generation algorithm for this function
   std::string opaqueInputGenAlgorithm;
   /// branch divergence algorithm for this function
-  std::string opaqueBranchDivergenceAlgorithm;
+  std::string branchDivergenceAlgorithm;
 
   ObfuscationParameter()
-      : obfuscationEnabled(true), opaquePredicateEnabled(false),
-        obfuscateImmediateOperand(true), opaquePredicateContextualEnabled(true),
-        obfuscateBranchTarget(true), obfuscateStackSavedValues(true),
-        opaqueSteganoEnabled(false), opaqueBranchDivergenceEnabled(false),
+      : obfuscationEnabled(true), opaquePredicatesEnabled(false),
+        opaqueImmediateOperandsEnabled(true),
+        contextualOpaquePredicatesEnabled(true),
+        opaqueBranchTargetsEnabled(true), opaqueSavedStackValuesEnabled(true),
+        opaqueSteganoEnabled(false), branchDivergenceEnabled(false),
         opaqueGadgetAddressesEnabled(true),
         gadgetAddressesObfuscationPercentage(100),
-        opaqueBranchDivergenceMaxBranches(32),
-        opaqueConstantAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
+        branchDivergenceMaxBranches(32),
+        opaqueConstantsAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
         opaqueInputGenAlgorithm(OPAQUE_RANDOM_ALGORITHM_ADDREG),
-        opaqueBranchDivergenceAlgorithm(OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV) {}
+        branchDivergenceAlgorithm(OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV) {}
 };
 
 /// obfuscation configuration for the entire compilation unit
