@@ -299,6 +299,43 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
+// Randomly reduces the number of specific type(s) of chain elements to the
+// specified percentage. The indices of the chain elements are saved into
+// outVector.
+void ROPfuscatorCore::reduceChainElemTypeToPercentage(
+    ROPChain &                   chain,
+    unsigned int                 percentage,
+    std::vector<ChainElem::Type> elemTypes,
+    std::vector<unsigned> &      outVector) {
+  std::default_random_engine rng = math::Random::engine();
+  size_t                     chainElemsToObfuscate;
+  std::vector<size_t>        buf;
+
+  // saving the indices of all the chain elements of a specific type.
+  // we will decide the ones to keep later
+  for (size_t i = 0; i < chain.size(); i++) {
+    for (auto elem : elemTypes) {
+      if (elem == chain.chain[i].type) {
+        buf.emplace_back(i);
+      }
+    }
+  }
+
+  chainElemsToObfuscate = buf.size() * percentage / 100;
+
+  if (buf.size() == chainElemsToObfuscate) {
+    copy(buf.begin(), buf.end(), back_inserter(outVector));
+    return;
+  }
+
+  // select N indices to be obfuscated (preserve the order)
+  std::sample(buf.begin(),
+              buf.end(),
+              std::back_inserter(outVector),
+              chainElemsToObfuscate,
+              rng);
+}
+
 void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
                                      MachineBasicBlock &         MBB,
                                      MachineInstr &              MI,
@@ -389,79 +426,28 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
   // handle obfuscation of gadget addresses
   if (param.opaqueGadgetAddressesEnabled) {
-    std::default_random_engine rng = math::Random::engine();
-    size_t                     numberGadgetsToObfuscate;
-    std::vector<size_t>        gadgetAddrIndices;
-
-    // saving the indices of all the gadgets in the chain.
-    // we will decide the ones to keep later
-    for (size_t i = 0; i < chain.size(); i++) {
-      if (chain.chain[i].type == ChainElem::Type::GADGET) {
-        gadgetAddrIndices.emplace_back(i);
-      }
-    }
-
-    numberGadgetsToObfuscate = gadgetAddrIndices.size() *
-                               param.gadgetAddressesObfuscationPercentage / 100;
-
-    // select N indices to be obfuscated (preserve the order)
-    std::sample(gadgetAddrIndices.begin(),
-                gadgetAddrIndices.end(),
-                std::back_inserter(gadgetsIdxToObfuscate),
-                numberGadgetsToObfuscate,
-                rng);
+    reduceChainElemTypeToPercentage(chain,
+                                    param.gadgetAddressesObfuscationPercentage,
+                                    {ChainElem::Type::GADGET},
+                                    gadgetsIdxToObfuscate);
   }
 
   // handle obfuscation of immediate operands
   if (param.opaqueImmediateOperandsEnabled) {
-    std::default_random_engine rng = math::Random::engine();
-    size_t                     numberImmediatesToObfuscate;
-    std::vector<size_t>        buf_indices;
-
-    // saving the indices of all the immediates in the chain.
-    // we will decide the ones to keep later
-    for (size_t i = 0; i < chain.size(); i++) {
-      if (chain.chain[i].type == ChainElem::Type::IMM_GLOBAL ||
-          chain.chain[i].type == ChainElem::Type::IMM_VALUE) {
-        buf_indices.emplace_back(i);
-      }
-    }
-
-    numberImmediatesToObfuscate =
-        buf_indices.size() * param.opaqueImmediateOperandsPercentage / 100;
-
-    // select N indices to be obfuscated (preserve the order)
-    std::sample(buf_indices.begin(),
-                buf_indices.end(),
-                std::back_inserter(immediatesIdxToObfuscate),
-                numberImmediatesToObfuscate,
-                rng);
+    reduceChainElemTypeToPercentage(
+        chain,
+        param.opaqueImmediateOperandsPercentage,
+        {ChainElem::Type::IMM_GLOBAL, ChainElem::Type::IMM_VALUE},
+        immediatesIdxToObfuscate);
   }
 
   // handle obfuscation of branch operations
   if (param.opaqueBranchTargetsEnabled) {
-    std::default_random_engine rng = math::Random::engine();
-    size_t                     numberBranchesToObfuscate;
-    std::vector<size_t>        buf_indices;
-
-    // saving the indices of all the immediates in the chain.
-    // we will decide the ones to keep later
-    for (size_t i = 0; i < chain.size(); i++) {
-      if (chain.chain[i].type == ChainElem::Type::JMP_BLOCK ||
-          chain.chain[i].type == ChainElem::Type::JMP_FALLTHROUGH) {
-        buf_indices.emplace_back(i);
-      }
-    }
-
-    numberBranchesToObfuscate =
-        buf_indices.size() * param.opaqueBranchTargetsPercentage / 100;
-
-    // select N indices to be obfuscated (preserve the order)
-    std::sample(buf_indices.begin(),
-                buf_indices.end(),
-                std::back_inserter(branchIdxToObfuscate),
-                numberBranchesToObfuscate,
-                rng);
+    reduceChainElemTypeToPercentage(
+        chain,
+        param.opaqueBranchTargetsPercentage,
+        {ChainElem::Type::JMP_BLOCK, ChainElem::Type::JMP_FALLTHROUGH},
+        branchIdxToObfuscate);
   }
 
   u_int16_t idx = 0;
@@ -817,6 +803,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     // popf (EFLAGS register restore)
     as.popf();
   }
+
+  // restoring the order of the chain
+  std::reverse(chain.begin(), chain.end());
 }
 
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
