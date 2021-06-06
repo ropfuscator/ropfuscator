@@ -16,6 +16,7 @@
 #include <map>
 #endif
 
+#include "ChainElem.h"
 #include "ROPfuscatorConfig.h"
 
 // forward declaration
@@ -52,6 +53,14 @@ private:
 #endif
   // for progress report
   size_t total_func_count, curr_func_count;
+
+  // Randomly reduces the number of specific type(s) of chain elements to the
+  // specified percentage. The indices of the chain elements are saved into
+  // outVector.
+  void reduceChainElemTypeToPercentage(ROPChain &                   chain,
+                                       unsigned int                 percentage,
+                                       std::vector<ChainElem::Type> elemTypes,
+                                       std::vector<unsigned> &      outVector);
 
   void insertROPChain(ROPChain &                  chain,
                       llvm::MachineBasicBlock &   MBB,
