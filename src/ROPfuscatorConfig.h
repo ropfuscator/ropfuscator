@@ -44,14 +44,24 @@ namespace ropf {
 #define CONFIG_CONTEXTUAL_OPAQUE_PREDICATES_ENABLED                            \
   "contextual_opaque_predicates_enabled"
 
-// opaque constants
+// opaque gadget addresses
 #define CONFIG_OPAQUE_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses_enabled"
 #define CONFIG_OPAQUE_GADGET_ADDRESSES_PERCENTAGE                              \
   "gadget_addresses_obfuscation_percentage"
+
+// opaque immediate operands
 #define CONFIG_OPAQUE_IMMEDIATE_OPERANDS_ENABLED                               \
   "opaque_immediate_operands_enabled"
+#define CONFIG_OPAQUE_IMMEDIATE_OPERANDS_PERCENTAGE                            \
+  "opaque_immediate_operands_percentage"
+
+// opaque branch targets
 #define CONFIG_OPAQUE_BRANCH_TARGETS_ENABLED "opaque_branch_targets_enabled"
-#define CONFIG_OPAQUE_STACK_VALUES_ENABLED   "opaque_saved_stack_values_enabled"
+#define CONFIG_OPAQUE_BRANCH_TARGETS_PERCENTAGE                                \
+  "opaque_branch_targets_percentage"
+
+// opaque stack values
+#define CONFIG_OPAQUE_STACK_VALUES_ENABLED "opaque_saved_stack_values_enabled"
 
 // branch divergence
 #define CONFIG_BRANCH_DIVERGENCE_ENABLED      "branch_divergence_enabled"
@@ -72,12 +82,16 @@ struct ObfuscationParameter {
   /// true if obfuscation of immediate operand is enabled for this function
   /// (only effective if opaquePredicatesEnabled == true)
   bool opaqueImmediateOperandsEnabled;
+  /// percentage of total immediate operands to obfuscate for this function
+  unsigned int opaqueImmediateOperandsPercentage;
   /// true if contextual opaque predicate is enabled
   bool contextualOpaquePredicatesEnabled;
   /// true if obfuscation of branch address is enabled for this function
   /// (only effective if opaquePredicatesEnabled == true)
   bool opaqueBranchTargetsEnabled;
-  /// true if save dummy constants
+  /// percentage of total branches to obfuscate for this function
+  unsigned int opaqueBranchTargetsPercentage;
+  /// true if saved stack values should be obfuscated
   bool opaqueSavedStackValuesEnabled;
   /// true if instruction steganography into opaque predicates enabled
   bool opaqueSteganoEnabled;
@@ -99,10 +113,11 @@ struct ObfuscationParameter {
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicatesEnabled(false),
         opaqueImmediateOperandsEnabled(true),
+        opaqueImmediateOperandsPercentage(100),
         contextualOpaquePredicatesEnabled(true),
-        opaqueBranchTargetsEnabled(true), opaqueSavedStackValuesEnabled(true),
-        opaqueSteganoEnabled(false), branchDivergenceEnabled(false),
-        opaqueGadgetAddressesEnabled(true),
+        opaqueBranchTargetsEnabled(true), opaqueBranchTargetsPercentage(100),
+        opaqueSavedStackValuesEnabled(true), opaqueSteganoEnabled(false),
+        branchDivergenceEnabled(false), opaqueGadgetAddressesEnabled(true),
         gadgetAddressesObfuscationPercentage(100),
         branchDivergenceMaxBranches(32),
         opaqueConstantsAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),

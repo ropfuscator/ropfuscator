@@ -89,10 +89,20 @@ print_instr_stat = false
     # Default: true
     opaque_immediate_operands_enabled = true
 
+    # Set the percentage of immediate operands to obfuscate in the current function
+    # Default: 100
+    # Accepted values: 0 <= x <= 100
+    opaque_immediate_operands_percentage = 100
+
     # when true, branch target address is obfuscated with opaque predicate.
     # ignored when opaque predicate is turned off.
     # Default: true
     opaque_branch_targets_enabled = true
+
+    # Set the percentage of branch targets to obfuscate in the current function
+    # Default: 100
+    # Accepted values: 0 <= x <= 100
+    opaque_branch_targets_percentage = 100
 
     # Specify opaque predicate algorithm.
     # Available algorithms are:

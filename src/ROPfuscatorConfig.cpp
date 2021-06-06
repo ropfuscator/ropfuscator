@@ -125,7 +125,10 @@ void parseFunctionOptions(const toml::Value &   config,
 
   // Opaque predicates algorithm
   std::string op_algo, op_input_algo;
-  if (parseOption(config, tomlSect, CONFIG_OPAQUE_PREDICATES_ALGORITHM, op_algo)) {
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_OPAQUE_PREDICATES_ALGORITHM,
+                  op_algo)) {
     op_algo = strTolower(op_algo);
     if (validOpaquePredicateAlgorithmNames.count(op_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
@@ -169,7 +172,10 @@ void parseFunctionOptions(const toml::Value &   config,
 
   // Branch divergence algorithm
   std::string branch_div_algo;
-  if (parseOption(config, tomlSect, CONFIG_BRANCH_DIVERGENCE_ALGORITHM, branch_div_algo)) {
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_BRANCH_DIVERGENCE_ALGORITHM,
+                  branch_div_algo)) {
     branch_div_algo = strTolower(branch_div_algo);
     if (validBranchDivergenceAlgorithmNames.count(branch_div_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as a branch divergence "
@@ -199,6 +205,39 @@ void parseFunctionOptions(const toml::Value &   config,
     } else {
       funcParam.gadgetAddressesObfuscationPercentage =
           addresses_obfuscation_percentage;
+    }
+  }
+
+  int immediates_obfuscation_percentage;
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_OPAQUE_IMMEDIATE_OPERANDS_PERCENTAGE,
+                  immediates_obfuscation_percentage)) {
+    if (immediates_obfuscation_percentage < 0 ||
+        immediates_obfuscation_percentage > 100) {
+      dbg_fmt("Ignoring immediate operands obfuscation percentage \"{}\". It "
+              "should be a "
+              "value between 0 and 100. Ignoring.",
+              immediates_obfuscation_percentage);
+    } else {
+      funcParam.opaqueImmediateOperandsPercentage =
+          immediates_obfuscation_percentage;
+    }
+  }
+
+  int branches_obfuscation_percentage;
+  if (parseOption(config,
+                  tomlSect,
+                  CONFIG_OPAQUE_BRANCH_TARGETS_PERCENTAGE,
+                  branches_obfuscation_percentage)) {
+    if (branches_obfuscation_percentage < 0 ||
+        branches_obfuscation_percentage > 100) {
+      dbg_fmt("Ignoring branch targets obfuscation percentage \"{}\". It "
+              "should be a "
+              "value between 0 and 100. Ignoring.",
+              branches_obfuscation_percentage);
+    } else {
+      funcParam.opaqueBranchTargetsPercentage = branches_obfuscation_percentage;
     }
   }
 }

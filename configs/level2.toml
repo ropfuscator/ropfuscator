@@ -1,7 +1,6 @@
 # This configuration uses ROP chains, opaque predicates and constants.
 
-# Opaque constants are applied only to a part of the gadgets' addresses
-# and branch instructions are obfuscated.
+# Opaque constants are applied to the majority of the gadgets' addresses, immediates, stack values and branch instructions.
 
 [general]
     search_segment_for_gadget = true
@@ -24,5 +23,9 @@
 
     # opaque values
     opaque_saved_stack_values_enabled = true
+
     opaque_immediate_operands_enabled = true
+    opaque_immediate_operands_percentage = 60
+
     opaque_branch_targets_enabled = true
+    opaque_branch_targets_percentage = 60
