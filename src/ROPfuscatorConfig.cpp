@@ -90,54 +90,54 @@ void parseFunctionOptions(const toml::Value &   config,
   // Obfuscation enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OBF_ENABLED,
+              CONFIG_OBFUSCATION_ENABLED,
               funcParam.obfuscationEnabled);
 
   // Opaque predicates enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_PRED_ENABLED,
-              funcParam.opaquePredicateEnabled);
+              CONFIG_OPAQUE_PREDICATED_ENABLED,
+              funcParam.opaquePredicatesEnabled);
 
   // Obfuscation of immediate operand enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_OBF_IMM_OPERAND,
-              funcParam.obfuscateImmediateOperand);
+              CONFIG_OPAQUE_IMMEDIATE_OPERANDS_ENABLED,
+              funcParam.opaqueImmediateOperandsEnabled);
 
   // Opaque predicates (contextual OP) enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_PRED_CONTEXTUAL_ENABLED,
-              funcParam.opaquePredicateContextualEnabled);
+              CONFIG_CONTEXTUAL_OPAQUE_PREDICATES_ENABLED,
+              funcParam.contextualOpaquePredicatesEnabled);
 
   // Obfuscation of branch target enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_OBF_BRANCH_TARGET,
-              funcParam.obfuscateBranchTarget);
+              CONFIG_OPAQUE_BRANCH_TARGETS_ENABLED,
+              funcParam.opaqueBranchTargetsEnabled);
 
   // Obfuscation of stack saved values enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_OBF_STACK_SAVED,
-              funcParam.obfuscateStackSavedValues);
+              CONFIG_OPAQUE_STACK_VALUES_ENABLED,
+              funcParam.opaqueSavedStackValuesEnabled);
 
   // Opaque predicates algorithm
   std::string op_algo, op_input_algo;
-  if (parseOption(config, tomlSect, CONFIG_OPA_PRED_ALGO, op_algo)) {
+  if (parseOption(config, tomlSect, CONFIG_OPAQUE_PREDICATES_ALGORITHM, op_algo)) {
     op_algo = strTolower(op_algo);
     if (validOpaquePredicateAlgorithmNames.count(op_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as an opaque predicate "
               "algorithm. Algorithm configuration is ignored.\n",
               op_algo);
     } else {
-      funcParam.opaqueConstantAlgorithm = op_algo;
+      funcParam.opaqueConstantsAlgorithm = op_algo;
     }
   }
   if (parseOption(config,
                   tomlSect,
-                  CONFIG_OPA_PRED_INPUT_ALGO,
+                  CONFIG_OPAQUE_PREDICATES_INPUT_ALGORITHM,
                   op_input_algo)) {
     op_input_algo = strTolower(op_input_algo);
     if (validOpaquePredicateInputAlgorithmNames.count(op_input_algo) == 0) {
@@ -152,44 +152,44 @@ void parseFunctionOptions(const toml::Value &   config,
   // Opaque predicate steganography enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OPA_STEGANO_ENABLED,
+              CONFIG_STEGANOGRAPHY_ENABLED,
               funcParam.opaqueSteganoEnabled);
 
   // Branch divergence enabled
   parseOption(config,
               tomlSect,
-              CONFIG_BRANCH_DIV_ENABLED,
-              funcParam.opaqueBranchDivergenceEnabled);
+              CONFIG_BRANCH_DIVERGENCE_ENABLED,
+              funcParam.branchDivergenceEnabled);
 
   // Branch divergence max depth
   parseOption(config,
               tomlSect,
-              CONFIG_BRANCH_DIV_MAX,
-              (int &)funcParam.opaqueBranchDivergenceMaxBranches);
+              CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES,
+              (int &)funcParam.branchDivergenceMaxBranches);
 
   // Branch divergence algorithm
   std::string branch_div_algo;
-  if (parseOption(config, tomlSect, CONFIG_BRANCH_DIV_ALGO, branch_div_algo)) {
+  if (parseOption(config, tomlSect, CONFIG_BRANCH_DIVERGENCE_ALGORITHM, branch_div_algo)) {
     branch_div_algo = strTolower(branch_div_algo);
     if (validBranchDivergenceAlgorithmNames.count(branch_div_algo) == 0) {
       dbg_fmt("Warning: cannot understand \"{}\" as a branch divergence "
               "algorithm. Algorithm configuration is ignored.\n",
               branch_div_algo);
     } else {
-      funcParam.opaqueBranchDivergenceAlgorithm = branch_div_algo;
+      funcParam.branchDivergenceAlgorithm = branch_div_algo;
     }
   }
 
   // Gadget addresses obfuscation enabled
   parseOption(config,
               tomlSect,
-              CONFIG_OBF_GADGET_ADDRESSES_ENABLED,
+              CONFIG_OPAQUE_GADGET_ADDRESSES_ENABLED,
               funcParam.opaqueGadgetAddressesEnabled);
 
   int addresses_obfuscation_percentage;
   if (parseOption(config,
                   tomlSect,
-                  CONFIG_OBF_GADGET_ADDRESSED_PERCENTAGE,
+                  CONFIG_OPAQUE_GADGET_ADDRESSES_PERCENTAGE,
                   addresses_obfuscation_percentage)) {
     if (addresses_obfuscation_percentage < 0 ||
         addresses_obfuscation_percentage > 100) {
@@ -247,7 +247,7 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
     // Obfuscation enabled
     parseOption(*general_section,
                 CONFIG_GENERAL_SECTION,
-                CONFIG_OBF_ENABLED,
+                CONFIG_OBFUSCATION_ENABLED,
                 globalConfig.obfuscationEnabled);
 
     // Custom library path

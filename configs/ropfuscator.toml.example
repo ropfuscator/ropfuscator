@@ -63,7 +63,7 @@ print_instr_stat = false
 
     # Toggle obfuscation of gadget addresses
     # Default: true
-    opaque_gadget_addresses = true
+    opaque_gadget_addresses_enabled = true
 
     # Set percentage of addresses to obfuscate in current function
     # Default: 100
@@ -82,17 +82,17 @@ print_instr_stat = false
     # and used by opaque predicates to compute initial values.
     # ignored when opaque predicate is turned off.
     # Default: true
-    obfuscate_stack_saved_values = true
+    opaque_saved_stack_values_enabled = true
 
     # when true, immediate operand is obfuscated with opaque predicate.
     # ignored when opaque predicate is turned off.
     # Default: true
-    obfuscate_immediate_operand = true
+    opaque_immediate_operands_enabled = true
 
     # when true, branch target address is obfuscated with opaque predicate.
     # ignored when opaque predicate is turned off.
     # Default: true
-    obfuscate_branch_target = true
+    opaque_branch_targets_enabled = true
 
     # Specify opaque predicate algorithm.
     # Available algorithms are:
@@ -115,7 +115,7 @@ print_instr_stat = false
     # when true, use contextual opaque predicate as well as invariant opaque predicate.
     # It has no effect when opaque_predicates_algorithm == "mov".
     # Default: true
-    opaque_predicate_use_contextual = true
+    contextual_opaque_predicates_enabled = true
 
     # ================================
     # Opaque steganography settings

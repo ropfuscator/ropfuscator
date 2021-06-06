@@ -1,19 +1,27 @@
 # This configuration uses ROP chains, opaque predicates and constants.
 
-# Opaque constants are applied to all gadgets' addresses, branch instructions are obfuscated
-# and instruction hiding (stegano) is enabled
+# Opaque constants are applied to all gadgets' addresses and branch instructions.
 
 [general]
-avoid_multiversion_symbol = true
+    search_segment_for_gadget = true
+    avoid_multiversion_symbol = true
 
 [functions.default]
     obfuscation_enabled = true
+
+    # steganography
+    opaque_stegano_enabled = true
+
+    # opaque gadgets
     opaque_gadget_addresses_enabled = true
     gadget_addresses_obfuscation_percentage = 100
+
+    # opaque predicates
     opaque_predicates_enabled = true
-    obfuscate_stack_saved_values = true
-    obfuscate_immediate_operand = true
-    obfuscate_branch_target = true
+    contextual_opaque_predicates_enabled = true
     opaque_predicates_algorithm = "multcomp"
-    opaque_predicate_use_contextual = true
-    opaque_stegano_enabled = true
+
+    # opaque values
+    opaque_saved_stack_values_enabled = true
+    opaque_immediate_operands_enabled = true
+    opaque_branch_targets_enabled = true
