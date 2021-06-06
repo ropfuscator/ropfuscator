@@ -343,7 +343,8 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
   std::map<int, int>          espOffsetMap;
   int                         espoffset = 0;
   std::vector<const Symbol *> versionedSymbols;
-  std::vector<unsigned>       gadgetIdxToObfuscate;
+  std::vector<unsigned>       gadgetsIdxToObfuscate, immediatesIdxToObfuscate,
+      branchIdxToObfuscate;
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems += chain.size();
@@ -438,8 +439,63 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
     // select N indices to be obfuscated (preserve the order)
     std::sample(gadgetAddrIndices.begin(),
                 gadgetAddrIndices.end(),
-                std::back_inserter(gadgetIdxToObfuscate),
+                std::back_inserter(gadgetsIdxToObfuscate),
                 numberGadgetsToObfuscate,
+                rng);
+  }
+
+  // handle obfuscation of immediate operands
+  if (param.opaqueImmediateOperandsEnabled) {
+    std::default_random_engine rng = math::Random::engine();
+    size_t                     numberImmediatesToObfuscate;
+    std::vector<size_t>        buf_indices;
+
+    printf("Immediates percentage: %d\n",
+           param.opaqueImmediateOperandsPercentage);
+
+    // saving the indices of all the immediates in the chain.
+    // we will decide the ones to keep later
+    for (size_t i = 0; i < chain.size(); i++) {
+      if (chain.chain[i].type == ChainElem::Type::IMM_GLOBAL ||
+          chain.chain[i].type == ChainElem::Type::IMM_VALUE) {
+        buf_indices.emplace_back(i);
+      }
+    }
+
+    numberImmediatesToObfuscate =
+        buf_indices.size() * param.opaqueImmediateOperandsPercentage / 100;
+
+    // select N indices to be obfuscated (preserve the order)
+    std::sample(buf_indices.begin(),
+                buf_indices.end(),
+                std::back_inserter(immediatesIdxToObfuscate),
+                numberImmediatesToObfuscate,
+                rng);
+  }
+
+  // handle obfuscation of branch operations
+  if (param.opaqueBranchTargetsEnabled) {
+    std::default_random_engine rng = math::Random::engine();
+    size_t                     numberBranchesToObfuscate;
+    std::vector<size_t>        buf_indices;
+
+    // saving the indices of all the immediates in the chain.
+    // we will decide the ones to keep later
+    for (size_t i = 0; i < chain.size(); i++) {
+      if (chain.chain[i].type == ChainElem::Type::JMP_BLOCK ||
+          chain.chain[i].type == ChainElem::Type::JMP_FALLTHROUGH) {
+        buf_indices.emplace_back(i);
+      }
+    }
+
+    numberBranchesToObfuscate =
+        buf_indices.size() * param.opaqueBranchTargetsPercentage / 100;
+
+    // select N indices to be obfuscated (preserve the order)
+    std::sample(buf_indices.begin(),
+                buf_indices.end(),
+                std::back_inserter(branchIdxToObfuscate),
+                numberBranchesToObfuscate,
                 rng);
   }
 
@@ -451,7 +507,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Push the immediate value onto the stack
       ROPChainPushInst *push = new PUSH_IMM(elem.value);
 
-      if (param.opaquePredicatesEnabled && param.opaqueImmediateOperandsEnabled) {
+      if (param.opaquePredicatesEnabled &&
+          param.opaqueImmediateOperandsEnabled &&
+          (std::find(immediatesIdxToObfuscate.begin(),
+                     immediatesIdxToObfuscate.end(),
+                     idx) != immediatesIdxToObfuscate.end())) {
         push->opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
             OpaqueStorage::EAX,
             param.opaqueConstantsAlgorithm,
@@ -467,7 +527,11 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Push the global symbol onto the stack
       ROPChainPushInst *push = new PUSH_GV(elem.global, elem.value);
 
-      if (param.opaquePredicatesEnabled && param.opaqueImmediateOperandsEnabled) {
+      if (param.opaquePredicatesEnabled &&
+          param.opaqueImmediateOperandsEnabled &&
+          (std::find(immediatesIdxToObfuscate.begin(),
+                     immediatesIdxToObfuscate.end(),
+                     idx) != immediatesIdxToObfuscate.end())) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value = elem.value - math::Random::range32(0x1000, 0x10000000);
@@ -521,9 +585,9 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // if we should obfuscate the addresses and the current
       // index has been selected to be obfuscated
       if (param.opaqueGadgetAddressesEnabled &&
-          (std::find(gadgetIdxToObfuscate.begin(),
-                     gadgetIdxToObfuscate.end(),
-                     idx) != gadgetIdxToObfuscate.end())) {
+          (std::find(gadgetsIdxToObfuscate.begin(),
+                     gadgetsIdxToObfuscate.end(),
+                     idx) != gadgetsIdxToObfuscate.end())) {
         std::shared_ptr<OpaqueConstruct> opaqueConstant;
         if (num_branches > 1) {
           opaqueConstant =
@@ -560,7 +624,10 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       putLabelInMBB(*targetMBB, targetLabel);
 
       ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
-      if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled) {
+      if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled &&
+          (std::find(branchIdxToObfuscate.begin(),
+                     branchIdxToObfuscate.end(),
+                     idx) != branchIdxToObfuscate.end())) {
         // we have to limit value range, so that
         // linker will not complain about integer overflow in relocation
         uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
@@ -593,7 +660,10 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       }
       if (targetLabel.symbol) {
         ROPChainPushInst *push = new PUSH_LABEL(targetLabel);
-        if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled) {
+        if (param.opaquePredicatesEnabled && param.opaqueBranchTargetsEnabled &&
+            (std::find(branchIdxToObfuscate.begin(),
+                       branchIdxToObfuscate.end(),
+                       idx) != branchIdxToObfuscate.end())) {
           // we have to limit value range, so that
           // linker will not complain about integer overflow in relocation
           uint32_t value       = -math::Random::range32(0x1000, 0x10000000);
