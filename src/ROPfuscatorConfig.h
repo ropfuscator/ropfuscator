@@ -33,7 +33,7 @@ namespace ropf {
 #define CONFIG_OPA_PRED_INPUT_ALGO "opaque_predicates_input_algorithm"
 #define CONFIG_OPA_PRED_CONTEXTUAL_ENABLED                                     \
   "opaque_predicates_contextual_enabled"
-#define CONFIG_OBF_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses"
+#define CONFIG_OBF_GADGET_ADDRESSES_ENABLED "opaque_gadget_addresses_enabled"
 #define CONFIG_OBF_GADGET_ADDRESSED_PERCENTAGE                                 \
   "gadget_addresses_obfuscation_percentage"
 #define CONFIG_OPA_OBF_IMM_OPERAND   "obfuscate_immediate_operand"
