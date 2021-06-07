@@ -3,6 +3,7 @@
 [general]
 search_segment_for_gadget = true
 avoid_multiversion_symbol = true
+rng_seed = 19931210
 
 [functions.default]
 obfuscation_enabled = true

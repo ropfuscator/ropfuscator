@@ -29,6 +29,7 @@ namespace ropf {
 #define CONFIG_SHOW_PROGRESS       "show_progress"
 #define CONFIG_PRINT_INSTR_STAT    "print_instr_stat"
 #define CONFIG_USE_CHAIN_LABEL     "use_chain_label"
+#define CONFIG_RNG_SEED            "rng_seed"
 
 // =========================
 // Functions-specific options
@@ -150,12 +151,14 @@ struct GlobalConfig {
   bool printInstrStat;
   // use chain label
   bool useChainLabel;
+  // random number generator seed
+  size_t rng_seed;
 
   GlobalConfig()
       : libraryPath(), librarySHA1(), linkedLibraries(),
         obfuscationEnabled(true), searchSegmentForGadget(true),
         avoidMultiversionSymbol(false), showProgress(false),
-        printInstrStat(false), useChainLabel(false) {}
+        printInstrStat(false), useChainLabel(false), rng_seed(0) {}
 };
 
 struct ROPfuscatorConfig {
