@@ -81,16 +81,22 @@ public:
     ROPfuscatorConfig config;
 
     if (!RopfuscatorConfigFile.empty()) {
-      dbg_fmt("[*] Loading ROPfuscator configuration file...");
+      dbg_fmt("[*] Loading ROPfuscator configuration file...\n");
       config.loadFromFile(RopfuscatorConfigFile);
     }
+
     if (!config.globalConfig.obfuscationEnabled) {
-      dbg_fmt("[*] ROPfuscator disabled in configuration file.");
+      dbg_fmt("[*] ROPfuscator disabled in configuration file.\n");
       return false;
     }
+
     if (!RopfuscatorGadgetLibrary.empty() &&
         config.globalConfig.libraryPath.empty()) {
       config.globalConfig.libraryPath = RopfuscatorGadgetLibrary;
+    }
+
+    if (config.globalConfig.rng_seed) {
+      srand(config.globalConfig.rng_seed);
     }
 
     ropfuscator = new ROPfuscatorCore(module, config);

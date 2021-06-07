@@ -45,6 +45,10 @@ show_progress = false
 # Default: false
 print_instr_stat = false
 
+# If set, seeds the RNG with the value defined.
+# Default: random
+# rng_seed = 1234567890
+
 # ================================
 # Functions' obfuscation section
 #
