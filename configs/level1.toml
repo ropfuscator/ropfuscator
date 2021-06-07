@@ -8,7 +8,8 @@ rng_seed = 19931210
 [functions.default]
 obfuscation_enabled = true
 # steganography
-opaque_stegano_enabled = true
+# broken for now
+opaque_stegano_enabled = false
 # opaque gadgets
 opaque_gadget_addresses_enabled = true
 gadget_addresses_obfuscation_percentage = 30
