@@ -539,7 +539,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
       // if we should obfuscate the addresses and the current
       // index has been selected to be obfuscated
-      if (param.opaqueGadgetAddressesEnabled &&
+      if (param.opaquePredicatesEnabled && param.opaqueGadgetAddressesEnabled &&
           contains(gadgetsIdxToObfuscate, idx)) {
         std::shared_ptr<OpaqueConstruct> opaqueConstant;
         if (num_branches > 1) {
