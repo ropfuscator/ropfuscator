@@ -450,7 +450,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
         branchIdxToObfuscate);
   }
 
-  u_int16_t idx = 0;
+  size_t idx = 0;
   // Pushes each chain element on the stack in reverse order
   for (auto elem : chain) {
     switch (elem.type) {
