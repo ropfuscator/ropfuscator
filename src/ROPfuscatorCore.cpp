@@ -321,7 +321,15 @@ void ROPfuscatorCore::reduceChainElemTypeToPercentage(
     }
   }
 
+  if (!buf.size()) {
+    return;
+  }
+
   chainElemsToObfuscate = buf.size() * percentage / 100;
+
+  if (!chainElemsToObfuscate) {
+    return;
+  }
 
   if (buf.size() == chainElemsToObfuscate) {
     copy(buf.begin(), buf.end(), back_inserter(outVector));
