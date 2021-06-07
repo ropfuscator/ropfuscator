@@ -12,7 +12,7 @@ obfuscation_enabled = true
 opaque_stegano_enabled = false
 # opaque gadgets
 opaque_gadget_addresses_enabled = true
-gadget_addresses_obfuscation_percentage = 60
+gadget_addresses_obfuscation_percentage = 30
 # opaque predicates
 opaque_predicates_enabled = true
 contextual_opaque_predicates_enabled = true
@@ -20,6 +20,6 @@ opaque_predicates_algorithm = "multcomp"
 # opaque values
 opaque_saved_stack_values_enabled = true
 opaque_immediate_operands_enabled = true
-opaque_immediate_operands_percentage = 60
+opaque_immediate_operands_percentage = 30
 opaque_branch_targets_enabled = true
-opaque_branch_targets_percentage = 60
+opaque_branch_targets_percentage = 30
