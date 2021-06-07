@@ -2,12 +2,6 @@ add_custom_target(ropfuscator-examples)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.c")
 
-set(ROPF_ASM_FLAGS_STDBIN ${ROPF_ASM_FLAGS})
-set(ROPF_IR_FLAGS_STDBIN ${ROPF_IR_FLAGS})
-
-set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS})
-set(ROPF_IR_FLAGS_ROPFBIN ${ROPF_IR_FLAGS})
-
 foreach(filename ${files})
   get_filename_component(exec_name ${filename} NAME_WE)
 
