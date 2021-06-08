@@ -7,7 +7,6 @@ namespace ropf::math {
 
 namespace {
 
-std::random_device         rdev;
 std::default_random_engine reng;
 
 void egcd(uint64_t a, uint64_t m, uint64_t &g, uint64_t &x, uint64_t &y) {
@@ -184,7 +183,7 @@ uint32_t Random::rand() { return reng(); }
 
 bool Random::bit() { return range32(0, 1) != 0; }
 
-std::default_random_engine Random::engine() { return reng; }
+std::default_random_engine &Random::engine() { return reng; }
 
 uint64_t modinv(uint64_t a, uint64_t m) {
   uint64_t g, x, y;
