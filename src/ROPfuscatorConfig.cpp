@@ -127,12 +127,6 @@ void parseFunctionOptions(const toml::Value &   config,
               CONFIG_OPAQUE_STACK_VALUES_ENABLED,
               funcParam.opaqueSavedStackValuesEnabled);
 
-  // Opaque predicate steganography enabled
-  parseOption(config,
-              tomlSect,
-              CONFIG_STEGANOGRAPHY_ENABLED,
-              funcParam.opaqueSteganoEnabled);
-
   // Branch divergence enabled
   parseOption(config,
               tomlSect,

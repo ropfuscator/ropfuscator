@@ -132,15 +132,6 @@ print_instr_stat = false
     contextual_opaque_predicates_enabled = true
 
     # ================================
-    # Opaque steganography settings
-    #
-
-    # Toggles the usage of instruction hiding
-    # This will hide some gadgets inside opaque predicates
-    # Default: false
-    opaque_stegano_enabled = false
-
-    # ================================
     # Branch divergence settings
     #
 

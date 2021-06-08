@@ -69,9 +69,6 @@ namespace ropf {
 #define CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES "branch_divergence_max_branches"
 #define CONFIG_BRANCH_DIVERGENCE_ALGORITHM    "branch_divergence_algorithm"
 
-// steganography
-#define CONFIG_STEGANOGRAPHY_ENABLED "opaque_stegano_enabled"
-
 //===========================
 
 /// obfuscation configuration parameter for each function
@@ -94,8 +91,6 @@ struct ObfuscationParameter {
   unsigned int opaqueBranchTargetsPercentage;
   /// true if saved stack values should be obfuscated
   bool opaqueSavedStackValuesEnabled;
-  /// true if instruction steganography into opaque predicates enabled
-  bool opaqueSteganoEnabled;
   /// true if branch divergence is enabled for this function
   bool branchDivergenceEnabled;
   /// true if gadget addresses should be obfuscated with opaque constants
@@ -117,8 +112,8 @@ struct ObfuscationParameter {
         opaqueImmediateOperandsPercentage(100),
         contextualOpaquePredicatesEnabled(true),
         opaqueBranchTargetsEnabled(true), opaqueBranchTargetsPercentage(100),
-        opaqueSavedStackValuesEnabled(true), opaqueSteganoEnabled(false),
-        branchDivergenceEnabled(false), opaqueGadgetAddressesEnabled(true),
+        opaqueSavedStackValuesEnabled(true), branchDivergenceEnabled(false),
+        opaqueGadgetAddressesEnabled(true),
         gadgetAddressesObfuscationPercentage(100),
         branchDivergenceMaxBranches(32),
         opaqueConstantsAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),

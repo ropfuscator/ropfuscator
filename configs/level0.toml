@@ -17,5 +17,3 @@ contextual_opaque_predicates_enabled = false
 opaque_saved_stack_values_enabled = false
 opaque_immediate_operands_enabled = false
 opaque_branch_targets_enabled = false
-# steganography
-opaque_stegano_enabled = false
