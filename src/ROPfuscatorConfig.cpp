@@ -127,12 +127,6 @@ void parseFunctionOptions(const toml::Value &   config,
               CONFIG_OPAQUE_STACK_VALUES_ENABLED,
               funcParam.opaqueSavedStackValuesEnabled);
 
-  // Branch divergence enabled
-  parseOption(config,
-              tomlSect,
-              CONFIG_BRANCH_DIVERGENCE_ENABLED,
-              funcParam.branchDivergenceEnabled);
-
   // Gadget addresses obfuscation enabled
   parseOption(config,
               tomlSect,
@@ -173,31 +167,9 @@ void parseFunctionOptions(const toml::Value &   config,
     }
   }
 
-  // Branch divergence algorithm
-  std::string branch_div_algo;
-  if (parseOption(config,
-                  tomlSect,
-                  CONFIG_BRANCH_DIVERGENCE_ALGORITHM,
-                  branch_div_algo)) {
-    branch_div_algo = strTolower(branch_div_algo);
-    if (validBranchDivergenceAlgorithmNames.count(branch_div_algo) == 0) {
-      dbg_fmt("Warning: cannot understand \"{}\" as a branch divergence "
-              "algorithm. Algorithm configuration is ignored.\n",
-              branch_div_algo);
-    } else {
-      funcParam.branchDivergenceAlgorithm = branch_div_algo;
-    }
-  }
-
   /* =========================
    * VALUES PARSING
    */
-
-  // Branch divergence max depth
-  parseOption(config,
-              tomlSect,
-              CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES,
-              (int &)funcParam.branchDivergenceMaxBranches);
 
   // gadget addresses percentage
   int addresses_obfuscation_percentage;
