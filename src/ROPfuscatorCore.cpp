@@ -199,7 +199,7 @@ struct PUSH_LABEL : public ROPChainPushInst {
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
 
       opaqueConstant->compile(as, stack);
-      
+
       // adjust eax to jump target address
       as.add(as.reg(X86::EAX), as.addOffset(label, -value));
       // push eax
@@ -483,21 +483,15 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem.microgadget->addresses;
       std::vector<uint32_t>        offsets;
-      int                          num_branches = 1;
 
-      if (param.branchDivergenceEnabled) {
-        num_branches = std::min((size_t)param.branchDivergenceMaxBranches,
-                                addresses.size());
-      }
-
-      // pick num_branches elements randomly
+      // pick address randomly
       std::sample(addresses.begin(),
                   addresses.end(),
                   std::back_inserter(offsets),
-                  num_branches,
+                  1,
                   math::Random::engine());
 
-      for (uint32_t &offset : offsets) {
+      for (auto &offset : offsets) {
         offset -= sym->Address;
       }
 
@@ -517,19 +511,12 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
       if (param.opaquePredicatesEnabled && param.opaqueGadgetAddressesEnabled &&
           contains(gadgetsIdxToObfuscate, idx)) {
         std::shared_ptr<OpaqueConstruct> opaqueConstant;
-        if (num_branches > 1) {
-          opaqueConstant =
-              OpaqueConstructFactory::createBranchingOpaqueConstant32(
-                  OpaqueStorage::EAX,
-                  offsets.size(),
-                  param.branchDivergenceAlgorithm);
-        } else {
-          opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
-              OpaqueStorage::EAX,
-              param.opaqueConstantsAlgorithm,
-              param.opaqueInputGenAlgorithm,
-              param.contextualOpaquePredicatesEnabled);
-        }
+
+        opaqueConstant = OpaqueConstructFactory::createOpaqueConstant32(
+            OpaqueStorage::EAX,
+            param.opaqueConstantsAlgorithm,
+            param.opaqueInputGenAlgorithm,
+            param.contextualOpaquePredicatesEnabled);
 
         auto opaqueValues =
             *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);

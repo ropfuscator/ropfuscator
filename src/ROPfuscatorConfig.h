@@ -64,11 +64,6 @@ namespace ropf {
 // opaque stack values
 #define CONFIG_OPAQUE_STACK_VALUES_ENABLED "opaque_saved_stack_values_enabled"
 
-// branch divergence
-#define CONFIG_BRANCH_DIVERGENCE_ENABLED      "branch_divergence_enabled"
-#define CONFIG_BRANCH_DIVERGENCE_MAX_BRANCHES "branch_divergence_max_branches"
-#define CONFIG_BRANCH_DIVERGENCE_ALGORITHM    "branch_divergence_algorithm"
-
 //===========================
 
 /// obfuscation configuration parameter for each function
@@ -91,20 +86,14 @@ struct ObfuscationParameter {
   unsigned int opaqueBranchTargetsPercentage;
   /// true if saved stack values should be obfuscated
   bool opaqueSavedStackValuesEnabled;
-  /// true if branch divergence is enabled for this function
-  bool branchDivergenceEnabled;
   /// true if gadget addresses should be obfuscated with opaque constants
   bool opaqueGadgetAddressesEnabled;
   /// percentage of total addresses to obfuscate for this function
   unsigned int gadgetAddressesObfuscationPercentage;
-  /// maximum number of branches in branch divergence
-  unsigned int branchDivergenceMaxBranches;
   /// opaque constant algorithm for this function
   std::string opaqueConstantsAlgorithm;
   /// opaque predicate input generation algorithm for this function
   std::string opaqueInputGenAlgorithm;
-  /// branch divergence algorithm for this function
-  std::string branchDivergenceAlgorithm;
 
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicatesEnabled(false),
@@ -112,13 +101,10 @@ struct ObfuscationParameter {
         opaqueImmediateOperandsPercentage(100),
         contextualOpaquePredicatesEnabled(true),
         opaqueBranchTargetsEnabled(true), opaqueBranchTargetsPercentage(100),
-        opaqueSavedStackValuesEnabled(true), branchDivergenceEnabled(false),
-        opaqueGadgetAddressesEnabled(true),
+        opaqueSavedStackValuesEnabled(true), opaqueGadgetAddressesEnabled(true),
         gadgetAddressesObfuscationPercentage(100),
-        branchDivergenceMaxBranches(32),
         opaqueConstantsAlgorithm(OPAQUE_CONSTANT_ALGORITHM_MOV),
-        opaqueInputGenAlgorithm(OPAQUE_RANDOM_ALGORITHM_ADDREG),
-        branchDivergenceAlgorithm(OPAQUE_BRANCH_ALGORITHM_ADDREG_MOV) {}
+        opaqueInputGenAlgorithm(OPAQUE_RANDOM_ALGORITHM_ADDREG) {}
 };
 
 /// obfuscation configuration for the entire compilation unit

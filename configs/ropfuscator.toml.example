@@ -131,25 +131,6 @@ print_instr_stat = false
     # Default: true
     contextual_opaque_predicates_enabled = true
 
-    # ================================
-    # Branch divergence settings
-    #
-
-    # Toggles the usage of branch divergence algorithms.
-    # Default: false
-    branch_divergence_enabled = false
-
-    # Max branches depth
-    # Default: 32
-    branch_divergence_max_branches = 32
-
-    # Available algorithms are:
-    # - addreg+mov: use the sum of the available registers to generate a random value (e.g EAX + EBX + ECX + EDX + ESI + EDI)
-    # - rdtsc+mov: use RDTSC as random value
-    # - negativestack+mov: use the value of [ESP-**] as random value
-    # Default: ADDREG
-    branch_divergence_algorithm = "addreg+mov"
-
 # Example section.
 # The section can have any name, e.g. for explanatory reasons.
 [functions.example-label]
