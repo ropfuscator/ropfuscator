@@ -273,6 +273,9 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
     if (!f.empty())
       total_func_count++;
   }
+  if (config.globalConfig.rng_seed) {
+    math::Random::engine().seed(config.globalConfig.rng_seed);
+  }
 }
 
 ROPfuscatorCore::~ROPfuscatorCore() {
@@ -307,7 +310,7 @@ void ROPfuscatorCore::reduceChainElemTypeToPercentage(
     unsigned int                 percentage,
     std::vector<ChainElem::Type> elemTypes,
     std::vector<unsigned> &      outVector) {
-  std::default_random_engine rng = math::Random::engine();
+  std::default_random_engine &rng = math::Random::engine();
   size_t                     chainElemsToObfuscate;
   std::vector<size_t>        buf;
 

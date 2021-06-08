@@ -95,10 +95,6 @@ public:
       config.globalConfig.libraryPath = RopfuscatorGadgetLibrary;
     }
 
-    if (config.globalConfig.rng_seed) {
-      srand(config.globalConfig.rng_seed);
-    }
-
     ropfuscator = new ROPfuscatorCore(module, config);
 
     return true;

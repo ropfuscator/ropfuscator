@@ -15,7 +15,7 @@ public:
   static uint64_t                   range64(uint64_t x, uint64_t y);
   static uint32_t                   rand();
   static bool                       bit();
-  static std::default_random_engine engine();
+  static std::default_random_engine &engine();
 };
 
 class PrimeNumberGenerator {
