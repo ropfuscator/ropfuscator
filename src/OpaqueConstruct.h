@@ -34,7 +34,6 @@ const std::string OPAQUE_BRANCH_ALGORITHM_NEGSTK_MOV =
 typedef unsigned int llvm_reg_t;
 class X86AssembleHelper;
 struct StackState;
-struct SteganoInstructions;
 
 /// Represents input/output register (or stack) location of opaque constructs.
 struct OpaqueStorage {
@@ -180,13 +179,6 @@ public:
   /// @param as assembler to generate instruction
   /// @param stack current stack offset and saved registers
   virtual void compile(X86AssembleHelper &as, StackState &stack) const = 0;
-  /// generate x86 code which implements the opaque construct.
-  /// @param as assembler to generate instruction
-  /// @param stack current stack offset and saved registers
-  /// @param instrs stegano instructions which should be interleaved
-  virtual void compileStegano(X86AssembleHelper &        as,
-                              StackState &               stack,
-                              const SteganoInstructions &instrs) const = 0;
   /// return the number of opaque predicates (stegano insertion points)
   virtual size_t opaquePredicateCount() const = 0;
   /// virtual destructor

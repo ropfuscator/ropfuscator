@@ -9,7 +9,6 @@
 #include "ROPfuscatorCore.h"
 #include "BinAutopsy.h"
 #include "Debug.h"
-#include "InstrStegano.h"
 #include "LivenessAnalysis.h"
 #include "MathUtil.h"
 #include "OpaqueConstruct.h"
@@ -110,8 +109,7 @@ namespace {
 
 // base class
 struct ROPChainPushInst {
-  std::shared_ptr<OpaqueConstruct>     opaqueConstant;
-  std::shared_ptr<SteganoInstructions> steganoInstr;
+  std::shared_ptr<OpaqueConstruct> opaqueConstant;
   virtual void compile(X86AssembleHelper &, StackState &) = 0;
   virtual ~ROPChainPushInst()                             = default;
 };
@@ -124,12 +122,9 @@ struct PUSH_IMM : public ROPChainPushInst {
     if (opaqueConstant) {
       uint32_t opaque =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-      // compute opaque constant to eax
-      if (steganoInstr) {
-        opaqueConstant->compileStegano(as, stack, *steganoInstr);
-      } else {
-        opaqueConstant->compile(as, stack);
-      }
+
+      opaqueConstant->compile(as, stack);
+
       // adjust eax to be the constant
       uint32_t diff = value - opaque;
       as.add(as.reg(X86::EAX), as.imm(diff));
@@ -153,12 +148,9 @@ struct PUSH_GV : public ROPChainPushInst {
     if (opaqueConstant) {
       uint32_t opaque =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-      // compute opaque constant to eax
-      if (steganoInstr) {
-        opaqueConstant->compileStegano(as, stack, *steganoInstr);
-      } else {
-        opaqueConstant->compile(as, stack);
-      }
+
+      opaqueConstant->compile(as, stack);
+
       // adjust eax to be the constant
       uint32_t diff = offset - opaque;
       as.add(as.reg(X86::EAX), as.imm(gv, diff));
@@ -182,12 +174,9 @@ struct PUSH_GADGET : public ROPChainPushInst {
     if (opaqueConstant) {
       auto opaqueValues =
           *opaqueConstant->getOutput().findValues(OpaqueStorage::EAX);
-      // compute opaque constant to eax
-      if (steganoInstr) {
-        opaqueConstant->compileStegano(as, stack, *steganoInstr);
-      } else {
-        opaqueConstant->compile(as, stack);
-      }
+
+      opaqueConstant->compile(as, stack);
+
       // add eax, $symbol
       as.add(as.reg(X86::EAX), as.label(anchor->Label));
       // push eax
@@ -208,12 +197,9 @@ struct PUSH_LABEL : public ROPChainPushInst {
     if (opaqueConstant) {
       uint32_t value =
           *opaqueConstant->getOutput().findValue(OpaqueStorage::EAX);
-      // compute opaque constant to eax
-      if (steganoInstr) {
-        opaqueConstant->compileStegano(as, stack, *steganoInstr);
-      } else {
-        opaqueConstant->compile(as, stack);
-      }
+
+      opaqueConstant->compile(as, stack);
+      
       // adjust eax to jump target address
       as.add(as.reg(X86::EAX), as.addOffset(label, -value));
       // push eax
@@ -311,8 +297,8 @@ void ROPfuscatorCore::reduceChainElemTypeToPercentage(
     std::vector<ChainElem::Type> elemTypes,
     std::vector<unsigned> &      outVector) {
   std::default_random_engine &rng = math::Random::engine();
-  size_t                     chainElemsToObfuscate;
-  std::vector<size_t>        buf;
+  size_t                      chainElemsToObfuscate;
+  std::vector<size_t>         buf;
 
   // saving the indices of all the chain elements of a specific type.
   // we will decide the ones to keep later
@@ -397,20 +383,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
   } else {
     asChainLabel  = as.label();
     asResumeLabel = as.label();
-  }
-
-  // instruction steganography: convert part of ROP chain into stegano
-  SteganoInstructions steganoInstrs;
-  if (param.opaquePredicatesEnabled && param.opaqueSteganoEnabled) {
-    size_t count =
-        InstrSteganoProcessor().convertROPChainToStegano(chain,
-                                                         steganoInstrs,
-                                                         chain.size() / 2);
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
-    stegano_chain_elems += count;
-#else
-    (void)count;
-#endif
   }
 
   // Convert ROP chain to push instructions
@@ -663,28 +635,6 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
     espoffset -= 4;
     idx++;
-  }
-
-  // instruction steganography: embed stegano instrs into opaque constants
-  if (param.opaquePredicatesEnabled && param.opaqueSteganoEnabled &&
-      !steganoInstrs.instrs.empty()) {
-    size_t opaqueConstantCount =
-        std::count_if(pushchain.begin(),
-                      pushchain.end(),
-                      [](std::shared_ptr<ROPChainPushInst> inst) -> bool {
-                        return !!inst->opaqueConstant;
-                      });
-    std::vector<SteganoInstructions> steganoList;
-    steganoInstrs.expandWithDummy(opaqueConstantCount)
-        .split(opaqueConstantCount, steganoList);
-    auto it = steganoList.begin();
-    for (auto push : pushchain) {
-      if (push->opaqueConstant) {
-        push->steganoInstr = std::shared_ptr<SteganoInstructions>(
-            new SteganoInstructions(*it++));
-      }
-    }
-    // assert(it == steganoList.end());
   }
 
   // EMIT PROLOGUE

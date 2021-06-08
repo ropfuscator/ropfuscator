@@ -10,7 +10,6 @@ set(ROPF_SRCDIR ${ROPF_DIR}/src)
 set(ROPF_SOURCES
     ${ROPF_SRCDIR}/BinAutopsy.cpp
     ${ROPF_SRCDIR}/Debug.cpp
-    ${ROPF_SRCDIR}/InstrStegano.cpp
     ${ROPF_SRCDIR}/LivenessAnalysis.cpp
     ${ROPF_SRCDIR}/MathUtil.cpp
     ${ROPF_SRCDIR}/OpaqueConstruct.cpp
