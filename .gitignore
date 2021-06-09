@@ -22,3 +22,6 @@ _deps
 # IntelliJ IDEs stuff
 .idea
 cmake-build-debug
+
+# vscode extensions artifacts
+checks.json
