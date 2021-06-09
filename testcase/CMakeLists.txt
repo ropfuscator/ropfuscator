@@ -27,10 +27,10 @@ target_compile_options(testcase001 PUBLIC -O2)
 target_compile_options(testcase002 PUBLIC -O0)
 target_compile_options(testcase003 PUBLIC -O2)
 target_compile_options(testcase004 PUBLIC -O0)
-target_compile_options(testcase-example1 PUBLIC -O0)
-target_compile_options(testcase-example2 PUBLIC -O0)
-target_compile_options(testcase-example3 PUBLIC -O0)
-target_compile_options(testcase-example4 PUBLIC -O0)
+target_compile_options(testcase008 PUBLIC -O0)
+target_compile_options(testcase009 PUBLIC -O0)
+target_compile_options(testcase010 PUBLIC -O0)
+target_compile_options(testcase011 PUBLIC -O0)
 # ====================
 
 foreach(source ${sources})
@@ -60,8 +60,8 @@ foreach(source ${sources})
     endif()
 
     if(TARGET_CFLAGS)
-      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase} IRFLAGS
-                               ${TARGET_CFLAGS})
+      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
+                               IRFLAGS ${TARGET_CFLAGS})
     else()
       generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase})
     endif()
