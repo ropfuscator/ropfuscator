@@ -3,7 +3,7 @@ macro(generate_ropfuscated_asm)
   # macro argument parsing
   #
 
-  set(oneValueArgs SOURCE OUTNAME OBF_CONFIG)
+  set(oneValueArgs SOURCE OUTNAME OBF_CONFIG GADGET_LIB)
   set(multiValueArgs IRFLAGS ASMFLAGS)
 
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
@@ -15,6 +15,10 @@ macro(generate_ropfuscated_asm)
 
   if(NOT ARG_OUTNAME)
     message(FATAL_ERROR "Output name not specified!")
+  endif()
+
+  if(NOT ARG_GADGET_LIB)
+    message(FATAL_ERROR "Gadget library not specified!")
   endif()
 
   #
@@ -41,7 +45,8 @@ macro(generate_ropfuscated_asm)
 
   set(CLANG_FLAGS ${ROPF_IR_FLAGS} ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
                   ${ARG_SOURCE})
-  set(LLC_FLAGS ${ROPF_ASM_FLAGS} ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
+  set(LLC_FLAGS -ropfuscator-library=${ARG_GADGET_LIB} ${ROPF_ASM_FLAGS}
+                ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
   set(DEPENDENCIES clang llc ${ARG_SOURCE})
 
   #
@@ -58,9 +63,13 @@ macro(generate_ropfuscated_asm)
     list(APPEND DEPENDENCIES ${ARG_OBF_CONFIG})
   endif()
 
+  if(ARG_GADGET_LIB STREQUAL $<TARGET_FILE:rop>)
+    list(APPEND DEPENDENCIES rop)
+  endif()
+
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
-    DEPENDS ${DEPENDENCIES} rop
+    DEPENDS ${DEPENDENCIES}
     COMMAND $<TARGET_FILE:clang> ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
 endmacro()
@@ -95,5 +104,7 @@ macro(generate_clean_asm)
     ASMFLAGS
     ${ARG_ASMFLAGS}
     IRFLAGS
-    ${ARG_IRFLAGS})
+    ${ARG_IRFLAGS}
+    GADGET_LIB
+    " ")
 endmacro()

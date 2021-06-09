@@ -5,7 +5,7 @@
 #include "llvm/Support/Path.h"
 
 std::string findLibraryPath(const std::string &libfile) {
-  for (auto &dir : POSSIBLE_LIBC_FOLDERS) {
+  for (auto &dir : SYSTEM_LIB_FOLDERS) {
     // searching for libc in regular files only
     std::error_code ec;
 
