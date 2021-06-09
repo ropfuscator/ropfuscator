@@ -113,8 +113,9 @@ struct ChainElem {
   }
 
   friend bool operator==(ChainElem const &A, ChainElem const &B) {
-    if (A.type != B.type)
+    if (A.type != B.type) {
       return false;
+    }
 
     switch (A.type) {
     case Type::GADGET: return A.microgadget == B.microgadget;

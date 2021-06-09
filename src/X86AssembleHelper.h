@@ -1,6 +1,7 @@
 #ifndef X86ASSEMBLEHELPER_H
 #define X86ASSEMBLEHELPER_H
 
+#include "Debug.h"
 #include "X86TargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCContext.h"
@@ -11,7 +12,7 @@
 
 namespace llvm {
 class GlobalValue;
-}
+} // namespace llvm
 
 namespace ropf {
 
@@ -197,7 +198,8 @@ public:
   // LLVM will create assembly parser for each inline assembly code,
   // which will heavily slow down the build process.
   void inlineasm(std::string str) const {
-    auto external_symbol = block.getParent()->createExternalSymbolName(str);
+    const auto *external_symbol =
+        block.getParent()->createExternalSymbolName(str);
 
     BuildMI(block, position, nullptr, TII->get(llvm::TargetOpcode::INLINEASM))
         .addExternalSymbol(external_symbol)
@@ -296,12 +298,12 @@ private:
         llvm::ConstantDataArray::getString(module->getContext(),
                                            dataRef,
                                            false);
-    auto gv = new llvm::GlobalVariable(*module,
-                                       constant->getType(),
-                                       true,
-                                       llvm::GlobalValue::PrivateLinkage,
-                                       constant,
-                                       name);
+    auto *gv = new llvm::GlobalVariable(*module,
+                                        constant->getType(),
+                                        true,
+                                        llvm::GlobalValue::PrivateLinkage,
+                                        constant,
+                                        name);
     return gv;
   }
 };

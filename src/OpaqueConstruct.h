@@ -58,21 +58,25 @@ struct OpaqueStorage {
   static const OpaqueStorage STACK_0, STACK_4, STACK_8, STACK_12;
 
   bool operator==(const OpaqueStorage &other) const {
-    if (this == &other)
+    if (this == &other) {
       return true;
-    if (type == Type::REG)
+    }
+    if (type == Type::REG) {
       return other.type == Type::REG && reg == other.reg;
-    else if (type == Type::STACK)
+    }
+    if (type == Type::STACK) {
       return other.type == Type::STACK && stackOffset == other.stackOffset;
+    }
     return false;
   }
 
 private:
   OpaqueStorage(Type type, llvm_reg_t reg, int stackOffset) : type(type) {
-    if (type == Type::REG)
+    if (type == Type::REG) {
       this->reg = reg;
-    else if (type == Type::STACK)
+    } else if (type == Type::STACK) {
       this->stackOffset = stackOffset;
+    }
   }
 };
 

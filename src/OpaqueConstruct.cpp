@@ -492,8 +492,9 @@ public:
     }
     switch (target.type) {
     case OpaqueStorage::Type::REG:
-      if (target.reg != X86::ECX)
+      if (target.reg != X86::ECX) {
         as.mov(as.reg(target.reg), as.reg(X86::ECX));
+      }
       break;
     case OpaqueStorage::Type::STACK:
       as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::ECX));
@@ -561,8 +562,9 @@ protected:
               (uint8_t)math::Random::range32(0, sizeof(UINT) * 8 - 1),
               math::Random::bit()};
           UINT mask = (UINT)1 << var.index;
-          if ((maskbits[0] & mask) | (maskbits[1] & mask))
+          if ((maskbits[0] & mask) | (maskbits[1] & mask)) {
             continue;
+          }
           maskbits[var.neg] |= mask;
           clause.vars[bits] = var;
           bits++;
@@ -827,8 +829,9 @@ public:
     }
     switch (target.type) {
     case OpaqueStorage::Type::REG:
-      if (target.reg != X86::EAX)
+      if (target.reg != X86::EAX) {
         as.mov(as.reg(target.reg), as.reg(X86::EAX));
+      }
       break;
     case OpaqueStorage::Type::STACK:
       as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(X86::EAX));
@@ -885,8 +888,9 @@ public:
                values.size(),
                1,
                labelUsed);
-    if (labelUsed)
+    if (labelUsed) {
       as.putLabel(endLabel);
+    }
     if (target.type == OpaqueStorage::Type::STACK) {
       as.mov(as.mem(X86::ESP, target.stackOffset), as.reg(targetreg));
     }
@@ -1032,15 +1036,17 @@ public:
     switch (target.type) {
     case OpaqueStorage::Type::REG:
       compileAux(as, 0, inputvalues.size(), target.reg, endLabelUsed, endLabel);
-      if (endLabelUsed)
+      if (endLabelUsed) {
         as.putLabel(endLabel);
+      }
       break;
     case OpaqueStorage::Type::STACK:
       auto stackref = as.mem(X86::ESP, target.stackOffset);
       as.mov(as.reg(X86::EAX), stackref);
       compileAux(as, 0, inputvalues.size(), X86::EAX, endLabelUsed, endLabel);
-      if (endLabelUsed)
+      if (endLabelUsed) {
         as.putLabel(endLabel);
+      }
       as.mov(stackref, as.reg(X86::EAX));
       break;
     }
@@ -1057,8 +1063,9 @@ public:
   std::vector<llvm_reg_t> getClobberedRegs() const override {
     switch (inputvalues.size()) {
     case 1:
-      if (target.type == OpaqueStorage::Type::STACK)
+      if (target.type == OpaqueStorage::Type::STACK) {
         return {X86::EAX, X86::EFLAGS};
+      }
       return {X86::EFLAGS};
     case 2: return {X86::EAX, X86::EDX, X86::EFLAGS};
     default: return {X86::EAX, X86::ECX, X86::EDX, X86::EFLAGS};
@@ -1086,8 +1093,9 @@ private:
         // tmpreg1: used in N>2, tmpreg2: used in N>3
         unsigned int tmpreg1 = targetreg == X86::EDX ? X86::EAX : X86::EDX;
         unsigned int tmpreg2 = targetreg == X86::ECX ? X86::EAX : X86::ECX;
-        if (shift > 0)
+        if (shift > 0) {
           as.shr(as.reg(targetreg), as.imm(shift));
+        }
         for (uint32_t i = 0; i + 2 < N; i++) {
           if (i == 0) {
             as.imul(as.reg(tmpreg1), as.reg(targetreg), as.imm(params[i]));

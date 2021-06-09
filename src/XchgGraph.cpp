@@ -36,8 +36,9 @@ bool XchgGraph::checkPath(int  src,
     pred[i]    = -1;
   }
 
-  if (src == dest)
+  if (src == dest) {
     return true;
+  }
 
   visited[src] = true;
   dist[src]    = 0;
@@ -55,8 +56,9 @@ bool XchgGraph::checkPath(int  src,
         pred[adj[u][i]]    = u;
         queue.push_back(adj[u][i]);
 
-        if (adj[u][i] == dest)
+        if (adj[u][i] == dest) {
           return true;
+        }
       }
     }
   }
@@ -75,8 +77,9 @@ XchgPath XchgGraph::getPath(XchgState &state, int src, int dest) const {
   // dest = state.searchLogicalReg(dest);
   // dbg_fmt("[getPath] Exchanging {} with {}\n", src, dest);
 
-  if (!checkPath(src, dest, pred, dist, visited))
+  if (!checkPath(src, dest, pred, dist, visited)) {
     return result;
+  }
 
   crawl = dest;
   path.push_back(crawl);
@@ -100,8 +103,9 @@ int XchgState::searchLogicalReg(int LReg, int PReg) const {
   // dbg_fmt("** Searching [{}] -> {}\n", LReg, PReg);
   int r;
 
-  for (r = LReg; PhysReg[r] != PReg; r = PhysReg[r])
+  for (r = LReg; PhysReg[r] != PReg; r = PhysReg[r]) {
     ;
+  }
 
   return r;
 }
@@ -115,8 +119,9 @@ XchgPath XchgGraph::fixPath(XchgState &state, XchgPath path) const {
 
   result.insert(result.begin(), path.begin(), path.end());
 
-  if (path.size() > 1)
+  if (path.size() > 1) {
     result.insert(result.end(), path.rbegin() + 1, path.rend());
+  }
 
   state.xchgStack.insert(state.xchgStack.end(), result.begin(), result.end());
 
