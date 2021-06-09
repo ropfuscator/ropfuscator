@@ -21,6 +21,6 @@ std::string findLibraryPath(const std::string &libfile) {
       }
     }
   }
-  
+
   return "";
 }

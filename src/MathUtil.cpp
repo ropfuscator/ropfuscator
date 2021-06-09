@@ -46,8 +46,8 @@ template <> struct Divisor<uint32_t> {
     result = ((__uint128_t)d1 * x) >> 64;
 #else
     if (x >> 32) {
-      uint64_t x1 = x >> 32;
-      uint64_t x2 = (uint32_t)x;
+      uint64_t x1       = x >> 32;
+      uint64_t x2       = (uint32_t)x;
       // (x1x2 * d1d2) >> 64
       // x1d1 + (x1d2 + x2d1) >> 32 + x2d2 >> 64
       int      overflow = 0;
@@ -110,8 +110,8 @@ template <> struct Divisor<uint64_t> {
   void divmod(__uint128_t x, __uint128_t &quo, __uint128_t &rem) const {
     __uint128_t result;
     if (x >> 64) {
-      __uint128_t x1 = x >> 64;
-      __uint128_t x2 = (uint64_t)x;
+      __uint128_t x1       = x >> 64;
+      __uint128_t x2       = (uint64_t)x;
       // (x1x2 * d1d2) >> 128
       // x1d1 + (x1d2 + x2d1) >> 64 + x2d2 >> 128
       int         overflow = 0;

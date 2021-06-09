@@ -480,7 +480,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
     case ChainElem::Type::GADGET: {
       // Get a random symbol to reference this gadget in memory
-      const Symbol *sym = BA->getRandomSymbol();
+      const Symbol *               sym       = BA->getRandomSymbol();
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem.microgadget->addresses;
       std::vector<uint32_t>        offsets;

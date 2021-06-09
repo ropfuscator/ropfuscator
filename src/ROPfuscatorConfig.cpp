@@ -12,7 +12,7 @@ namespace toml {
 template <typename... Args> [[noreturn]] void failwith(Args &&...args) {
   std::stringstream ss;
   // this will expand to ss << args_0, ss << args_1, ...
-  int _dummy[] = {(ss << args, 0)...};
+  int               _dummy[] = {(ss << args, 0)...};
   (void)_dummy;
   ropf::dbg_fmt("TOML parse error: {}\n", ss.str());
   exit(1);
