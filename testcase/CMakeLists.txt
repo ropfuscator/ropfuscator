@@ -35,11 +35,15 @@ target_compile_options(testcase-example4 PUBLIC -O0)
 
 foreach(source ${sources})
   get_filename_component(testcase ${source} NAME_WE)
-  get_target_property(target_cflags ${testcase} COMPILE_OPTIONS)
+  get_target_property(TARGET_CFLAGS ${testcase} COMPILE_OPTIONS)
 
   # vanilla testcase
-  generate_clean_asm(SOURCE ${source} OUTNAME ${testcase} IRFLAGS
-                     ${target_cflags})
+  if(TARGET_CFLAGS)
+    generate_clean_asm(SOURCE ${source} OUTNAME ${testcase} IRFLAGS
+                       ${TARGET_CFLAGS})
+  else()
+    generate_clean_asm(SOURCE ${source} OUTNAME ${testcase})
+  endif()
 
   add_test(NAME test-${testcase}-plain-build
            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
@@ -55,8 +59,12 @@ foreach(source ${sources})
       target_link_libraries(${obfuscated_testcase} rop)
     endif()
 
-    generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
-                             IRFLAGS ${target_cflags})
+    if(TARGET_CFLAGS)
+      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase} IRFLAGS
+                               ${TARGET_CFLAGS})
+    else()
+      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase})
+    endif()
 
     add_test(NAME test-${obfuscated_testcase}-build
              COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
