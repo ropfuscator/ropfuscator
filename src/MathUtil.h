@@ -11,10 +11,10 @@ namespace ropf::math {
 
 class Random {
 public:
-  static uint32_t                   range32(uint32_t x, uint32_t y);
-  static uint64_t                   range64(uint64_t x, uint64_t y);
-  static uint32_t                   rand();
-  static bool                       bit();
+  static uint32_t                    range32(uint32_t x, uint32_t y);
+  static uint64_t                    range64(uint64_t x, uint64_t y);
+  static uint32_t                    rand();
+  static bool                        bit();
   static std::default_random_engine &engine();
 };
 
@@ -120,57 +120,75 @@ public:
     Matrix inverse_mod(uint64_t modulus) const {
       assert(M == N);
       Matrix result(N, N);
+
       if (N == 0) {
         return result;
-      } else if (N == 1) {
+      }
+
+      if (N == 1) {
         uint64_t inv = modinv(at(0, 0), modulus);
+
         if (inv == 0) {
           return Matrix(0, 0); // failure
         }
+
         result.at(0, 0) = inv;
+
         return result;
-      } else if (N == 2) {
+      }
+
+      if (N == 2) {
         uint64_t det    = at(0, 0) * at(1, 1) - at(0, 1) * at(1, 0);
         uint64_t invdet = modinv(det, modulus);
+
         if (invdet == 0) {
           return Matrix(0, 0); // failure
         }
+
         result.at(0, 0) = uint64_t(invdet * at(1, 1)) % modulus;
         result.at(0, 1) = uint64_t(invdet * -at(0, 1)) % modulus;
         result.at(1, 0) = uint64_t(invdet * -at(1, 0)) % modulus;
         result.at(1, 1) = uint64_t(invdet * at(0, 0)) % modulus;
-        return result;
-      } else {
-        unsigned int n1 = (N + 1) / 2;
-        unsigned int n2 = N - n1;
-        // split matrix
-        View   A    = view(0, 0, n1, n1);
-        View   B    = view(n1, 0, n2, n1);
-        View   C    = view(0, n1, n1, n2);
-        View   D    = view(n1, n1, n2, n2);
-        Matrix InvA = A.inverse_mod(modulus);
-        if (InvA.width() == 0) {
-          return Matrix(0, 0); // failure
-        }
-        Matrix F    = D - C * InvA * B;
-        Matrix InvF = F.view().inverse_mod(modulus);
-        if (InvF.width() == 0) {
-          return Matrix(0, 0); // failure
-        }
-        Matrix G                    = InvA * B * InvF;
-        Matrix H                    = C * InvA;
-        result.view(0, 0, n1, n1)   = InvA + G * H;
-        result.view(n1, 0, n2, n1)  = -G;
-        result.view(0, n1, n1, n2)  = -InvF * H;
-        result.view(n1, n1, n2, n2) = InvF;
-        for (unsigned int i = 0; i < N; i++) {
-          for (unsigned int j = 0; j < N; j++) {
-            result.at(i, j) %= modulus;
-          }
-        }
+
         return result;
       }
+
+      unsigned int n1 = (N + 1) / 2;
+      unsigned int n2 = N - n1;
+      // split matrix
+      View   A    = view(0, 0, n1, n1);
+      View   B    = view(n1, 0, n2, n1);
+      View   C    = view(0, n1, n1, n2);
+      View   D    = view(n1, n1, n2, n2);
+      Matrix InvA = A.inverse_mod(modulus);
+
+      if (InvA.width() == 0) {
+        return Matrix(0, 0); // failure
+      }
+
+      Matrix F    = D - C * InvA * B;
+      Matrix InvF = F.view().inverse_mod(modulus);
+
+      if (InvF.width() == 0) {
+        return Matrix(0, 0); // failure
+      }
+
+      Matrix G                    = InvA * B * InvF;
+      Matrix H                    = C * InvA;
+      result.view(0, 0, n1, n1)   = InvA + G * H;
+      result.view(n1, 0, n2, n1)  = -G;
+      result.view(0, n1, n1, n2)  = -InvF * H;
+      result.view(n1, n1, n2, n2) = InvF;
+
+      for (unsigned int i = 0; i < N; i++) {
+        for (unsigned int j = 0; j < N; j++) {
+          result.at(i, j) %= modulus;
+        }
+      }
+
+      return result;
     }
+
     View view(unsigned int offX,
               unsigned int offY,
               unsigned int m,

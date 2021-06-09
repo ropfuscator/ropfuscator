@@ -112,8 +112,9 @@ public:
   ArrayRef<ELF32LE::Sym> getDynamicSymbols() const {
     auto symbols = elf->symbols(dynsym);
 
-    if (symbols)
+    if (symbols) {
       return *symbols;
+    }
 
     return ArrayRef<ELF32LE::Sym>();
   }
@@ -131,19 +132,22 @@ public:
   std::string getSymbolVersion(int symindex) const {
     auto versyms = elf->getSectionContentsAsArray<uint16_t>(versym);
 
-    if (!versyms)
+    if (!versyms) {
       return "";
+    }
 
     uint16_t value = (*versyms)[symindex];
 
     if (value == ELF_VER_NDX_LOCAL || value == ELF_VER_NDX_GLOBAL ||
-        value >= ELF_VER_NDX_LORESERVE)
+        value >= ELF_VER_NDX_LORESERVE) {
       return "";
+    }
 
     value &= 0x7fff;
 
-    if (value >= verdefs.size())
+    if (value >= verdefs.size()) {
       return "";
+    }
 
     return verdefs[value];
   }
@@ -248,13 +252,15 @@ private:
   void parseVerdefs() {
     std::map<uint16_t, const char *> verdefmap;
 
-    if (!verdef)
+    if (!verdef) {
       return;
+    }
 
     auto data_opt = elf->getSectionContents(verdef);
 
-    if (!data_opt)
+    if (!data_opt) {
       return;
+    }
 
     const uint8_t *data      = data_opt->data();
     size_t         size      = data_opt->size();
@@ -264,20 +270,23 @@ private:
     for (unsigned int pos = 0; pos < size;) {
       const Verdef *entry = reinterpret_cast<const Verdef *>(&data[pos]);
 
-      if (max_index < entry->vd_ndx)
+      if (max_index < entry->vd_ndx) {
         max_index = entry->vd_ndx;
+      }
 
       if (entry->vd_cnt > 0) {
         // only take the first Verdef_aux entry
         const Verdef_aux *aux =
             reinterpret_cast<const Verdef_aux *>(&data[pos + entry->vd_aux]);
 
-        if (aux->vda_name < dynstrtab.size())
+        if (aux->vda_name < dynstrtab.size()) {
           verdefmap.emplace(entry->vd_ndx, &dynstrtab.data()[aux->vda_name]);
+        }
       }
 
-      if (entry->vd_next == 0)
+      if (entry->vd_next == 0) {
         break;
+      }
 
       pos += entry->vd_next;
     }
@@ -395,8 +404,9 @@ void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *    elf,
       if (symbolNames.find(symbolName) == symbolNames.end()) {
         symbolNames.insert(symbolName);
         Symbol sym(symbolName, versionString, addr);
-        if (!safeOnly || isSafeSymbol(sym))
+        if (!safeOnly || isSafeSymbol(sym)) {
           Symbols.emplace_back(sym);
+        }
       } else {
         // multi-versioned symbol
         if (safeOnly && config.avoidMultiversionSymbol) {
@@ -415,13 +425,15 @@ void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *    elf,
 bool BinaryAutopsy::isSafeSymbol(const Symbol &symbol) const {
   // those two symbols are very often subject to aliasing (they can be found
   // in many different libraries loaded in memory), so better avoiding them!
-  if (symbol.Label == "_init" || symbol.Label == "_fini")
+  if (symbol.Label == "_init" || symbol.Label == "_fini") {
     return false;
+  }
 
   // functions with name prefixed with "_dl" is possibly created
   // by dynamic linkers, so we aviod them
-  if (symbol.Label.rfind("_dl", 0) != std::string::npos)
+  if (symbol.Label.rfind("_dl", 0) != std::string::npos) {
     return false;
+  }
 
   return true;
 }
@@ -558,8 +570,9 @@ void BinaryAutopsy::dumpGadgets(
 
           // ignore repeat prefix
           uint8_t firstbyte = *(cur_pos - depth);
-          if (firstbyte == 0xf2 || firstbyte == 0xf3)
+          if (firstbyte == 0xf2 || firstbyte == 0xf3) {
             continue;
+          }
 
           uint64_t addr = offset - depth;
 
@@ -902,8 +915,9 @@ ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &  state,
 
   auto it_gadgets = GadgetPrimitives.find(type);
 
-  if (it_gadgets == GadgetPrimitives.end())
+  if (it_gadgets == GadgetPrimitives.end()) {
     return result;
+  }
 
   const auto &gadgets = it_gadgets->second;
 
@@ -973,8 +987,9 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
     // in XCHG instructions the operands order doesn't matter
     const auto *found = findGadget(GadgetType::XCHG, edge.first, edge.second);
 
-    if (!found)
+    if (!found) {
       found = findGadget(GadgetType::XCHG, edge.second, edge.first);
+    }
 
     result.emplace_back(ChainElem::fromGadget(found));
   }

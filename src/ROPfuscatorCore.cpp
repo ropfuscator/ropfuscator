@@ -256,8 +256,9 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
   total_func_count = 0;
   curr_func_count  = 0;
   for (auto &f : module.getFunctionList()) {
-    if (!f.empty())
+    if (!f.empty()) {
       total_func_count++;
+    }
   }
   if (config.globalConfig.rng_seed) {
     math::Random::engine().seed(config.globalConfig.rng_seed);
@@ -835,8 +836,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
       MachineInstr &MI = *it;
 
-      if (MI.isDebugInstr())
+      if (MI.isDebugInstr()) {
         continue;
+      }
 
       DEBUG_WITH_TYPE(PROCESSED_INSTR, dbg_fmt("    {}", MI));
       processed++;
@@ -915,8 +917,9 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
     // delete old vanilla instructions only after we finished to iterate through
     // the basic block
-    for (auto &MI : instrToDelete)
+    for (auto &MI : instrToDelete) {
       MI->eraseFromParent();
+    }
 
     instrToDelete.clear();
   }

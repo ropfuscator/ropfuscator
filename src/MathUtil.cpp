@@ -118,12 +118,14 @@ template <> struct Divisor<uint64_t> {
       __uint128_t v0, v = (x2 * d2) >> 64;
       v0 = x2 * d1;
       v += v0;
-      if (v < v0)
+      if (v < v0) {
         overflow++;
+      }
       v0 = x1 * d2;
       v += v0;
-      if (v < v0)
+      if (v < v0) {
         overflow++;
+      }
       v >>= 64;
       result = x1 * d1 + v + overflow;
     } else {

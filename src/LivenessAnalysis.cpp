@@ -24,10 +24,11 @@ void addReg(MachineInstr &                             MI,
             map<MachineInstr *, vector<unsigned int>> &regs) {
   auto it = regs.find(&MI);
 
-  if (it != regs.end()) {
-    it->second.push_back(reg);
-  } else
+  if (it == regs.end()) {
     assert(false && "No matching MachineInstr found in regs map!");
+  }
+
+  it->second.push_back(reg);
 
   return;
 }
