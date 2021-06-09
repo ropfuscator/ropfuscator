@@ -421,8 +421,8 @@ ROPEngine::handleXor32RR(MachineInstr *             MI,
 
 ROPChainStatus ROPEngine::handleLea32r(MachineInstr *             MI,
                                        std::vector<unsigned int> &scratchRegs) {
-  Register dst = MI->getOperand(0).getReg();
-  Register src = MI->getOperand(1).getReg();
+  Register                    dst        = MI->getOperand(0).getReg();
+  Register                    src        = MI->getOperand(1).getReg();
   // int64_t op_scale = MI->getOperand(2).getImm();
   Register                    indexReg   = MI->getOperand(3).getReg();
   const llvm::MachineOperand &op_disp    = MI->getOperand(4);

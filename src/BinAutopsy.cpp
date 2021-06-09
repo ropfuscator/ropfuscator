@@ -192,29 +192,29 @@ private:
   // ELF constants
 
   // SHT_PROGBITS: code section loaded into memory
-  static const int ELF_SHT_PROGBITS = 1;
+  static const int ELF_SHT_PROGBITS      = 1;
   // SHT_DYNSYM: dynamic symbol table
-  static const int ELF_SHT_DYNSYM = 11;
+  static const int ELF_SHT_DYNSYM        = 11;
   // SHT_GNU_verdef: symbol version definition
-  static const int ELF_SHT_GNU_verdef = 0x6ffffffd;
+  static const int ELF_SHT_GNU_verdef    = 0x6ffffffd;
   // SHT_GNU_versym: symbol version information
-  static const int ELF_SHT_GNU_versym = 0x6fffffff;
+  static const int ELF_SHT_GNU_versym    = 0x6fffffff;
   // SHF_EXECINSTR: executable flag of section
-  static const int ELF_SHF_EXECINSTR = 0x4;
+  static const int ELF_SHF_EXECINSTR     = 0x4;
   // PT_LOAD: code segment loaded into memory
-  static const int ELF_PT_LOAD = 1;
+  static const int ELF_PT_LOAD           = 1;
   // PF_X: executable flag of segment
-  static const int ELF_PF_X = 0x01;
+  static const int ELF_PF_X              = 0x01;
   // symbol type: function
-  static const int ELF_STT_FUNC = 2;
+  static const int ELF_STT_FUNC          = 2;
   // symbol binding: global
-  static const int ELF_STB_GLOBAL = 1;
+  static const int ELF_STB_GLOBAL        = 1;
   // symbol binding: weak
-  static const int ELF_STB_WEAK = 2;
+  static const int ELF_STB_WEAK          = 2;
   // version table index: local
-  static const int ELF_VER_NDX_LOCAL = 0;
+  static const int ELF_VER_NDX_LOCAL     = 0;
   // version table index: global
-  static const int ELF_VER_NDX_GLOBAL = 1;
+  static const int ELF_VER_NDX_GLOBAL    = 1;
   // version table index: max value + 1
   static const int ELF_VER_NDX_LORESERVE = 0xff00;
 
