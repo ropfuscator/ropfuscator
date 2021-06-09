@@ -4,7 +4,7 @@
 #ifndef ROPFUSCATOR_UTILS_H
 #define ROPFUSCATOR_UTILS_H
 
-const std::string POSSIBLE_LIBC_FOLDERS[] = {
+const std::string SYSTEM_LIB_FOLDERS[] = {
     "/lib/i386-linux-gnu",
     "/usr/lib/i386-linux-gnu",
     "/lib32",

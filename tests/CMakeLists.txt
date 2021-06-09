@@ -13,10 +13,21 @@ foreach(source ${sources})
 
   # obfuscated testcase
   foreach(config ${ROPF_CONFIGURATION_FILES})
-    get_filename_component(config_name ${config} NAME_WE)
-    set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}")
+    foreach(library ${ROPFUSCATOR_LIBRARIES})
+      get_filename_component(config_name ${config} NAME_WE)
+      get_filename_component(libname ${library} NAME_WE)
 
-    add_executable(${obfuscated_testcase} ${obfuscated_testcase}.s)
+      # ugly but needed because the generator expressions are not expanded at
+      # this stage
+      if(library STREQUAL $<TARGET_FILE:rop>)
+        set(libname "librop")
+      endif()
+
+      set(obfuscated_testcase
+          "${testcase}-ropfuscated-${config_name}-${libname}")
+
+      add_executable(${obfuscated_testcase} ${obfuscated_testcase}.s)
+    endforeach()
   endforeach()
 endforeach()
 
@@ -52,49 +63,67 @@ foreach(source ${sources})
 
   # obfuscated testcases (per config)
   foreach(config ${ROPF_CONFIGURATION_FILES})
-    get_filename_component(config_name ${config} NAME_WE)
-    set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}")
+    foreach(library ${ROPFUSCATOR_LIBRARIES})
+      get_filename_component(config_name ${config} NAME_WE)
+      get_filename_component(libname ${library} NAME_WE)
 
-    if(NOT USE_LIBC)
-      target_link_libraries(${obfuscated_testcase} rop)
-    endif()
+      # ugly but needed because the generator expressions are not expanded at
+      # this stage
+      if(library STREQUAL $<TARGET_FILE:rop>)
+        set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}-librop")
+      else()
+        set(obfuscated_testcase
+            "${testcase}-ropfuscated-${config_name}-${libname}")
+      endif()
 
-    if(TARGET_CFLAGS)
-      generate_ropfuscated_asm(
-        SOURCE
-        ${source}
-        OUTNAME
-        ${obfuscated_testcase}
-        IRFLAGS
-        ${TARGET_CFLAGS}
-        OBF_CONFIG
-        ${config})
-    else()
-      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
-                               OBF_CONFIG ${config})
-    endif()
+      target_link_libraries(${obfuscated_testcase} ${library})
 
-    add_test(NAME test-${obfuscated_testcase}-build
-             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
-                     ${obfuscated_testcase})
+      if(TARGET_CFLAGS)
+        generate_ropfuscated_asm(
+          SOURCE
+          ${source}
+          OUTNAME
+          ${obfuscated_testcase}
+          IRFLAGS
+          ${TARGET_CFLAGS}
+          OBF_CONFIG
+          ${config}
+          GADGET_LIB
+          ${library})
+      else()
+        generate_ropfuscated_asm(
+          SOURCE
+          ${source}
+          OUTNAME
+          ${obfuscated_testcase}
+          OBF_CONFIG
+          ${config}
+          GADGET_LIB
+          ${library})
+      endif()
 
-    add_test(NAME test-${obfuscated_testcase}-exec
-             COMMAND $<TARGET_FILE:${obfuscated_testcase}>)
+      add_test(NAME test-${obfuscated_testcase}-build
+               COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
+                       ${obfuscated_testcase})
 
-    add_test(
-      NAME test-${obfuscated_testcase}-result-compare
-      COMMAND
-        ${CMAKE_COMMAND} -DPLAIN_BIN=${testcase}
-        -DROPF_BIN=${obfuscated_testcase} -P
-        ${CMAKE_CURRENT_SOURCE_DIR}/run-and-compare-results.cmake)
+      add_test(NAME test-${obfuscated_testcase}-exec
+               COMMAND $<TARGET_FILE:${obfuscated_testcase}>)
 
-    set_tests_properties(
-      test-${testcase}-plain-exec test-${obfuscated_testcase}-result-compare
-      PROPERTIES DEPENDS test-${testcase}-plain-build)
+      add_test(
+        NAME test-${obfuscated_testcase}-result-compare
+        COMMAND
+          ${CMAKE_COMMAND} -DPLAIN_BIN=${testcase}
+          -DROPF_BIN=${obfuscated_testcase} -P
+          ${CMAKE_CURRENT_SOURCE_DIR}/run-and-compare-results.cmake)
 
-    set_tests_properties(
-      test-${obfuscated_testcase}-exec
-      test-${obfuscated_testcase}-result-compare
-      PROPERTIES DEPENDS test-${obfuscated_testcase}-build)
+      set_tests_properties(
+        test-${testcase}-plain-exec test-${obfuscated_testcase}-result-compare
+        PROPERTIES DEPENDS test-${testcase}-plain-build)
+
+      set_tests_properties(
+        test-${obfuscated_testcase}-exec
+        test-${obfuscated_testcase}-result-compare
+        PROPERTIES DEPENDS test-${obfuscated_testcase}-build)
+    endforeach()
   endforeach()
 endforeach()

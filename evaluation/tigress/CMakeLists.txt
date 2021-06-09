@@ -7,13 +7,28 @@ foreach(filename ${vanilla})
   set(ropfuscated_sample "${sample}-ropfuscated")
 
   add_executable(${sample} ${sample}.s)
-  add_executable(${ropfuscated_sample} ${ropfuscated_sample}.s)
-  add_dependencies(ropfuscator-tigress-samples ${sample} ${ropfuscated_sample})
-
-  if(NOT USE_LIBC)
-    target_link_libraries(${ropfuscated_sample} rop)
-  endif()
+  add_dependencies(ropfuscator-tigress-samples ${sample})
 
   generate_clean_asm(SOURCE ${filename} OUTNAME ${sample})
-  generate_ropfuscated_asm(SOURCE ${filename} OUTNAME ${ropfuscated_sample})
+
+  foreach(library ${ROPFUSCATOR_LIBRARIES})
+    get_filename_component(libname ${library} NAME_WE)
+
+    # ugly but needed because the generator expressions are not expanded at
+    # this stage
+    if(library STREQUAL $<TARGET_FILE:rop>)
+      set(libname "librop")
+    endif()
+
+    set(final_name "${ropfuscated_sample}-${libname}")
+
+    add_executable(${final_name} ${final_name}.s)
+    add_dependencies(ropfuscator-tigress-samples ${final_name})
+
+    target_link_libraries(${final_name} ${library})
+
+    generate_ropfuscated_asm(SOURCE ${filename} OUTNAME ${final_name}
+                             GADGET_LIB ${library})
+  endforeach()
+
 endforeach()

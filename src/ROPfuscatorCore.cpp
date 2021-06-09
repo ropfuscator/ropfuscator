@@ -761,14 +761,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   curr_func_count++;
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
-    if (config.globalConfig.libraryPath.empty()) {
-      std::string path = findLibraryPath("libc.so.6");
-      if (!path.empty()) {
-        config.globalConfig.libraryPath = path;
-      }
-    }
-
-    dbg_fmt("[*] Using library path for gadget: {}\n",
+    dbg_fmt("[*] Extracting gadgets from: {}\n",
             config.globalConfig.libraryPath);
 
     if (config.globalConfig.linkedLibraries.empty()) {
@@ -779,10 +772,11 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         std::string path = findLibraryPath(libname);
         if (!path.empty()) {
           config.globalConfig.linkedLibraries.push_back(path);
-          dbg_fmt("[*] Using library path for avoiding gadget: {}\n", path);
+          dbg_fmt("[*] Avoiding gadgets from: {}\n", path);
         }
       }
     }
+
     BA = BinaryAutopsy::getInstance(config.globalConfig, MF);
   }
 

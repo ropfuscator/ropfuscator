@@ -81,7 +81,6 @@ public:
     ROPfuscatorConfig config;
 
     if (!RopfuscatorConfigFile.empty()) {
-      dbg_fmt("[*] Loading ROPfuscator configuration file...\n");
       config.loadFromFile(RopfuscatorConfigFile);
     }
 
@@ -90,6 +89,14 @@ public:
       return false;
     }
 
+    if (RopfuscatorGadgetLibrary.empty() &&
+        config.globalConfig.libraryPath.empty()) {
+      dbg_fmt("[-] Library not defined. Disabling ROPfuscator.\n");
+      return false;
+    }
+
+    // assign library from command-line if library has not been
+    // set in the configuration file
     if (!RopfuscatorGadgetLibrary.empty() &&
         config.globalConfig.libraryPath.empty()) {
       config.globalConfig.libraryPath = RopfuscatorGadgetLibrary;
