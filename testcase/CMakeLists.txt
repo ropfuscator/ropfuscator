@@ -2,27 +2,22 @@ cmake_minimum_required(VERSION 3.0)
 
 enable_testing()
 
-# ====================
-# add test here
-# ====================
-set(testcases
-    testcase001
-    testcase002
-    testcase003
-    testcase004
-    testcase-example1
-    testcase-example2
-    testcase-example3
-    testcase-example4)
-# ====================
+file(GLOB sources "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
-foreach(testcase ${testcases})
-  add_executable(${testcase}-ropfuscated ${testcase}-ropfuscated.s)
+# making CMake aware of the targets so we can configure them later
+foreach(source ${sources})
+  get_filename_component(testcase ${source} NAME_WE)
+
+  # vanilla testcase
   add_executable(${testcase} ${testcase}.s)
 
-  if(NOT USE_LIBC)
-    target_link_libraries(${testcase}-ropfuscated rop)
-  endif()
+  # obfuscated testcase
+  foreach(config ${ROPF_CONFIGURATION_FILES})
+    get_filename_component(config_name ${config} NAME_WE)
+    set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}")
+
+    add_executable(${obfuscated_testcase} ${obfuscated_testcase}.s)
+  endforeach()
 endforeach()
 
 # ====================
@@ -38,56 +33,52 @@ target_compile_options(testcase-example3 PUBLIC -O0)
 target_compile_options(testcase-example4 PUBLIC -O0)
 # ====================
 
-set(ROPF_ASM_FLAGS_STDBIN ${ROPF_ASM_FLAGS} -fno-ropfuscator)
-set(ROPF_ASM_FLAGS_ROPFBIN ${ROPF_ASM_FLAGS})
+foreach(source ${sources})
+  get_filename_component(testcase ${source} NAME_WE)
+  get_target_property(target_cflags ${testcase} COMPILE_OPTIONS)
 
-foreach(testcase ${testcases})
-  set(exec_name ${testcase})
-  set(ropfuscated_exec_name "${exec_name}-ropfuscated")
-  get_target_property(target_cflags ${exec_name} COMPILE_OPTIONS)
+  # vanilla testcase
+  generate_clean_asm(SOURCE ${source} OUTNAME ${testcase} IRFLAGS
+                     ${target_cflags})
 
-  # build commands
-  add_custom_command(
-    OUTPUT ${exec_name}.bc
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${exec_name}.c clang
-    COMMAND
-      $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS}
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/${exec_name}.c ${target_cflags} -o
-      ${exec_name}.bc)
-  add_custom_command(
-    OUTPUT ${exec_name}.s
-    DEPENDS ${exec_name}.bc llc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_STDBIN} ${exec_name}.bc -o
-            ${exec_name}.s)
-  add_custom_command(
-    OUTPUT ${ropfuscated_exec_name}.s
-    DEPENDS ${exec_name}.bc llc
-    COMMAND $<TARGET_FILE:llc> ARGS ${ROPF_ASM_FLAGS_ROPFBIN} ${exec_name}.bc
-            -o ${ropfuscated_exec_name}.s)
-
-  # tests
-  add_test(NAME test-${exec_name}-plain-build
+  add_test(NAME test-${testcase}-plain-build
            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
-                   ${exec_name})
-  add_test(NAME test-${exec_name}-ropfuscated-build
-           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
-                   ${ropfuscated_exec_name})
-  add_test(NAME test-${exec_name}-plain-exec
-           COMMAND $<TARGET_FILE:${exec_name}>)
-  add_test(NAME test-${exec_name}-ropfuscated-exec
-           COMMAND $<TARGET_FILE:${ropfuscated_exec_name}>)
-  add_test(
-    NAME test-${exec_name}-ropfuscated-result-compare
-    COMMAND
-      ${CMAKE_COMMAND} -DPLAIN_BIN=${exec_name}
-      -DROPF_BIN=${ropfuscated_exec_name} -P
-      ${CMAKE_CURRENT_SOURCE_DIR}/run-and-compare-results.cmake)
+                   ${testcase})
+  add_test(NAME test-${testcase}-plain-exec COMMAND $<TARGET_FILE:${testcase}>)
 
-  set_tests_properties(
-    test-${exec_name}-plain-exec test-${exec_name}-ropfuscated-result-compare
-    PROPERTIES DEPENDS test-${exec_name}-plain-build)
-  set_tests_properties(
-    test-${exec_name}-ropfuscated-exec
-    test-${exec_name}-ropfuscated-result-compare
-    PROPERTIES DEPENDS test-${exec_name}-ropfuscated-build)
+  # obfuscated testcases (per config)
+  foreach(config ${ROPF_CONFIGURATION_FILES})
+    get_filename_component(config_name ${config} NAME_WE)
+    set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}")
+
+    if(NOT USE_LIBC)
+      target_link_libraries(${obfuscated_testcase} rop)
+    endif()
+
+    generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
+                             IRFLAGS ${target_cflags})
+
+    add_test(NAME test-${obfuscated_testcase}-build
+             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
+                     ${obfuscated_testcase})
+
+    add_test(NAME test-${obfuscated_testcase}-exec
+             COMMAND $<TARGET_FILE:${obfuscated_testcase}>)
+
+    add_test(
+      NAME test-${obfuscated_testcase}-result-compare
+      COMMAND
+        ${CMAKE_COMMAND} -DPLAIN_BIN=${testcase}
+        -DROPF_BIN=${obfuscated_testcase} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/run-and-compare-results.cmake)
+
+    set_tests_properties(
+      test-${testcase}-plain-exec test-${obfuscated_testcase}-result-compare
+      PROPERTIES DEPENDS test-${testcase}-plain-build)
+
+    set_tests_properties(
+      test-${obfuscated_testcase}-exec
+      test-${obfuscated_testcase}-result-compare
+      PROPERTIES DEPENDS test-${obfuscated_testcase}-build)
+  endforeach()
 endforeach()
