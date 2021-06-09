@@ -60,10 +60,18 @@ foreach(source ${sources})
     endif()
 
     if(TARGET_CFLAGS)
-      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
-                               IRFLAGS ${TARGET_CFLAGS})
+      generate_ropfuscated_asm(
+        SOURCE
+        ${source}
+        OUTNAME
+        ${obfuscated_testcase}
+        IRFLAGS
+        ${TARGET_CFLAGS}
+        OBF_CONFIG
+        ${config})
     else()
-      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase})
+      generate_ropfuscated_asm(SOURCE ${source} OUTNAME ${obfuscated_testcase}
+                               OBF_CONFIG ${config})
     endif()
 
     add_test(NAME test-${obfuscated_testcase}-build
