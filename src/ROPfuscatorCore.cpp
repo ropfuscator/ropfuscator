@@ -246,6 +246,65 @@ void putLabelInMBB(MachineBasicBlock &MBB, X86AssembleHelper::Label label) {
 
 } // namespace
 
+class ChainElementSelector {
+  unsigned int                       percentage;
+  const std::vector<ChainElem::Type> elemTypes;
+  size_t                             current, total;
+
+public:
+  ChainElementSelector(unsigned int                        percentage,
+                       const std::vector<ChainElem::Type> &elemTypes)
+      : percentage(percentage), elemTypes(elemTypes) {}
+
+  void setPercentage(unsigned int newPercentage) {
+    if (percentage != newPercentage) {
+      current = total = 0;
+    }
+    percentage = newPercentage;
+  }
+
+  void select(const ROPChain &chain, std::vector<unsigned int> &outVector) {
+    std::default_random_engine &rng = math::Random::engine();
+    size_t                      chainElemsToObfuscate;
+    std::vector<size_t>         buf;
+
+    // saving the indices of all the chain elements of a specific type.
+    // we will decide the ones to keep later
+    for (size_t i = 0; i < chain.size(); i++) {
+      for (auto elem : elemTypes) {
+        if (elem == chain.chain[i].type) {
+          buf.emplace_back(i);
+        }
+      }
+    }
+
+    if (!buf.size()) {
+      return;
+    }
+
+    total += buf.size();
+
+    chainElemsToObfuscate = total * percentage / 100 - current;
+    current += chainElemsToObfuscate;
+
+    if (!chainElemsToObfuscate) {
+      return;
+    }
+
+    if (buf.size() == chainElemsToObfuscate) {
+      copy(buf.begin(), buf.end(), back_inserter(outVector));
+      return;
+    }
+
+    // select N indices to be obfuscated (preserve the order)
+    std::sample(buf.begin(),
+                buf.end(),
+                std::back_inserter(outVector),
+                chainElemsToObfuscate,
+                rng);
+  }
+};
+
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
                                  const ROPfuscatorConfig &config)
     : config(config), BA(nullptr), TII(nullptr) {
@@ -263,6 +322,15 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
   if (config.globalConfig.rng_seed) {
     math::Random::engine().seed(config.globalConfig.rng_seed);
   }
+
+  gadgetAddressSelector =
+      new ChainElementSelector(0, {ChainElem::Type::GADGET});
+  immediateSelector = new ChainElementSelector(
+      0,
+      {ChainElem::Type::IMM_VALUE, ChainElem::Type::IMM_GLOBAL});
+  branchTargetSelector = new ChainElementSelector(
+      0,
+      {ChainElem::Type::JMP_BLOCK, ChainElem::Type::JMP_FALLTHROUGH});
 }
 
 ROPfuscatorCore::~ROPfuscatorCore() {
@@ -273,65 +341,27 @@ ROPfuscatorCore::~ROPfuscatorCore() {
         "op-id",
         "op-name",
         ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+
     for (auto &kv : instr_stat) {
       dbg_fmt("{}\t{}\t{}\n",
               kv.first,
               TII->getName(kv.first),
               kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     }
+
     dbg_fmt("============================================================\n");
     dbg_fmt("Total ROP chain elements: {}\n", total_chain_elems);
+
     if (stegano_chain_elems > 0) {
       dbg_fmt("ROP chain elements hidden in opaque predicates: {}\n",
               stegano_chain_elems);
     }
   }
+
+  delete gadgetAddressSelector;
+  delete immediateSelector;
+  delete branchTargetSelector;
 #endif
-}
-
-// Randomly reduces the number of specific type(s) of chain elements to the
-// specified percentage. The indices of the chain elements are saved into
-// outVector.
-void ROPfuscatorCore::reduceChainElemTypeToPercentage(
-    ROPChain &                   chain,
-    unsigned int                 percentage,
-    std::vector<ChainElem::Type> elemTypes,
-    std::vector<unsigned> &      outVector) {
-  std::default_random_engine &rng = math::Random::engine();
-  size_t                      chainElemsToObfuscate;
-  std::vector<size_t>         buf;
-
-  // saving the indices of all the chain elements of a specific type.
-  // we will decide the ones to keep later
-  for (size_t i = 0; i < chain.size(); i++) {
-    for (auto elem : elemTypes) {
-      if (elem == chain.chain[i].type) {
-        buf.emplace_back(i);
-      }
-    }
-  }
-
-  if (!buf.size()) {
-    return;
-  }
-
-  chainElemsToObfuscate = buf.size() * percentage / 100;
-
-  if (!chainElemsToObfuscate) {
-    return;
-  }
-
-  if (buf.size() == chainElemsToObfuscate) {
-    copy(buf.begin(), buf.end(), back_inserter(outVector));
-    return;
-  }
-
-  // select N indices to be obfuscated (preserve the order)
-  std::sample(buf.begin(),
-              buf.end(),
-              std::back_inserter(outVector),
-              chainElemsToObfuscate,
-              rng);
 }
 
 void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
@@ -410,28 +440,17 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
   // handle obfuscation of gadget addresses
   if (param.opaqueGadgetAddressesEnabled) {
-    reduceChainElemTypeToPercentage(chain,
-                                    param.gadgetAddressesObfuscationPercentage,
-                                    {ChainElem::Type::GADGET},
-                                    gadgetsIdxToObfuscate);
+    gadgetAddressSelector->select(chain, gadgetsIdxToObfuscate);
   }
 
   // handle obfuscation of immediate operands
   if (param.opaqueImmediateOperandsEnabled) {
-    reduceChainElemTypeToPercentage(
-        chain,
-        param.opaqueImmediateOperandsPercentage,
-        {ChainElem::Type::IMM_GLOBAL, ChainElem::Type::IMM_VALUE},
-        immediatesIdxToObfuscate);
+    immediateSelector->select(chain, immediatesIdxToObfuscate);
   }
 
   // handle obfuscation of branch operations
   if (param.opaqueBranchTargetsEnabled) {
-    reduceChainElemTypeToPercentage(
-        chain,
-        param.opaqueBranchTargetsPercentage,
-        {ChainElem::Type::JMP_BLOCK, ChainElem::Type::JMP_FALLTHROUGH},
-        branchIdxToObfuscate);
+    branchTargetSelector->select(chain, branchIdxToObfuscate);
   }
 
   size_t idx = 0;
@@ -815,6 +834,11 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
   // ASM labels for each ROP chain
   int chainID = 0;
+
+  gadgetAddressSelector->setPercentage(
+      param.gadgetAddressesObfuscationPercentage);
+  immediateSelector->setPercentage(param.opaqueImmediateOperandsPercentage);
+  branchTargetSelector->setPercentage(param.opaqueBranchTargetsPercentage);
 
   // original instructions that have been successfully ROPified and that will be
   // removed at the end

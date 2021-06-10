@@ -32,6 +32,7 @@ namespace ropf {
 
 class BinaryAutopsy;
 class ROPChain;
+class ChainElementSelector;
 
 class ROPfuscatorCore {
 public:
@@ -44,6 +45,9 @@ private:
   ROPfuscatorConfig         config;
   BinaryAutopsy *           BA;
   const llvm::X86InstrInfo *TII;
+  ChainElementSelector *gadgetAddressSelector;
+  ChainElementSelector *immediateSelector;
+  ChainElementSelector *branchTargetSelector;
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
