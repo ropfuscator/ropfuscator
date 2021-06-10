@@ -59,7 +59,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
       "no-register: {2} | no-gadget: {3} "
       "| unsupported: {4} | unsupported-esp: {5}]";
   static constexpr const char *DEBUG_FMT_SIMPLE =
-      "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}";
+      "{0:^13}\t{1:^13}\t{2:^13}\t{3:^13}\t{4:^13}\t{5:^13}\t{6:^13}";
 
   std::ostream &printTo(std::ostream &os, const char *fmt) const {
     const ROPChainStatEntry &entry = *this;
@@ -337,13 +337,13 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.printInstrStat) {
     dbg_fmt(
-        "{}\t{}\t{}\n",
+        "{:^7}\t{:^15}\t{:^15}\n",
         "op-id",
         "op-name",
         ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
 
     for (auto &kv : instr_stat) {
-      dbg_fmt("{}\t{}\t{}\n",
+      dbg_fmt("{:^7}\t{:^15}\t{}\n",
               kv.first,
               TII->getName(kv.first),
               kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
