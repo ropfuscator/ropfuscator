@@ -40,11 +40,33 @@ macro(generate_ropfuscated_asm)
   endif()
 
   #
+  # getting compile definitions for current directory
+  #
+
+  get_property(
+    SOURCE_DEFINITIONS
+    DIRECTORY .
+    PROPERTY COMPILE_DEFINITIONS)
+
+  # since this is a macro and it's going to be inlined wherever this is going to
+  # be called, we might clobber the argument list by recursively add the include
+  # directory when the macro is called in a loop. To avoid this, we are setting
+  # a temporary "flag" variable to avoid this behaviour.
+  if(NOT SOURCE_DEFINITIONS_FLAG)
+    foreach(def ${SOURCE_DEFINITIONS})
+      # escape the quotes!
+      list(APPEND ROPF_COMPILE_DEFS "'-D${def}'")
+    endforeach()
+
+    set(SOURCE_DEFINITIONS_FLAG True)
+  endif()
+
+  #
   # macro variables
   #
 
   set(CLANG_FLAGS ${ROPF_IR_FLAGS} ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
-                  ${ARG_SOURCE})
+                  ${ROPF_COMPILE_DEFS} ${ARG_SOURCE})
   set(LLC_FLAGS -ropfuscator-library=${ARG_GADGET_LIB} ${ROPF_ASM_FLAGS}
                 ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
   set(DEPENDENCIES clang llc ${ARG_SOURCE})
