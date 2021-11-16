@@ -3,9 +3,14 @@ on:
   pull_request:
   push:
 jobs:
-  tests:
+  build:
     runs-on: ubuntu-latest
     steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
     - uses: actions/checkout@v2.4.0
     - uses: cachix/install-nix-action@v15
     - run: nix-build
