@@ -25,3 +25,5 @@ cmake-build-debug
 
 # vscode extensions artifacts
 checks.json
+
+result
