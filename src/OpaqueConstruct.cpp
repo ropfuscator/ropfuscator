@@ -847,7 +847,7 @@ private:
                        StackState &       stack,
                        uint32_t           value) const {
     moveConstant(as, stack, X86::EDX, value, 6);
-  }
+  } 
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
     // moveMixedRegs(as, stack, X86::EDX,
     //               {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
@@ -867,7 +867,7 @@ public:
   MovRandomSelectorOC(const OpaqueStorage &        target,
                       const std::vector<uint32_t> &values)
       : target(target), values(values) {
-    std::random_shuffle(this->values.begin(), this->values.end());
+    std::shuffle(this->values.begin(), this->values.end(), math::Random::engine());
   }
   static OpaqueConstruct *create(const OpaqueStorage &        target,
                                  const std::vector<uint32_t> &values) {
@@ -1027,7 +1027,7 @@ public:
       : target(target), inputvalues(inputvalues), outputvalues(outputvalues) {
     assert(inputvalues.size() == outputvalues.size());
     std::sort(this->inputvalues.begin(), this->inputvalues.end());
-    std::random_shuffle(this->outputvalues.begin(), this->outputvalues.end());
+    std::shuffle(this->outputvalues.begin(), this->outputvalues.end(), math::Random::engine());
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
