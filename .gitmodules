@@ -10,6 +10,3 @@
 [submodule "thirdparty/chocolate-doom"]
 	path = thirdparty/chocolate-doom
 	url = https://github.com/ropfuscator/chocolate-doom
-[submodule "thirdparty/yamagi-quake2"]
-	path = thirdparty/yamagi-quake2
-	url = git@bitbucket.org:peperunas/yamagi-quake2.git
