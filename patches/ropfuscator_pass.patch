@@ -1,6 +1,8 @@
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -71,7 +71,7 @@
+diff --git a/lib/Target/X86/CMakeLists.txt b/lib/Target/X86/CMakeLists.txt
+index 524e043..a2952d8 100644
+--- a/lib/Target/X86/CMakeLists.txt
++++ b/lib/Target/X86/CMakeLists.txt
+@@ -73,7 +73,7 @@ set(sources
    X86WinEHState.cpp
    )
  
@@ -9,9 +11,11 @@
  
  add_subdirectory(AsmParser)
  add_subdirectory(Disassembler)
---- a/X86TargetMachine.cpp
-+++ b/X86TargetMachine.cpp
-@@ -61,6 +61,11 @@
+diff --git a/lib/Target/X86/X86TargetMachine.cpp b/lib/Target/X86/X86TargetMachine.cpp
+index 9f639ff..f6cf336 100644
+--- a/lib/Target/X86/X86TargetMachine.cpp
++++ b/lib/Target/X86/X86TargetMachine.cpp
+@@ -61,6 +61,11 @@ static cl::opt<bool> EnableCondBrFoldingPass("x86-condbr-folding",
                                          "folding pass"),
                                 cl::init(false), cl::Hidden);
  
@@ -23,15 +27,15 @@
  extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
    // Register the target.
    RegisterTargetMachine<X86TargetMachine> X(getTheX86_32Target());
-@@ -83,6 +88,7 @@
-   initializeX86FlagsCopyLoweringPassPass(PR);
-   initializeX86CondBrFoldingPassPass(PR);
+@@ -85,6 +90,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
+   initializeX86LoadValueInjectionLoadHardeningPassPass(PR);
+   initializeX86LoadValueInjectionRetHardeningPassPass(PR);
    initializeX86OptimizeLEAPassPass(PR);
 +  initializeX86ROPfuscatorPass(PR);
  }
  
  static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
-@@ -519,6 +525,7 @@
+@@ -525,6 +531,7 @@ void X86PassConfig::addPreEmitPass() {
    }
    addPass(createX86DiscriminateMemOpsPass());
    addPass(createX86InsertPrefetchPass());
