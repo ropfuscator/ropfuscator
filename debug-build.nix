@@ -28,7 +28,7 @@ let
       , SDL2_mixer, pkg-config, libxml2, curl, openal, libpng
       , libsamplerate }:
       stdenv.mkDerivation {
-        pname = "ropfuscator";
+        pname = "ropfuscator-debug";
         version = "0.1.0";
         buildInputs = [
           cmake
@@ -73,7 +73,7 @@ let
           runHook preConfigure
 
           mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -G Ninja ..
+          cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86 -G Ninja ..
 
           runHook postConfigure
         '';
