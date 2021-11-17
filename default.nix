@@ -81,7 +81,7 @@ let
         buildPhase = ''
           runHook preBuild
 
-          ninja 
+          ninja
 
           runHook postBuild
         '';
@@ -90,7 +90,7 @@ let
           runHook preInstall
 
           mkdir -p $out/bin
-          cp -r build/bin/* $out/bin
+          cp -r bin/* $out/bin
 
           runHook postInstall
         '';
