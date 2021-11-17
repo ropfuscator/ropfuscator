@@ -8,21 +8,19 @@ let
   pkgs = pkgs64.pkgsi686Linux;
 
   # upstream clang stdenv uses gcc 7.5 (outdated)
-  stdenv_clang = pkgs.overrideCC pkgs.stdenv (pkgs.clang_10.override ({ gccForLibs = pkgs.gcc10.cc;}));
+  stdenv_clang = pkgs.overrideCC pkgs.stdenv (pkgs.clang_10.override ({ gccForLibs = pkgs.gcc.cc;}));
 
-  ext_llvm = fetchTarball {
+  ext_llvm = pkgs64.fetchurl {
     url =
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz";
-      sha256 = "0xx9q8s4sg0nwc24abp7xnyckfms8qfskydvqch06q4ak4zdliii";
+      sha256 = "1wydhbp9kyjp5y0rc627imxgkgqiv3dfirbqil9dgpnbaw5y7n65";
     };
-    ext_clang = fetchTarball {
+    ext_clang = pkgs64.fetchurl {
       url =
         "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz";
-        sha256 = "0bbhf5664gpmdd9vpsifqb6886n25j3yd9knj80hna81ab81n3v9";
+        sha256 = "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr";
       };
 
-      ropfuscator_staging_dir = "$TMPDIR/llvm";
-      ropfuscator_build_dir = "$TMPDIR/build";
       python-deps = python-packages: with python-packages; [ pygments ];
       python = pkgs.python3.withPackages python-deps;
 
@@ -30,11 +28,9 @@ let
       , SDL2_mixer, pkg-config, libxml2, curl, openal, libpng
       , libsamplerate }:
       stdenv.mkDerivation {
-        name = "ropfuscator";
+        pname = "ropfuscator";
         version = "0.1.0";
         buildInputs = [
-          ext_llvm
-          ext_clang
           cmake
           ninja
           z3
@@ -55,39 +51,48 @@ let
         postPatch = "patchShebangs .";
 
         unpackPhase = ''
-          cp -r ${ext_llvm}/* .
+          runHook preUnpack
+
+          tar -xf ${ext_llvm} --strip-components=1
 
         # adding clang to source tree
           pushd tools
-          chmod +w .
-          cp -r ${ext_clang} clang
+          tar -xf ${ext_clang}
           popd
 
         # copying ropfuscator sources to source tree
           pushd lib/Target/X86
-          chmod +w . *
           cp -r $src ropfuscator
+          chmod +w ropfuscator -R
           popd
 
-        # make directories writable for cmake conf phase
-          find . -type d -exec chmod +w {} \;   
+          runHook postUnpack
         '';
 
         configurePhase = ''
-          mkdir -p ${ropfuscator_build_dir} && pushd ${ropfuscator_build_dir}
-          cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -G Ninja $TMPDIR
-          popd
+          runHook preConfigure
+
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -G Ninja ..
+
+          runHook postConfigure
         '';
 
         buildPhase = ''
-          pushd ${ropfuscator_build_dir}
+          runHook preBuild
+
           ninja 
-          popd
+
+          runHook postBuild
         '';
 
         installPhase = ''
+          runHook preInstall
+
           mkdir -p $out/bin
-          cp -r ${ropfuscator_build_dir}/bin/* $out/bin
+          cp -r build/bin/* $out/bin
+
+          runHook postInstall
         '';
       };
 in pkgs.callPackage derivation_function { stdenv = stdenv_clang; }
