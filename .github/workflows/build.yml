@@ -4,7 +4,7 @@ on:
   push:
 jobs:
   release-librop:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Submodules checkout
       uses: actions/checkout@v2
@@ -20,7 +20,7 @@ jobs:
     - run: nix-build release-librop.nix
 
   release-libc:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Submodules checkout
       uses: actions/checkout@v2
@@ -36,7 +36,7 @@ jobs:
     - run: nix-build release-libc.nix
    
   debug-librop:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Submodules checkout
       uses: actions/checkout@v2
@@ -52,7 +52,7 @@ jobs:
     - run: nix-build debug-librop.nix
   
   debug-libc:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Submodules checkout
       uses: actions/checkout@v2
