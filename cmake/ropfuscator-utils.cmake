@@ -69,7 +69,7 @@ macro(generate_ropfuscated_asm)
                   ${ROPF_COMPILE_DEFS} ${ARG_SOURCE})
   set(LLC_FLAGS -ropfuscator-library=${ARG_GADGET_LIB} ${ROPF_ASM_FLAGS}
                 ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
-  set(DEPENDENCIES clang llc ${ARG_SOURCE})
+  set(DEPENDENCIES llc ${ARG_SOURCE})
 
   #
   # options handling
@@ -92,7 +92,7 @@ macro(generate_ropfuscated_asm)
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${DEPENDENCIES}
-    COMMAND $<TARGET_FILE:clang> ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
+    COMMAND ${CMAKE_CXX_COMPILER} ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
     COMMAND $<TARGET_FILE:llc> ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
 endmacro()
 

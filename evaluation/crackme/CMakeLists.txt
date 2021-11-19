@@ -13,7 +13,7 @@ foreach(filename ${files})
   add_custom_command(
     OUTPUT ${exec_name}.bc
     DEPENDS ${src_dir}/${exec_name}.c clang
-    COMMAND $<TARGET_FILE:clang> ARGS ${ROPF_IR_FLAGS_ROPFBIN}
+    COMMAND ${CMAKE_C_COMPILER} ARGS ${ROPF_IR_FLAGS_ROPFBIN}
             ${src_dir}/${exec_name}.c -o ${exec_name}.bc)
 
   foreach(configfile ${configfiles})
