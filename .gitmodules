@@ -4,9 +4,3 @@
 [submodule "ropfuscator-extra/include/fmt"]
 	path = thirdparty/fmt
 	url = https://github.com/fmtlib/fmt
-[submodule "evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO"]
-	path = evaluation/crackme/rop_static/deropfuscator-cxx/ELFIO
-	url = https://github.com/serge1/ELFIO.git
-[submodule "thirdparty/chocolate-doom"]
-	path = thirdparty/chocolate-doom
-	url = https://github.com/ropfuscator/chocolate-doom
