@@ -19,7 +19,8 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-librop.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-shell release-librop.nix
+    - run: eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
   
   release-libc:
     runs-on: ubuntu-latest
@@ -37,7 +38,8 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-libc.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-shell release-libc.nix
+    - run: eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
 
   debug-librop:
     runs-on: ubuntu-latest
@@ -55,7 +57,8 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell debug-librop.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-shell debug-librop.nix
+    - run: eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
  
   debug-libc:
     runs-on: ubuntu-latest
@@ -73,4 +76,5 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell debug-libc.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-shell debug-libc.nix
+    - run: eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
