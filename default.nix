@@ -23,7 +23,7 @@ let
     , SDL2_mixer, pkg-config, libxml2, curl, openal, libpng
     , libsamplerate }:
     stdenv.mkDerivation {
-      pname = "ropfuscator-release";
+      pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs = [
         cmake
