@@ -28,11 +28,11 @@ jobs:
         token: ${{ secrets.ROPFUSCATOR_PAT }}
         submodules: recursive
     - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build release-libc.nix
    
   debug-librop:
@@ -44,11 +44,11 @@ jobs:
         token: ${{ secrets.ROPFUSCATOR_PAT }}
         submodules: recursive
     - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build debug-librop.nix
   
   debug-libc:
@@ -60,11 +60,11 @@ jobs:
         token: ${{ secrets.ROPFUSCATOR_PAT }}
         submodules: recursive
     - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build debug-libc.nix
 
 
