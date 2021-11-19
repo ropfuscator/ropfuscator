@@ -17,7 +17,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-librop.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator && ctest'
+    - run: nix-shell release-librop.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator/tests && ctest'
   
   release-libc:
     runs-on: self-hosted
@@ -33,7 +33,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-libc.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator && ctest'
+    - run: nix-shell release-libc.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator/tests && ctest'
 
   debug-librop:
     runs-on: self-hosted
@@ -49,7 +49,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell debug-librop.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator && ctest'
+    - run: nix-shell debug-librop.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator/tests && ctest'
  
   debug-libc:
     runs-on: self-hosted
@@ -65,4 +65,4 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell debug-libc.nix --run 'eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator && ctest'
+    - run: nix-shell debug-libc.nix --run 'eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd build/lib/Target/X86/ropfuscator/tests && ctest'
