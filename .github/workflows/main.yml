@@ -1,12 +1,9 @@
-name: "CI"
+name: "Build"
 on:
   pull_request:
   push:
 jobs:
-  #
-  # release
-  # 
-  build-release:
+  release-librop:
     runs-on: ubuntu-latest
     steps:
     - name: Submodules checkout
@@ -20,24 +17,9 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-build release-build.nix
-  test-release:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Submodules checkout
-      uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.ROPFUSCATOR_PAT }}
-        submodules: recursive
-    - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-build.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-build release-librop.nix
 
-  build-release-libc:
+  release-libc:
     runs-on: ubuntu-latest
     steps:
     - name: Submodules checkout
@@ -52,8 +34,8 @@ jobs:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build release-libc.nix
-  
-  test-release-libc:
+   
+  debug-librop:
     runs-on: ubuntu-latest
     steps:
     - name: Submodules checkout
@@ -67,45 +49,9 @@ jobs:
       with:
         name: ropfuscator
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell release-libc.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+    - run: nix-build debug-librop.nix
   
-  #
-  # debug
-  #
-  
-  build-debug:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Submodules checkout
-      uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.ROPFUSCATOR_PAT }}
-        submodules: recursive
-    - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-build debug-build.nix
-  
-  test-debug:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Submodules checkout
-      uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.ROPFUSCATOR_PAT }}
-        submodules: recursive
-    - uses: actions/checkout@v2.4.0
-    - uses: cachix/install-nix-action@v15
-    - uses: cachix/cachix-action@v10
-      with:
-        name: ropfuscator
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell debug-build.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
-
-  build-debug-libc:
+  debug-libc:
     runs-on: ubuntu-latest
     steps:
     - name: Submodules checkout
@@ -121,7 +67,61 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build debug-libc.nix
 
-  test-debug-libc:
+
+name: "Tests"
+on:
+  pull_request:
+  push:
+jobs:
+  release-librop:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v15
+    - uses: cachix/cachix-action@v10
+      with:
+        name: ropfuscator
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-shell release-librop.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+  
+  release-libc:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v15
+    - uses: cachix/cachix-action@v10
+      with:
+        name: ropfuscator
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-shell release-libc.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+
+  debug-librop:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v15
+    - uses: cachix/cachix-action@v10
+      with:
+        name: ropfuscator
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-shell debug-librop.nix && eval "$unpackPhase" && eval "patchPhase" && eval "$configurePhase" && cd lib/Target/X86/ropfuscator && ctest
+ 
+  debug-libc:
     runs-on: ubuntu-latest
     steps:
     - name: Submodules checkout
