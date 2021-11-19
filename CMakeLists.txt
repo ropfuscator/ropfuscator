@@ -74,10 +74,5 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
       -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis)
 endif()
 
-add_custom_target(ropfuscator-games)
-
 add_subdirectory("librop")
-add_subdirectory("binutils" EXCLUDE_FROM_ALL)
-add_subdirectory("evaluation" EXCLUDE_FROM_ALL)
 add_subdirectory("tests" EXCLUDE_FROM_ALL)
-add_subdirectory("thirdparty/chocolate-doom" EXCLUDE_FROM_ALL)
