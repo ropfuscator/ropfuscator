@@ -28,28 +28,32 @@ let
       , SDL2_mixer, pkg-config, libxml2, curl, openal, libpng
       , libsamplerate }:
       stdenv.mkDerivation {
-        pname = "ropfuscator-libc";
+        pname = "ropfuscator-release";
         version = "0.1.0";
-        buildInputs = [
+        nativeBuildInputs = [
           cmake
           ninja
+          git
+          curl
+          python
+          pkg-config
+        ];
+        buildInputs = [
           z3
           git
           SDL2
           SDL2_net
           SDL2_mixer
-          pkg-config
           libxml2
-          curl
           openal
           libpng
-          python
           libsamplerate
         ];
         src = ./.;
         patches = [ ./patches/ropfuscator_pass.patch ];
         postPatch = "patchShebangs .";
-
+        
+        cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Release" "-DLLVM_TARGETS_TO_BUILD=X86" "-DUSE_LIBROP=Off" "-DUSE_LIBC=On" ];
         unpackPhase = ''
           runHook preUnpack
 
@@ -67,32 +71,6 @@ let
           popd
 
           runHook postUnpack
-        '';
-
-        configurePhase = ''
-          runHook preConfigure
-
-          mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DUSE_LIBC=On -DUSE_LIBROP=Off -G Ninja ..
-
-          runHook postConfigure
-        '';
-
-        buildPhase = ''
-          runHook preBuild
-
-          ninja
-
-          runHook postBuild
-        '';
-
-        installPhase = ''
-          runHook preInstall
-
-          mkdir -p $out/bin
-          cp -r bin/* $out/bin
-
-          runHook postInstall
-        '';
+        '';  
       };
 in pkgs.callPackage derivation_function { stdenv = stdenv_clang; }
