@@ -27,7 +27,7 @@ let
       pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 ];
-      srcs = [ ./cmake ./src ./CMakeLists.txt ];
+      srcs = [ ./cmake ./src ./CMakeLists.txt ./thirdparty ];
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
