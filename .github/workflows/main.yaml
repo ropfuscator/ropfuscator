@@ -19,7 +19,7 @@ jobs:
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build
 
-  test-release:
+  test-release-libc:
     runs-on: self-hosted
     needs: build-release
     steps:
@@ -34,7 +34,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ../tests -GNinja -DVERBOSE=1 -DROPFUSCATOR_LLC=`printenv ROPFUSCATOR_LLC` && ctest' 
+    - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ../tests -GNinja -DVERBOSE=1 -DROPFUSCATOR_LLC=`printenv ROPFUSCATOR_LLC -DUSE_LIBC=On` && ctest' 
   
       #  build-debug:
       #    runs-on: self-hosted
