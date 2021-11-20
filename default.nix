@@ -27,7 +27,7 @@ let
       pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 ];
-      src = ./.;
+      srcs = [ ./cmake ./src ./CMakeLists.txt ];
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
@@ -38,8 +38,14 @@ let
         tar -xf ${ext_llvm} --strip-components=1
 
         pushd lib/Target/X86
-        cp -r $src ropfuscator
+        mkdir ropfuscator
+        for s in $srcs; do
+          # strip the hash
+          cp -r $s ropfuscator/`echo $s | cut -d "-" -f2`
+        done
         chmod +w ropfuscator -R
+        ls -lah ropfuscator
+        sleep 1
         popd
 
         runHook postUnpack
