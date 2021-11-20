@@ -1,4 +1,4 @@
-# ROPfuscator [![Build](https://github.com/ropfuscator/ropfuscator/actions/workflows/build.yml/badge.svg)](https://github.com/ropfuscator/ropfuscator/actions/workflows/build.yml) [![Test](https://github.com/ropfuscator/ropfuscator/actions/workflows/test.yml/badge.svg)](https://github.com/ropfuscator/ropfuscator/actions/workflows/test.yml)
+# ROPfuscator [![Build](https://github.com/ropfuscator/ropfuscator/actions/workflows/main.yaml/badge.svg)](https://github.com/ropfuscator/ropfuscator/actions/workflows/main.yaml)
 ![logo](./docs/logo.png)
 
 ROPfuscator is a fine-grained code obfuscation framework for C/C++ programs using ROP (return-oriented programming).
