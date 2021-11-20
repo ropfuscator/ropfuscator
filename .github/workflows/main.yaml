@@ -1,0 +1,70 @@
+name: "Build"
+on:
+  pull_request:
+  push:
+jobs:
+  build-release:
+    runs-on: self-hosted
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-build
+
+  test-release:
+    runs-on: self-hosted
+    needs: build-release
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-shell --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator/tests && ctest'
+  
+  build-debug:
+    runs-on: self-hosted
+    steps:
+    - name: Submodules checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.ROPFUSCATOR_PAT }}
+        submodules: recursive
+    - uses: actions/checkout@v2.4.0
+      #    - uses: cachix/install-nix-action@v15
+      #    - uses: cachix/cachix-action@v10
+      #      with:
+      #        name: ropfuscator
+      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: nix-build debug.nix
+
+      #  test-debug:
+      #    runs-on: self-hosted
+      #    needs: build-debug
+      #    steps:
+      #    - name: Submodules checkout
+      #      uses: actions/checkout@v2
+      #      with:
+      #        token: ${{ secrets.ROPFUSCATOR_PAT }}
+      #        submodules: recursive
+      #    - uses: actions/checkout@v2.4.0
+      #      #    - uses: cachix/install-nix-action@v15
+      #      #    - uses: cachix/cachix-action@v10
+      #      #      with:
+      #      #        name: ropfuscator
+      #      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      #    - run: nix-shell debug.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator/tests && ctest'
