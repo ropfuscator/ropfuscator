@@ -26,15 +26,12 @@ let
     stdenv.mkDerivation {
       pname = "ropfuscator";
       version = "0.1.0";
-      nativeBuildInputs = [ cmake ninja git curl python pkg-config ];
-      buildInputs =
-        [ z3 git SDL2 SDL2_net SDL2_mixer libxml2 openal libpng libsamplerate ];
+      nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 ];
       src = ./.;
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
-      cmakeFlags =
-        [ "-DCMAKE_BUILD_TYPE=Release" "-DLLVM_TARGETS_TO_BUILD=X86" ];
+      cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ];
       unpackPhase = ''
         runHook preUnpack
 
