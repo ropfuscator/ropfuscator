@@ -1,9 +1,33 @@
-macro(generate_ropfuscated_asm)
-  # check that ROPfuscator's llc path has been defined
-  if(NOT ROPFUSCATOR_LLC)
-    message(FATAL_ERROR "ROPfuscator's llc path has not been defined. Please set ROPFUSCATOR_LLC to continue.")
-  endif()
+# ropfuscator libraries
 
+set(ROPFUSCATOR_LIBRARIES)
+
+if(USE_LIBC)
+  find_library(LIBC NAMES c)
+
+  if(LIBC)
+    list(APPEND ROPFUSCATOR_LIBRARIES ${LIBC})
+  else()
+    message("libc not found.")
+  endif()
+endif()
+
+if(ROPFUSCATOR_GADGET_LIBRARY)
+  list(APPEND ROPFUSCATOR_LIBRARIES ${ROPFUSCATOR_LIB})
+endif()
+
+if(NOT ROPFUSCATOR_LIBRARIES)
+  message(
+    FATAL_ERROR
+    "Could not find the libraries to extract gadgets from. Enable USE_LIBC or define ROPFUSCATOR_GADGET_LIBRARY to continue. Terminating.")
+endif()
+  
+# check that ROPfuscator's llc path has been defined
+if(NOT ROPFUSCATOR_LLC)
+  message(FATAL_ERROR "ROPfuscator's llc path has not been defined. Please set ROPFUSCATOR_LLC to continue.")
+endif()
+
+macro(generate_ropfuscated_asm)
   #
   # macro argument parsing
   #
