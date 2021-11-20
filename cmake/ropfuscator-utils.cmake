@@ -74,7 +74,7 @@ macro(generate_ropfuscated_asm)
     ${ROPF_COMPILE_DEFS} ${ARG_SOURCE})
   set(LLC_FLAGS -ropfuscator-library=${ARG_GADGET_LIB} ${ROPF_ASM_FLAGS}
     ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
-  set(DEPENDENCIES llc ${ARG_SOURCE})
+  set(DEPENDENCIES ${ARG_SOURCE})
 
   #
   # options handling
