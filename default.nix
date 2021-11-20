@@ -44,8 +44,6 @@ let
           cp -r $s ropfuscator/`echo $s | cut -d "-" -f2`
         done
         chmod +w ropfuscator -R
-        ls -lah ropfuscator
-        sleep 1
         popd
 
         runHook postUnpack
