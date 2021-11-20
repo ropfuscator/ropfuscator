@@ -1,4 +1,6 @@
+project(ROPfuscator-tests C ASM)
 cmake_minimum_required(VERSION 3.0)
+include(../cmake/ropfuscator-utils.cmake)
 
 enable_testing()
 
