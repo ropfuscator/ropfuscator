@@ -34,7 +34,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator/tests && ctest'
+    - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ..;ctest'
   
       #  build-debug:
       #    runs-on: self-hosted

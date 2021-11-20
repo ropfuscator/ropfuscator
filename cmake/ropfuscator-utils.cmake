@@ -1,4 +1,9 @@
 macro(generate_ropfuscated_asm)
+  # check that ROPfuscator's llc path has been defined
+  if(NOT ROPFUSCATOR_LLC)
+    message(FATAL_ERROR "ROPfuscator's llc path has not been defined. Please set ROPFUSCATOR_LLC to continue.")
+  endif()
+
   #
   # macro argument parsing
   #
@@ -7,7 +12,7 @@ macro(generate_ropfuscated_asm)
   set(multiValueArgs IRFLAGS ASMFLAGS)
 
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
-                        ${ARGN})
+    ${ARGN})
 
   if(NOT ARG_SOURCE)
     message(FATAL_ERROR "Source file not specified!")
@@ -66,9 +71,9 @@ macro(generate_ropfuscated_asm)
   #
 
   set(CLANG_FLAGS ${ROPF_IR_FLAGS} ${INCLUDES_DIRECTIVE} ${ARG_IRFLAGS}
-                  ${ROPF_COMPILE_DEFS} ${ARG_SOURCE})
+    ${ROPF_COMPILE_DEFS} ${ARG_SOURCE})
   set(LLC_FLAGS -ropfuscator-library=${ARG_GADGET_LIB} ${ROPF_ASM_FLAGS}
-                ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
+    ${ARG_ASMFLAGS} ${ARG_OUTNAME}.bc)
   set(DEPENDENCIES llc ${ARG_SOURCE})
 
   #
@@ -77,7 +82,7 @@ macro(generate_ropfuscated_asm)
 
   if(ROPF_PROFILE)
     list(APPEND CLANG_FLAGS ${COMPILER_PROFILING_FLAGS}
-         -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
+      -fprofile-instr-generate=${ARG_OUTNAME}.profdata)
   endif()
 
   if(ARG_OBF_CONFIG)
@@ -93,7 +98,7 @@ macro(generate_ropfuscated_asm)
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${DEPENDENCIES}
     COMMAND ${CMAKE_CXX_COMPILER} ARGS ${CLANG_FLAGS} -o ${ARG_OUTNAME}.bc
-    COMMAND $<TARGET_FILE:llc> ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
+    COMMAND ${ROPFUSCATOR_LLC} ARGS ${LLC_FLAGS} -o ${ARG_OUTNAME}.s)
 endmacro()
 
 macro(generate_clean_asm)
@@ -105,7 +110,7 @@ macro(generate_clean_asm)
   set(multiValueArgs IRFLAGS ASMFLAGS)
 
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}"
-                        ${ARGN})
+    ${ARGN})
 
   if(NOT ARG_SOURCE)
     message(FATAL_ERROR "Source file not specified!")

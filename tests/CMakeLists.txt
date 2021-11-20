@@ -17,12 +17,6 @@ foreach(source ${sources})
       get_filename_component(config_name ${config} NAME_WE)
       get_filename_component(libname ${library} NAME_WE)
 
-      # ugly but needed because the generator expressions are not expanded at
-      # this stage
-      if(library STREQUAL $<TARGET_FILE:rop>)
-        set(libname "librop")
-      endif()
-
       set(obfuscated_testcase
           "${testcase}-ropfuscated-${config_name}-${libname}")
 
@@ -67,14 +61,8 @@ foreach(source ${sources})
       get_filename_component(config_name ${config} NAME_WE)
       get_filename_component(libname ${library} NAME_WE)
 
-      # ugly but needed because the generator expressions are not expanded at
-      # this stage
-      if(library STREQUAL $<TARGET_FILE:rop>)
-        set(obfuscated_testcase "${testcase}-ropfuscated-${config_name}-librop")
-      else()
-        set(obfuscated_testcase
+      set(obfuscated_testcase
             "${testcase}-ropfuscated-${config_name}-${libname}")
-      endif()
 
       target_link_libraries(${obfuscated_testcase} ${library})
 

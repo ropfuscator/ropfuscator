@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 project(ropfuscator-extra CXX C)
 
-include("cmake/ropfuscator-utils.cmake")
-
 set(CMAKE_C_FLAGS "-m32 -fpie")
 set(CMAKE_ASM_FLAGS "-m32 -fpie")
 set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie -Wl,-rpath,${CMAKE_BINARY_DIR}/lib")
@@ -21,5 +19,3 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
       ${ROPF_ASM_FLAGS}
       -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis)
 endif()
-
-add_subdirectory("tests" EXCLUDE_FROM_ALL)
