@@ -8,10 +8,8 @@ let
   }) { });
   pkgs = pkgs64.pkgsi686Linux;
   ropfuscator = import ../default.nix {};
-  stdenv = ropfuscator.stdenv;
 in
   pkgs.mkShell {
-    stdenv = stdenv;
-    nativeBuildInputs = [ ropfuscator ];
-    shellHook = "-DROPFUSCATOR_LLC=${ropfuscator}/bin/llc";
+    nativeBuildInputs = [ ropfuscator ] ++ ropfuscator.nativeBuildInputs;
+    shellHook = "export ROPFUSCATOR_LLC=${ropfuscator}/bin/llc";
 }
