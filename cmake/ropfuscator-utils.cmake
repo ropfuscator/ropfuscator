@@ -90,10 +90,6 @@ macro(generate_ropfuscated_asm)
     list(APPEND DEPENDENCIES ${ARG_OBF_CONFIG})
   endif()
 
-  if(ARG_GADGET_LIB STREQUAL $<TARGET_FILE:rop>)
-    list(APPEND DEPENDENCIES rop)
-  endif()
-
   add_custom_command(
     OUTPUT ${ARG_OUTNAME}.s
     DEPENDS ${DEPENDENCIES}
