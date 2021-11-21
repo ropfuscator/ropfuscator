@@ -11,6 +11,6 @@ let
   ropfuscator = import ./default.nix { };
   debug_build = ropfuscator.overrideAttrs (old: {
     pname = "ropfuscator-debug";
-    cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Debug" "-DLLVM_TARGETS_TO_BUILD=X86" ];
+    cmakeFlags = ropfuscator.cmakeFlags ++ [ "-DCMAKE_BUILD_TYPE=Debug" ];
   });
 in pkgs.callPackage debug_build { }
