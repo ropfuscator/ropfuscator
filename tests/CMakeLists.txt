@@ -1,6 +1,11 @@
 project(ROPfuscator-tests C ASM)
 cmake_minimum_required(VERSION 3.0)
+
 include(../cmake/ropfuscator-utils.cmake)
+
+if(NOT ROPF_CONFIGURATION_FILES)
+  message(FATAL_ERROR "ROPfuscator's config files directory not specified. Please set ROPF_CONFIGURATION_FILES accordingly.")
+endif()
 
 enable_testing()
 
