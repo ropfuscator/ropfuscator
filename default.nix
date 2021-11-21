@@ -41,7 +41,6 @@ let
       srcs = [
         "${ropfuscator_repo}/cmake"
         "${ropfuscator_repo}/src"
-        "${ropfuscator_repo}/CMakeLists.txt"
         "${ropfuscator_repo}/thirdparty"
       ];
       patches = [ ./patches/ropfuscator_pass.patch ];

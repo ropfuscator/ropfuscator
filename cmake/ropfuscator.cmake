@@ -33,5 +33,3 @@ endif()
 include_directories(${ROPF_DIR}/thirdparty/fmt/include)
 # tinytoml
 include_directories(${ROPF_DIR}/thirdparty/tinytoml/include)
-
-add_subdirectory(${ROPF_DIR})
