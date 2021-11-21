@@ -27,6 +27,14 @@ if(NOT ROPFUSCATOR_LLC)
   message(FATAL_ERROR "ROPfuscator's llc path has not been defined. Please set ROPFUSCATOR_LLC to continue.")
 endif()
 
+set(CMAKE_C_FLAGS "-m32 -fpie")
+set(CMAKE_ASM_FLAGS "-m32 -fpie")
+set(CMAKE_EXE_LINKER_FLAGS "-m32 -pie -Wl,-rpath,${CMAKE_BINARY_DIR}/lib")
+set(COMPILER_PROFILING_FLAGS -fcoverage-mapping)
+set(LINKER_PROFILING_FLAGS -fprofile-instr-generate)
+set(ROPF_IR_FLAGS -O0 -m32 -c -emit-llvm)
+set(ROPF_ASM_FLAGS -march=x86)
+
 macro(generate_ropfuscated_asm)
   #
   # macro argument parsing
