@@ -9,6 +9,7 @@ let
   pkgs = pkgs64.pkgsi686Linux;
 
   # upstream clang stdenv uses gcc 7.5 (outdated)
+  # see https://github.com/NixOS/nixpkgs/issues/146865
   stdenv_clang = pkgs.overrideCC pkgs.stdenv
     (pkgs.clang_10.override ({ gccForLibs = pkgs.gcc.cc; }));
 
