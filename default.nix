@@ -32,12 +32,13 @@ let
     url = "git@github.com:ropfuscator/ropfuscator.git";
     submodules = true;
   };
-  derivation_function = { stdenv, cmake, ninja, z3, git, SDL2, SDL2_net
-    , SDL2_mixer, pkg-config, libxml2, curl, openal, libpng, libsamplerate }:
+
+  derivation_function =
+    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2 }:
     stdenv.mkDerivation {
       pname = "ropfuscator";
       version = "0.1.0";
-      nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 ];
+      nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
       srcs = [
         "${ropfuscator_repo}/cmake"
         "${ropfuscator_repo}/src"
@@ -51,7 +52,7 @@ let
         runHook preUnpack
 
         tar -xf ${ext_llvm} --strip-components=1
-        
+
         # insert clang
         pushd tools
         tar -xf ${ext_clang}
