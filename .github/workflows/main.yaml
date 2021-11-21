@@ -8,7 +8,7 @@ jobs:
     steps:
     - name: Set the NIX-CONFIG with PAT
       run: |
-        echo "NIX_CONFIG='access-tokens = github.com=${{ secrets.ROPFUSCATOR_PAT }}'" >> $GITHUB_ENV
+        echo "NIX_CONFIG=access-tokens=github.com=${{ secrets.ROPFUSCATOR_PAT }}" >> $GITHUB_ENV
       #    - uses: cachix/install-nix-action@v15
       #    - uses: cachix/cachix-action@v10
       #      with:
