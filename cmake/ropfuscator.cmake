@@ -4,7 +4,6 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(ROPF_DIR ropfuscator)
 set(ROPF_SRCDIR ${ROPF_DIR}/src)
 
 set(ROPF_SOURCES
