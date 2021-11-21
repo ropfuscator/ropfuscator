@@ -45,12 +45,11 @@ let
         runHook preUnpack
 
         tar -xf ${ext_llvm} --strip-components=1
-
+        
         pushd lib/Target/X86
         mkdir ropfuscator
         for s in $srcs; do
-          # strip the hash
-          cp -r $s ropfuscator/`echo $s | cut -d "-" -f2`
+          cp -r $s ropfuscator
         done
         chmod +w ropfuscator -R
         popd
