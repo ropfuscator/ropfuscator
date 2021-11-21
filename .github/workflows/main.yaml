@@ -14,7 +14,7 @@ jobs:
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix-build
+    - run: nix-build
 
   test-release-libc:
     runs-on: self-hosted
