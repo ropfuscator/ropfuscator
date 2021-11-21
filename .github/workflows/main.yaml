@@ -6,14 +6,12 @@ jobs:
   build-release:
     runs-on: self-hosted
     steps:
-      with:
-        token: ${{ secrets.ROPFUSCATOR_PAT }}
       #    - uses: cachix/install-nix-action@v15
       #    - uses: cachix/cachix-action@v10
       #      with:
       #        name: ropfuscator
       #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-build
+    - run: NIX-CONFIG=\"access-tokens = github.com=${{ secrets.ROPFUSCATOR_PAT }}\" nix-build
 
   test-release-libc:
     runs-on: self-hosted
