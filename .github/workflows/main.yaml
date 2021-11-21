@@ -10,28 +10,22 @@ jobs:
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.ROPFUSCATOR_PAT }}
-      #    - uses: cachix/install-nix-action@v15
-      #    - uses: cachix/cachix-action@v10
-      #      with:
-      #        name: ropfuscator
-      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - uses: cachix/cachix-action@v10
+      with:
+        name: ropfuscator
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: nix-build
 
   test-release-libc:
     runs-on: self-hosted
     needs: build-release
     steps:
-    - name: Submodules checkout
-      uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.ROPFUSCATOR_PAT }}
-        submodules: recursive
-      #    - uses: cachix/install-nix-action@v15
-      #    - uses: cachix/cachix-action@v10
-      #      with:
-      #        name: ropfuscator
-      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ../tests -GNinja -DROPFUSCATOR_LLC=`printenv ROPFUSCATOR_LLC` -DUSE_LIBC=On -DROPF_CONFIGURATION_FILES=../tests/utils/configs && ctest' 
+      - uses: cachix/install-nix-action@v15
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ../tests -GNinja -DROPFUSCATOR_LLC=`printenv ROPFUSCATOR_LLC` -DUSE_LIBC=On -DROPF_CONFIGURATION_FILES=../tests/utils/configs && ctest' 
   
       #  build-debug:
       #    runs-on: self-hosted
