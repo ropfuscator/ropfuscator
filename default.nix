@@ -13,10 +13,16 @@ let
   stdenv_clang = pkgs.overrideCC pkgs.stdenv
     (pkgs.clang_10.override ({ gccForLibs = pkgs.gcc.cc; }));
 
-  ext_llvm = pkgs64.fetchurl {
+  ext_llvm = pkgs.fetchurl {
     url =
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz";
     sha256 = "1wydhbp9kyjp5y0rc627imxgkgqiv3dfirbqil9dgpnbaw5y7n65";
+  };
+
+  ext_clang = pkgs.fetchurl {
+    url =
+      "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz";
+    sha256 = "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr";
   };
 
   python-deps = python-packages: with python-packages; [ pygments ];
@@ -47,6 +53,12 @@ let
 
         tar -xf ${ext_llvm} --strip-components=1
         
+        # insert clang
+        pushd tools
+        tar -xf ${ext_clang}
+        popd
+
+        # insert ropfuscator
         pushd lib/Target/X86
         mkdir ropfuscator
         for s in $srcs; do
