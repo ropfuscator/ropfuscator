@@ -43,7 +43,7 @@ let
         "${ropfuscator_repo}/src"
         "${ropfuscator_repo}/thirdparty"
       ];
-      patches = [ ./patches/ropfuscator_pass.patch ];
+      patches = [ "${ropfuscator_repo}/patches/ropfuscator_pass.patch" ];
       postPatch = "patchShebangs .";
 
       cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ];
