@@ -7,7 +7,7 @@ jobs:
     runs-on: self-hosted
     steps:
     - run: echo "NIX_CONFIG=access-tokens = github.com=${{ secrets.ROPFUSCATOR_PAT }}" >> $GITHUB_ENV
-    - run: nix-build --option tarball-ttl 0
+    - run: nix-build --option tarball-ttl 0 --show-trace
 
   test-release-libc:
     runs-on: self-hosted
