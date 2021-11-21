@@ -6,12 +6,9 @@ jobs:
   build-release:
     runs-on: self-hosted
     steps:
-    - name: Submodules checkout
-      uses: actions/checkout@v2
+    - uses: actions/checkout@v2.4.0
       with:
         token: ${{ secrets.ROPFUSCATOR_PAT }}
-        submodules: recursive
-    - uses: actions/checkout@v2.4.0
       #    - uses: cachix/install-nix-action@v15
       #    - uses: cachix/cachix-action@v10
       #      with:
@@ -28,7 +25,6 @@ jobs:
       with:
         token: ${{ secrets.ROPFUSCATOR_PAT }}
         submodules: recursive
-    - uses: actions/checkout@v2.4.0
       #    - uses: cachix/install-nix-action@v15
       #    - uses: cachix/cachix-action@v10
       #      with:
