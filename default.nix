@@ -29,7 +29,7 @@ let
   python = pkgs.python3.withPackages python-deps;
 
   ropfuscator_repo = builtins.fetchGit {
-    url = "https://github.com/ropfuscator/ropfuscator";
+    url = "git@github.com:ropfuscator/ropfuscator.git";
     submodules = true;
   };
 
