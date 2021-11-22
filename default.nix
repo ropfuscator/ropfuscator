@@ -8,11 +8,6 @@ let
   }) { });
   pkgs = pkgs64.pkgsi686Linux;
 
-  # upstream clang stdenv uses gcc 7.5 (outdated)
-  # see https://github.com/NixOS/nixpkgs/issues/146865
-  stdenv_clang = pkgs.overrideCC pkgs.stdenv
-    (pkgs.clang_10.override ({ gccForLibs = pkgs.gcc.cc; }));
-
   ext_llvm = pkgs.fetchurl {
     url =
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz";
@@ -23,6 +18,11 @@ let
     url =
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz";
     sha256 = "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr";
+  };
+  
+  ext_lld = pkgs.fetchurl {
+    url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/lld-10.0.1.src.tar.xz";
+    sha256 = "0ynzi35r4fckvp6842alpd43qr810j3728yfslc66fk2mbh4j52r";
   };
 
   python-deps = python-packages: with python-packages; [ pygments ];
@@ -53,9 +53,10 @@ let
 
         tar -xf ${ext_llvm} --strip-components=1
 
-        # insert clang
+        # insert clang and lld
         pushd tools
         tar -xf ${ext_clang}
+        tar -xf ${ext_lld}
         popd
 
         # insert ropfuscator
@@ -70,4 +71,4 @@ let
         runHook postUnpack
       '';
     };
-in pkgs.callPackage derivation_function { stdenv = stdenv_clang; }
+in pkgs.callPackage derivation_function { stdenv = pkgs.stdenv; }
