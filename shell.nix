@@ -7,7 +7,7 @@ let
     sha256 = "0hi1lfp8kq9p4lfqclydgsx5dzc59g71gx1lay2akvn2ibqzhg21";
   }) { });
   pkgs = pkgs64.pkgsi686Linux;
-  ropf_mod = import ../default.nix { };
+  ropf_mod = import ./default.nix { };
   myStdenv = pkgs.mkShell.override { stdenv = ropf_mod.stdenv; };
 in myStdenv {
   nativeBuildInputs = ropf_mod.ropfuscator.nativeBuildInputs;
