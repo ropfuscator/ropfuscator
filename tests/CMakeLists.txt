@@ -3,20 +3,24 @@ cmake_minimum_required(VERSION 3.0)
 
 include(utils/cmake/ropfuscator-utils.cmake)
 
-if(NOT ROPF_CONFIGURATION_FILES)
-  message(FATAL_ERROR "ROPfuscator's config files directory not specified. Please set ROPF_CONFIGURATION_FILES accordingly.")
+if(NOT ROPFUSCATOR_CONFIGS_DIR)
+  message(FATAL_ERROR "ROPfuscator's config files directory not specified. Please set ROPFUSCATOR_CONFIGS_DIR accordingly.")
 endif()
 
 enable_testing()
 
 file(GLOB sources "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB ROPF_CONFIGURATION_FILES "${ROPFUSCATOR_CONFIGS_DIR}/*.toml")
 
+message("${ROPFUSCATOR_CONFIGS_DIR}")
+message("${ROPF_CONFIGURATION_FILES}")
 # making CMake aware of the targets so we can configure them later
 foreach(source ${sources})
   get_filename_component(testcase ${source} NAME_WE)
 
   # vanilla testcase
-  add_executable(${testcase} ${testcase}.s)
+  add_executable(${testcase} ${source})
+  target_compile_options(${testcase} PRIVATE -mllvm -fno-ropfuscator)
 
   # obfuscated testcase
   foreach(config ${ROPF_CONFIGURATION_FILES})
@@ -27,7 +31,7 @@ foreach(source ${sources})
       set(obfuscated_testcase
           "${testcase}-ropfuscated-${config_name}-${libname}")
 
-      add_executable(${obfuscated_testcase} ${obfuscated_testcase}.s)
+        add_obfuscated_executable(TARGET ${obfuscated_testcase} SOURCES ${source} CONFIG ${config} LIBRARY ${library})
     endforeach()
   endforeach()
 endforeach()
@@ -48,15 +52,7 @@ target_compile_options(testcase011 PUBLIC -O0)
 foreach(source ${sources})
   get_filename_component(testcase ${source} NAME_WE)
   get_target_property(TARGET_CFLAGS ${testcase} COMPILE_OPTIONS)
-
-  # vanilla testcase
-  if(TARGET_CFLAGS)
-    generate_clean_asm(SOURCE ${source} OUTNAME ${testcase} IRFLAGS
-                       ${TARGET_CFLAGS})
-  else()
-    generate_clean_asm(SOURCE ${source} OUTNAME ${testcase})
-  endif()
-
+  
   add_test(NAME test-${testcase}-plain-build
            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
                    ${testcase})
@@ -70,32 +66,6 @@ foreach(source ${sources})
 
       set(obfuscated_testcase
             "${testcase}-ropfuscated-${config_name}-${libname}")
-
-      target_link_libraries(${obfuscated_testcase} ${library})
-
-      if(TARGET_CFLAGS)
-        generate_ropfuscated_asm(
-          SOURCE
-          ${source}
-          OUTNAME
-          ${obfuscated_testcase}
-          IRFLAGS
-          ${TARGET_CFLAGS}
-          OBF_CONFIG
-          ${config}
-          GADGET_LIB
-          ${library})
-      else()
-        generate_ropfuscated_asm(
-          SOURCE
-          ${source}
-          OUTNAME
-          ${obfuscated_testcase}
-          OBF_CONFIG
-          ${config}
-          GADGET_LIB
-          ${library})
-      endif()
 
       add_test(NAME test-${obfuscated_testcase}-build
                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
