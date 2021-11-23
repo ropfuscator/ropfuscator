@@ -19,11 +19,6 @@ let
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz";
     sha256 = "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr";
   };
-  
-  ext_lld = pkgs.fetchurl {
-    url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/lld-10.0.1.src.tar.xz";
-    sha256 = "0ynzi35r4fckvp6842alpd43qr810j3728yfslc66fk2mbh4j52r";
-  };
 
   python-deps = python-packages: with python-packages; [ pygments ];
   python = pkgs.python3.withPackages python-deps;
@@ -53,10 +48,9 @@ let
 
         tar -xf ${ext_llvm} --strip-components=1
 
-        # insert clang and lld
+        # insert clang
         pushd tools
         tar -xf ${ext_clang}
-        tar -xf ${ext_lld}
         popd
 
         # insert ropfuscator
@@ -71,4 +65,11 @@ let
         runHook postUnpack
       '';
     };
-in pkgs.callPackage derivation_function { stdenv = pkgs.stdenv; }
+in let
+  ropfuscator = pkgs.callPackage derivation_function { stdenv = pkgs.stdenv; };
+  wrapped_clang = pkgs.llvmPackages_10.clang.override { cc = ropfuscator; };
+  stdenv = pkgs.overrideCC pkgs.clangStdenv wrapped_clang;
+in {
+  ropfuscator = ropfuscator;
+  stdenv = stdenv;
+}
