@@ -1,8 +1,29 @@
 {
-  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (
-      let pkgs = nixpkgs.legacyPackages.i686-linux;
-      in { defaultPackage = pkgs.callPackage ./default.nix { }; });
+  inputs = {
+    flake-utils.url = "github:numtide/flake-utils";
+    ropfuscator.url = "github:ropfuscator/ropfuscator";
+    ropfuscator.flake = false;
+    librop = {
+      url = "github:ropfuscator/librop";
+      flake = false;
+    };
+  };
+
+  outputs = { self, nixpkgs, flake-utils, ropfuscator, librop }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        ropfuscator_release =
+          import ./release.nix { inherit pkgs ropfuscator; };
+        ropfuscator_debug = import ./debug.nix { inherit pkgs ropfuscator; };
+      in {
+        defaultPackage = ropfuscator_release.ropfuscator;
+        stdenv = ropfuscator_release.stdenv;
+        debugBuild = ropfuscator_debug.ropfuscator;
+        devShell = (import ./shell.nix {
+          inherit librop pkgs;
+          ropfuscator = ropfuscator_release.ropfuscator;
+          ropfuscator_stdenv = ropfuscator_release.stdenv;
+        });
+      });
 }

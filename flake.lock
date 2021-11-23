@@ -1,0 +1,74 @@
+{
+  "nodes": {
+    "flake-utils": {
+      "locked": {
+        "lastModified": 1637014545,
+        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "librop": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1637339125,
+        "narHash": "sha256-hGgA2FnVExMD9yl3pc2DswqLAfUjbR6SaHw6+vONFqo=",
+        "owner": "ropfuscator",
+        "repo": "librop",
+        "rev": "2557e0b3e92326ce89d42dd206fb56d91345661d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ropfuscator",
+        "repo": "librop",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1636944046,
+        "narHash": "sha256-74KLDsiWSBsYXKj/ql9EGbw1TbIJRE7clFkhl30HV/c=",
+        "path": "/nix/store/ql6s3pl8gfv6v1n3ffsww0yspbji5lx3-source",
+        "rev": "46251a79f752ae1d46ef733e8e9760b6d3429da4",
+        "type": "path"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "librop": "librop",
+        "nixpkgs": "nixpkgs",
+        "ropfuscator": "ropfuscator"
+      }
+    },
+    "ropfuscator": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1637690567,
+        "narHash": "sha256-nrClav+KsDzkR0hsP+uw3xEbiUX85bcHMcuWJb39E1A=",
+        "owner": "ropfuscator",
+        "repo": "ropfuscator",
+        "rev": "e9f77c0f2d264ad47bcc65e5d86bdc6b38498d11",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ropfuscator",
+        "repo": "ropfuscator",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
