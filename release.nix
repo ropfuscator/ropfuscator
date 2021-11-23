@@ -1,4 +1,4 @@
-{ pkgs, ropfuscator }:
+{ pkgs }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
   
@@ -24,11 +24,11 @@ let
       version = "0.1.0";
       nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
       srcs = [
-        "${ropfuscator}/cmake"
-        "${ropfuscator}/src"
-        "${ropfuscator}/thirdparty"
+        ./cmake
+        ./src
+        ./thirdparty
       ];
-      patches = [ "${ropfuscator}/patches/ropfuscator_pass.patch" ];
+      patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
       cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ];

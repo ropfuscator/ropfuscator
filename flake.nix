@@ -1,20 +1,19 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    ropfuscator.url = "github:ropfuscator/ropfuscator";
     librop = {
       url = "github:ropfuscator/librop";
       flake = false;
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, ropfuscator, librop }:
+  outputs = { self, nixpkgs, flake-utils, librop }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         ropfuscator_release =
-          import ./release.nix { inherit pkgs ropfuscator; };
-        ropfuscator_debug = import ./debug.nix { inherit pkgs ropfuscator; };
+          import ./release.nix { inherit pkgs; };
+        ropfuscator_debug = import ./debug.nix { inherit pkgs; };
       in {
         defaultPackage = ropfuscator_release.ropfuscator;
         stdenv = ropfuscator_release.stdenv;

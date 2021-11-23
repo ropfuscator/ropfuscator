@@ -48,24 +48,7 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "librop": "librop",
-        "nixpkgs": "nixpkgs",
-        "ropfuscator": "ropfuscator"
-      }
-    },
-    "ropfuscator": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1637690567,
-        "narHash": "sha256-nrClav+KsDzkR0hsP+uw3xEbiUX85bcHMcuWJb39E1A=",
-        "owner": "ropfuscator",
-        "repo": "ropfuscator",
-        "rev": "e9f77c0f2d264ad47bcc65e5d86bdc6b38498d11",
-        "type": "github"
-      },
-      "original": {
-        "owner": "ropfuscator",
-        "repo": "ropfuscator",
-        "type": "github"
+        "nixpkgs": "nixpkgs"
       }
     }
   },
