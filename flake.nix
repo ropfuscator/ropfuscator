@@ -2,7 +2,6 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     ropfuscator.url = "github:ropfuscator/ropfuscator";
-    ropfuscator.flake = false;
     librop = {
       url = "github:ropfuscator/librop";
       flake = false;
