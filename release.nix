@@ -46,7 +46,7 @@ let
         pushd lib/Target/X86
         mkdir ropfuscator
         for s in $srcs; do
-          cp -r $s ropfuscator
+          cp -r $s ropfuscator/`echo $s | cut -d "-" -f2`
         done
         chmod +w ropfuscator -R
         popd
