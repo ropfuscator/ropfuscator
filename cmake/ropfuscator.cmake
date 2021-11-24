@@ -25,7 +25,4 @@ if(CURRENT_LLVM_TARGET)
   target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
 endif()
 
-# libfmt
-include_directories(${ROPF_DIR}/thirdparty/fmt/include)
-# tinytoml
-include_directories(${ROPF_DIR}/thirdparty/tinytoml/include)
+add_subdirectory(${ROPF_DIR}/thirdparty)

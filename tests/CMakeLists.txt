@@ -7,6 +7,11 @@ if(NOT ROPFUSCATOR_CONFIGS_DIR)
   message(FATAL_ERROR "ROPfuscator's config files directory not specified. Please set ROPFUSCATOR_CONFIGS_DIR accordingly.")
 endif()
 
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/utils/.git")
+  message(SEND_ERROR "The utilities submodule is not available. Please run
+git submodule update --init --recursive")
+endif()
+
 enable_testing()
 
 file(GLOB sources "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
