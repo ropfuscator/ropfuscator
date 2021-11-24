@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-          token: ${{ github.ROPFUSCATOR_PAT }}
+          token: ${{ secrets.ROPFUSCATOR_PAT }}
       - run: nix build
 
         #  test-release-libc:
