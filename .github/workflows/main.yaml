@@ -10,6 +10,7 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.ROPFUSCATOR_PAT }}
+      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       # pinning nix version to commit that supports a workaround to fetch submodules
       - run: nix shell "github:nixos/nix/d58f149140582" -c nix build "git+file://$(pwd)?submodules=1" -L
 
