@@ -60,6 +60,21 @@
         "type": "github"
       }
     },
+    "flake-utils_5": {
+      "locked": {
+        "lastModified": 1637014545,
+        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "fmt": {
       "flake": false,
       "locked": {
@@ -95,6 +110,23 @@
       }
     },
     "fmt_3": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1606266902,
+        "narHash": "sha256-SbzWk4u1Dt/944N+hiAu/zd49dUXTR2BXs2Ki8fZHiI=",
+        "owner": "fmtlib",
+        "repo": "fmt",
+        "rev": "7bdf0628b1276379886c7f6dda2cef2b3b374f0b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fmtlib",
+        "ref": "7bdf0628",
+        "repo": "fmt",
+        "type": "github"
+      }
+    },
+    "fmt_4": {
       "flake": false,
       "locked": {
         "lastModified": 1606266902,
@@ -175,6 +207,22 @@
         "type": "github"
       }
     },
+    "librop_5": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1637339125,
+        "narHash": "sha256-hGgA2FnVExMD9yl3pc2DswqLAfUjbR6SaHw6+vONFqo=",
+        "owner": "ropfuscator",
+        "repo": "librop",
+        "rev": "2557e0b3e92326ce89d42dd206fb56d91345661d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ropfuscator",
+        "repo": "librop",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1637771604,
@@ -225,6 +273,22 @@
     },
     "nixpkgs_4": {
       "locked": {
+        "lastModified": 1637771604,
+        "narHash": "sha256-S5h/GXm1PKwIFJupdPmSUxhSWCjopE5HVKIa3vCWUTo=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "4b675777b5ef03b8c47eeb8572693855bc8fc223",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "4b675777",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_5": {
+      "locked": {
         "lastModified": 1636944046,
         "narHash": "sha256-74KLDsiWSBsYXKj/ql9EGbw1TbIJRE7clFkhl30HV/c=",
         "path": "/nix/store/ql6s3pl8gfv6v1n3ffsww0yspbji5lx3-source",
@@ -243,8 +307,8 @@
         "librop": "librop",
         "nixpkgs": "nixpkgs",
         "ropfuscator": "ropfuscator",
-        "ropfuscator-utils": "ropfuscator-utils_3",
-        "tinytoml": "tinytoml_3"
+        "ropfuscator-utils": "ropfuscator-utils_4",
+        "tinytoml": "tinytoml_4"
       }
     },
     "ropfuscator": {
@@ -254,15 +318,15 @@
         "librop": "librop_2",
         "nixpkgs": "nixpkgs_2",
         "ropfuscator": "ropfuscator_2",
-        "ropfuscator-utils": "ropfuscator-utils_2",
-        "tinytoml": "tinytoml_2"
+        "ropfuscator-utils": "ropfuscator-utils_3",
+        "tinytoml": "tinytoml_3"
       },
       "locked": {
-        "lastModified": 1637778212,
-        "narHash": "sha256-tKSG2MiAPSDA2o7Hi1M9OMX6dx0cJ6cEzYgDtgFeUbE=",
+        "lastModified": 1637778666,
+        "narHash": "sha256-AbMvFJr44BzrCIBZvvVKvo0FdEdkYGTpf92KAhSxmCw=",
         "owner": "ropfuscator",
         "repo": "ropfuscator",
-        "rev": "be11ae44ba4111e63de97a78484804399e724c65",
+        "rev": "c61298d9f48e457b718e1883fd9d638d3ab3dbbe",
         "type": "github"
       },
       "original": {
@@ -319,6 +383,22 @@
         "type": "github"
       }
     },
+    "ropfuscator-utils_4": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1637688609,
+        "narHash": "sha256-faUOgXxWvBL9c9pBuVvii7OSDWi5Y4n+Rt0wSxpNxWg=",
+        "owner": "ropfuscator",
+        "repo": "utilities",
+        "rev": "2f3837713684686bda57006d066372d728bca46a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ropfuscator",
+        "repo": "utilities",
+        "type": "github"
+      }
+    },
     "ropfuscator_2": {
       "inputs": {
         "flake-utils": "flake-utils_3",
@@ -326,6 +406,30 @@
         "librop": "librop_3",
         "nixpkgs": "nixpkgs_3",
         "ropfuscator": "ropfuscator_3",
+        "ropfuscator-utils": "ropfuscator-utils_2",
+        "tinytoml": "tinytoml_2"
+      },
+      "locked": {
+        "lastModified": 1637778212,
+        "narHash": "sha256-tKSG2MiAPSDA2o7Hi1M9OMX6dx0cJ6cEzYgDtgFeUbE=",
+        "owner": "ropfuscator",
+        "repo": "ropfuscator",
+        "rev": "be11ae44ba4111e63de97a78484804399e724c65",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ropfuscator",
+        "repo": "ropfuscator",
+        "type": "github"
+      }
+    },
+    "ropfuscator_3": {
+      "inputs": {
+        "flake-utils": "flake-utils_4",
+        "fmt": "fmt_4",
+        "librop": "librop_4",
+        "nixpkgs": "nixpkgs_4",
+        "ropfuscator": "ropfuscator_4",
         "ropfuscator-utils": "ropfuscator-utils",
         "tinytoml": "tinytoml"
       },
@@ -343,11 +447,11 @@
         "type": "github"
       }
     },
-    "ropfuscator_3": {
+    "ropfuscator_4": {
       "inputs": {
-        "flake-utils": "flake-utils_4",
-        "librop": "librop_4",
-        "nixpkgs": "nixpkgs_4"
+        "flake-utils": "flake-utils_5",
+        "librop": "librop_5",
+        "nixpkgs": "nixpkgs_5"
       },
       "locked": {
         "lastModified": 1637771773,
@@ -398,6 +502,23 @@
       }
     },
     "tinytoml_3": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1545145683,
+        "narHash": "sha256-fLtJbZZWOxzEUV3XXuipxPZ9AnAoNYTMLRGxWUShxjY=",
+        "owner": "mayah",
+        "repo": "tinytoml",
+        "rev": "ea34092df86a50284abddd915e399374c44ace11",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mayah",
+        "ref": "ea34092",
+        "repo": "tinytoml",
+        "type": "github"
+      }
+    },
+    "tinytoml_4": {
       "flake": false,
       "locked": {
         "lastModified": 1545145683,
