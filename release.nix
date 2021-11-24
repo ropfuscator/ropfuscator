@@ -18,12 +18,12 @@ let
   python = pkgs32.python3.withPackages python-deps;
 
   derivation_function =
-    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2, tree }:
+    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2 }:
     stdenv.mkDerivation {
       pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs =
-        [ cmake ninja git curl python pkg-config z3 libxml2 tree ];
+        [ cmake ninja git curl python pkg-config z3 libxml2 ];
       srcs = [
         "${ropfuscator}/cmake"
         "${ropfuscator}/src"
@@ -57,8 +57,6 @@ let
             cp --no-preserve=mode,ownership -r ${tinytoml} tinytoml
             cp --no-preserve=mode,ownership -r ${fmt} fmt
           popd
-          
-          tree ropfuscator
         popd
 
         runHook postUnpack
