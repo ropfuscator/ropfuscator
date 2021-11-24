@@ -11,6 +11,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           token: ${{ secrets.ROPFUSCATOR_PAT }}
-          #      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: create ssh-config
+        run: |
+          cat << EOF > ~/.ssh/config
+          Host github.com
+          User git
+          IdentityFile ~/.ssh/utils.key
+      - name: Create ssh key for my utils submodule
+        run: |
+          mkdir -p ~/.ssh
+          cat << EOF > ~/.ssh/utils.key
+          ${{ secrets.UTILITIES_DEPLOY_KEY }}
+          EOF
+          chmod go-rwx ~/.ssh/utils.key
       # pinning nix version to commit that supports a workaround to fetch submodules
       - run: nix shell "github:nixos/nix/d58f149140582" -c nix build "git+file://$(pwd)?submodules=1" -L
+  
