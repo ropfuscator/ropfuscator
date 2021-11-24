@@ -11,8 +11,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        ropfuscator_release =
-          import ./release.nix { inherit pkgs; };
+        ropfuscator_release = import ./release.nix { inherit pkgs; };
         ropfuscator_debug = import ./debug.nix { inherit pkgs; };
       in {
         defaultPackage = ropfuscator_release.ropfuscator;

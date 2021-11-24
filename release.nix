@@ -1,7 +1,7 @@
 { pkgs }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
-  
+
   ext_llvm = pkgs32.fetchurl {
     url =
       "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz";
@@ -23,11 +23,7 @@ let
       pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
-      srcs = [
-        ./cmake
-        ./src
-        ./thirdparty
-      ];
+      srcs = [ ./cmake ./src ./thirdparty ];
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
@@ -55,7 +51,8 @@ let
       '';
     };
 in let
-  ropfuscator = pkgs32.callPackage derivation_function { stdenv = pkgs32.stdenv; };
+  ropfuscator =
+    pkgs32.callPackage derivation_function { stdenv = pkgs32.stdenv; };
   wrapped_clang = pkgs32.llvmPackages_10.clang.override { cc = ropfuscator; };
   stdenv = pkgs32.overrideCC pkgs32.clangStdenv wrapped_clang;
 in {

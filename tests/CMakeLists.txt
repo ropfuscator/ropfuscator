@@ -4,7 +4,10 @@ cmake_minimum_required(VERSION 3.0)
 include(utils/cmake/ropfuscator-utils.cmake)
 
 if(NOT ROPFUSCATOR_CONFIGS_DIR)
-  message(FATAL_ERROR "ROPfuscator's config files directory not specified. Please set ROPFUSCATOR_CONFIGS_DIR accordingly.")
+  message(
+    FATAL_ERROR
+      "ROPfuscator's config files directory not specified. Please set ROPFUSCATOR_CONFIGS_DIR accordingly."
+  )
 endif()
 
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/utils/.git")
@@ -36,7 +39,15 @@ foreach(source ${sources})
       set(obfuscated_testcase
           "${testcase}-ropfuscated-${config_name}-${libname}")
 
-        add_obfuscated_executable(TARGET ${obfuscated_testcase} SOURCES ${source} CONFIG ${config} LIBRARY ${library})
+      add_obfuscated_executable(
+        TARGET
+        ${obfuscated_testcase}
+        SOURCES
+        ${source}
+        CONFIG
+        ${config}
+        LIBRARY
+        ${library})
     endforeach()
   endforeach()
 endforeach()
@@ -57,7 +68,7 @@ target_compile_options(testcase011 PUBLIC -O0)
 foreach(source ${sources})
   get_filename_component(testcase ${source} NAME_WE)
   get_target_property(TARGET_CFLAGS ${testcase} COMPILE_OPTIONS)
-  
+
   add_test(NAME test-${testcase}-plain-build
            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
                    ${testcase})
@@ -70,7 +81,7 @@ foreach(source ${sources})
       get_filename_component(libname ${library} NAME_WE)
 
       set(obfuscated_testcase
-            "${testcase}-ropfuscated-${config_name}-${libname}")
+          "${testcase}-ropfuscated-${config_name}-${libname}")
 
       add_test(NAME test-${obfuscated_testcase}-build
                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
