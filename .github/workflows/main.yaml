@@ -7,7 +7,9 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
-      - run: nix build "git+file://$(pwd)?submodules=1"
+        with:
+          submodules: recursive
+      - run: nix build
 
         #  test-release-libc:
         #    runs-on: self-hosted
