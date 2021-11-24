@@ -6,7 +6,6 @@
       url = "github:ropfuscator/librop";
       flake = false;
     };
-    ropfuscator.url = "github:ropfuscator/ropfuscator";
     ropfuscator-utils = {
       url = "github:ropfuscator/utilities";
       flake = false;
@@ -21,13 +20,13 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, librop, ropfuscator, ropfuscator-utils
-    , tinytoml, fmt }:
+  outputs =
+    { self, nixpkgs, flake-utils, librop, ropfuscator-utils, tinytoml, fmt }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         ropfuscator_release =
-          import ./release.nix { inherit pkgs ropfuscator tinytoml fmt; };
+          import ./release.nix { inherit pkgs tinytoml fmt; };
       in {
         defaultPackage = ropfuscator_release.ropfuscator;
         stdenv = ropfuscator_release.stdenv;
