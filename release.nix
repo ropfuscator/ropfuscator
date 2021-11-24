@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, ropfuscator, fmt, tinytoml }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
 
@@ -18,13 +18,18 @@ let
   python = pkgs32.python3.withPackages python-deps;
 
   derivation_function =
-    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2 }:
+    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2, tree }:
     stdenv.mkDerivation {
       pname = "ropfuscator";
       version = "0.1.0";
-      nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
-      srcs = [ ./cmake ./src ./thirdparty ];
-      patches = [ ./patches/ropfuscator_pass.patch ];
+      nativeBuildInputs =
+        [ cmake ninja git curl python pkg-config z3 libxml2 tree ];
+      srcs = [
+        "${ropfuscator}/cmake"
+        "${ropfuscator}/src"
+        "${ropfuscator}/thirdparty"
+      ];
+      patches = [ "${ropfuscator}/patches/ropfuscator_pass.patch" ];
       postPatch = "patchShebangs .";
 
       cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ];
@@ -35,16 +40,25 @@ let
 
         # insert clang
         pushd tools
-        tar -xf ${ext_clang}
+          tar -xf ${ext_clang}
         popd
 
         # insert ropfuscator
         pushd lib/Target/X86
-        mkdir ropfuscator
-        for s in $srcs; do
-          cp -r $s ropfuscator/`echo $s | cut -d "-" -f2`
-        done
-        chmod +w ropfuscator -R
+          mkdir ropfuscator
+          
+          for s in $srcs; do
+            cp --no-preserve=mode,ownership -r $s ropfuscator
+          done
+          
+          # manually copy submodules due to nix currently not having
+          # proper support for submodules
+          pushd ropfuscator/thirdparty
+            cp --no-preserve=mode,ownership -r ${tinytoml} tinytoml
+            cp --no-preserve=mode,ownership -r ${fmt} fmt
+          popd
+          
+          tree ropfuscator
         popd
 
         runHook postUnpack
