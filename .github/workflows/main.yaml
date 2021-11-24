@@ -11,45 +11,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           token: ${{ secrets.ROPFUSCATOR_PAT }}
-          #      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Create ssh key for my utils submodule
+        run: |
+          mkdir -p ~/.ssh
+          cat << EOF > ~/.ssh/utils.key
+          ${{ secrets.UTILITIES_DEPLOY_KEY }}
+          EOF
+          chmod go-rwx ~/.ssh/utils.key
+      - name: create ssh-config
+        run: |
+          cat << EOF > ~/.ssh/config
+          Host github.com
+          User git
+          IdentityFile ~/.ssh/utils.key
       # pinning nix version to commit that supports a workaround to fetch submodules
       - run: nix shell "github:nixos/nix/d58f149140582" -c nix build "git+file://$(pwd)?submodules=1" -L
-
-        #  test-release-libc:
-        #    runs-on: self-hosted
-        #    needs: build-release
-        #    steps:
-        #      - run: nix-shell tests/shell.nix --run 'mkdir build;cd build;cmake ../tests -GNinja -DROPFUSCATOR_LLC=`printenv ROPFUSCATOR_LLC` -DUSE_LIBC=On -DROPF_CONFIGURATION_FILES=../tests/utils/configs && ctest' --option tarball-ttl 0
-
-      #  build-debug:
-      #    runs-on: self-hosted
-      #    steps:
-      #    - name: Submodules checkout
-      #      uses: actions/checkout@v2
-      #      with:
-      #        token: ${{ secrets.ROPFUSCATOR_PAT }}
-      #        submodules: recursive
-      #    - uses: actions/checkout@v2.4.0
-      #      #    - uses: cachix/install-nix-action@v15
-      #      #    - uses: cachix/cachix-action@v10
-      #      #      with:
-      #      #        name: ropfuscator
-      #      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      #    - run: nix-build debug.nix
-
-      #  test-debug:
-      #    runs-on: self-hosted
-      #    needs: build-debug
-      #    steps:
-      #    - name: Submodules checkout
-      #      uses: actions/checkout@v2
-      #      with:
-      #        token: ${{ secrets.ROPFUSCATOR_PAT }}
-      #        submodules: recursive
-      #    - uses: actions/checkout@v2.4.0
-      #      #    - uses: cachix/install-nix-action@v15
-      #      #    - uses: cachix/cachix-action@v10
-      #      #      with:
-      #      #        name: ropfuscator
-      #      #        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      #    - run: nix-shell debug.nix --run 'eval "$unpackPhase" && patchPhase && eval "$configurePhase" && cd lib/Target/X86/ropfuscator/tests && ctest'
+  
