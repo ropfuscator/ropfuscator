@@ -10,7 +10,7 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.ROPFUSCATOR_PAT }}
-      - run: nix build -L
+      - run: nix shell "github:nixos/nix&rev=d58f149140582330bc994d215e54b2a4fc1149ff" --run "nix build 'git+file://$(pwd)?submodules=1' -L"
 
         #  test-release-libc:
         #    runs-on: self-hosted
