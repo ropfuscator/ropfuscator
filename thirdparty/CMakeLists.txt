@@ -11,6 +11,3 @@ if(BUF_LEN EQUAL 0)
   message(SEND_ERROR "The tinytoml submodule is not available. Please run
 git submodule update --init --recursive")
 endif()
-
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/fmt/include)
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/tinytoml/include)

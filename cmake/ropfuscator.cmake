@@ -25,4 +25,6 @@ if(CURRENT_LLVM_TARGET)
   target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
 endif()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/fmt/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/tinytoml/include)
 add_subdirectory(${ROPF_DIR}/thirdparty)
