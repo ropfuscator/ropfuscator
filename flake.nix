@@ -34,6 +34,7 @@
         releaseBuild = defaultPackage;
         debugBuild = defaultPackage.overrideAttrs (_: { debug = true; });
         ropfuscator_stdenv = ropfuscator.stdenv;
+
         devShells = {
           default = import ./shell.nix {
             inherit pkgs librop ropfuscator_stdenv;
@@ -43,6 +44,12 @@
             inherit pkgs librop ropfuscator_stdenv;
             ropfuscator = debugBuild;
           };
+        };
+
+        devShell = devShells.default;
+        packages = {
+          releaseBuild = releaseBuild;
+          debugBuild = debugBuild;
         };
       });
 }
