@@ -1,4 +1,4 @@
-{ pkgs, lib, fmt, tinytoml, debug ? false }:
+{ pkgs, lib, fmt, tinytoml }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
 
@@ -18,21 +18,17 @@ let
   python = pkgs32.python3.withPackages python-deps;
 
   derivation_function =
-    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2 }:
+    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2, debug ? false }:
     stdenv.mkDerivation {
-      inherit debug;
       pname = "ropfuscator";
       version = "0.1.0";
       nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
-      srcs = [
-        ./cmake
-        ./src
-        ./thirdparty
-      ];
+      srcs = [ ./cmake ./src ./thirdparty ];
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
 
-      cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ] ++ lib.optional (debug == true) "-DCMAKE_BUILD_TYPE=Debug";
+      cmakeFlags = [ "-DLLVM_TARGETS_TO_BUILD=X86" ]
+        ++ lib.optional (debug == true) "-DCMAKE_BUILD_TYPE=Debug";
       unpackPhase = ''
         runHook preUnpack
 

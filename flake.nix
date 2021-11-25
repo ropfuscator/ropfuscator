@@ -32,7 +32,7 @@
       in rec {
         defaultPackage = ropfuscator.ropfuscator;
         releaseBuild = defaultPackage;
-        debugBuild = defaultPackage.overrideAttrs (_: { debug = true; });
+        debugBuild = defaultPackage.override { debug = true; };
         ropfuscator_stdenv = ropfuscator.stdenv;
 
         devShells = {
