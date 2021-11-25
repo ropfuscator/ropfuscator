@@ -1,18 +1,6 @@
-{ pkgs, lib, fmt, tinytoml }:
+{ pkgs, llvm, clang, lib, fmt, tinytoml }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
-
-  ext_llvm = pkgs32.fetchurl {
-    url =
-      "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz";
-    sha256 = "1wydhbp9kyjp5y0rc627imxgkgqiv3dfirbqil9dgpnbaw5y7n65";
-  };
-
-  ext_clang = pkgs32.fetchurl {
-    url =
-      "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz";
-    sha256 = "091bvcny2lh32zy8f3m9viayyhb2zannrndni7325rl85cwgr6pr";
-  };
 
   python-deps = python-packages: with python-packages; [ pygments ];
   python = pkgs32.python3.withPackages python-deps;
@@ -32,11 +20,12 @@ let
       unpackPhase = ''
         runHook preUnpack
 
-        tar -xf ${ext_llvm} --strip-components=1
+        cp --no-preserve=mode,ownership -r ${llvm}/* .
 
         # insert clang
         pushd tools
-          tar -xf ${ext_clang}
+          mkdir clang
+          cp --no-preserve=mode,ownership -r ${clang}/* clang
         popd
 
         # insert ropfuscator

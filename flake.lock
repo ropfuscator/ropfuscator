@@ -1,5 +1,17 @@
 {
   "nodes": {
+    "clang": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-aQ8b0FIBKQsBknam5ocswhqEzMIu6rtTa/U+YkxxcC0=",
+        "type": "tarball",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1637014545,
@@ -37,15 +49,27 @@
       "locked": {
         "lastModified": 1637339125,
         "narHash": "sha256-hGgA2FnVExMD9yl3pc2DswqLAfUjbR6SaHw6+vONFqo=",
-        "owner": "ropfuscator",
-        "repo": "librop",
+        "ref": "master",
         "rev": "2557e0b3e92326ce89d42dd206fb56d91345661d",
-        "type": "github"
+        "revCount": 1,
+        "type": "git",
+        "url": "ssh://git@github.com/ropfuscator/librop.git"
       },
       "original": {
-        "owner": "ropfuscator",
-        "repo": "librop",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/ropfuscator/librop.git"
+      }
+    },
+    "llvm": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-MUbaPpmKYAMgw7v5qR1GurrJvO3nLkUE4xY8TTTCqXc=",
+        "type": "tarball",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz"
       }
     },
     "nixpkgs": {
@@ -66,9 +90,11 @@
     },
     "root": {
       "inputs": {
+        "clang": "clang",
         "flake-utils": "flake-utils",
         "fmt": "fmt",
         "librop": "librop",
+        "llvm": "llvm",
         "nixpkgs": "nixpkgs",
         "ropfuscator-utils": "ropfuscator-utils",
         "tinytoml": "tinytoml"
@@ -77,17 +103,17 @@
     "ropfuscator-utils": {
       "flake": false,
       "locked": {
-        "lastModified": 1637688609,
-        "narHash": "sha256-faUOgXxWvBL9c9pBuVvii7OSDWi5Y4n+Rt0wSxpNxWg=",
-        "owner": "ropfuscator",
-        "repo": "utilities",
-        "rev": "2f3837713684686bda57006d066372d728bca46a",
-        "type": "github"
+        "lastModified": 1637857645,
+        "narHash": "sha256-MRwxY0QJAHXSELYmUfpQvpdJpDHtF9DDU89jLcFgahs=",
+        "ref": "master",
+        "rev": "63df12dee0ed5bb31fc9f157dd825e1a8d2017a2",
+        "revCount": 9,
+        "type": "git",
+        "url": "ssh://git@github.com/ropfuscator/utilities.git"
       },
       "original": {
-        "owner": "ropfuscator",
-        "repo": "utilities",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/ropfuscator/utilities.git"
       }
     },
     "tinytoml": {
