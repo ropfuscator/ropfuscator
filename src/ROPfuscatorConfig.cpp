@@ -47,9 +47,10 @@ inline bool parseOption(const toml::Value &section,
     }
     const auto &value = v->as<T>();
     ref               = value;
-
-    DEBUG_WITH_TYPE(OBF_CONFIG,
-                    dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
+    
+// TODO: implement formattable<T> for libfmt
+//    DEBUG_WITH_TYPE(OBF_CONFIG,
+//                   dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
     return true;
   }
 
