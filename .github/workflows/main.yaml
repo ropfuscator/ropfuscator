@@ -17,8 +17,8 @@ jobs:
   
   test-release:
     runs-on: self-hosted
-    depends: build-release
+    needs: build-release
     steps:
       - uses: actions/checkout@v2
-      - run: nix build .#testBuild -L
+      - run: nix build .#testsBuild -L
   
