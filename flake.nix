@@ -25,19 +25,23 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        ropfuscator =
-          import ./ropfuscator.nix { inherit pkgs tinytoml fmt; lib = nixpkgs.lib; };
+        ropfuscator = import ./ropfuscator.nix {
+          inherit pkgs tinytoml fmt;
+          lib = nixpkgs.lib;
+        };
       in rec {
         defaultPackage = ropfuscator.ropfuscator;
+        releaseBuild = defaultPackage;
+        debugBuild = defaultPackage.overrideAttrs (_: { debug = true; });
         ropfuscator_stdenv = ropfuscator.stdenv;
         devShells = {
           default = import ./shell.nix {
             inherit pkgs librop ropfuscator_stdenv;
-            ropfuscator = defaultPackage;
+            ropfuscator = releaseBuild;
           };
           debug = import ./shell.nix {
             inherit pkgs librop ropfuscator_stdenv;
-            ropfuscator = ropfuscator.ropfuscator.overrideAttrs(_: { debug = true; });
+            ropfuscator = debugBuild;
           };
         };
       });
