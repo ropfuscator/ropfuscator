@@ -7,9 +7,11 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-          fetch-depth: 0
-          token: ${{ secrets.ROPFUSCATOR_PAT }}
       - run: nix build -L
+
+  build-debug:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - run: nix build .#debugBuild -L
   
