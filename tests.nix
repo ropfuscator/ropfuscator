@@ -1,4 +1,4 @@
-{ pkgs, ropfuscator, ropfuscator_stdenv, ropfuscator-utils, tinytoml, fmt, llvm, clang }:
+{ pkgs, ropfuscator, ropfuscator_stdenv, ropfuscator-utils }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
 
@@ -7,5 +7,13 @@ let
     stdenv = ropfuscator_stdenv;
     src = ./tests;
     doCheck = true;
+    unpackPhase = ''
+      runHook preUnpack
+      
+      cp -r --no-preserve=mode,ownership ${src}/* .
+      cp -r --no-preserve=mode,ownership ${ropfuscator-utils}/* utils
+
+      runHook postUnpack
+    '';
   });
 in ropfuscator_tests
