@@ -1,4 +1,4 @@
-{ pkgs, ropfuscator_stdenv }:
+{ pkgs, ropfuscator-utils, ropfuscator_stdenv }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
 

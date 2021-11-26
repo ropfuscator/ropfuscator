@@ -45,9 +45,9 @@
         debugBuild = defaultPackage.override { debug = true; };
         ropfuscator_stdenv = ropfuscator.stdenv;
         ropfuscator_tests =
-          import ./tests.nix { inherit pkgs ropfuscator_stdenv; };
+          import ./tests.nix { inherit pkgs ropfuscator_stdenv ropfuscator-utils; };
 
-        devShells = {
+        devShells = flake-utils.lib.flattenTree {
           default = import ./shell.nix {
             inherit pkgs librop ropfuscator_stdenv;
             ropfuscator = releaseBuild;
@@ -59,7 +59,7 @@
         };
 
         devShell = devShells.default;
-        packages = {
+        packages = flake-utils.lib.flattenTree {
           releaseBuild = releaseBuild;
           debugBuild = debugBuild;
           testsBuild = ropfuscator_tests;
