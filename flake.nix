@@ -63,6 +63,7 @@
           releaseBuild = releaseBuild;
           debugBuild = debugBuild;
           testsBuild = ropfuscator_tests;
+          stdenv = ropfuscator_stdenv;
         };
       });
 }
