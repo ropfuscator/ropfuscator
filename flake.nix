@@ -44,10 +44,8 @@
         releaseBuild = defaultPackage;
         debugBuild = defaultPackage.override { debug = true; };
         ropfuscator_stdenv = ropfuscator.stdenv;
-        ropfuscator_tests = import ./tests.nix {
-          inherit pkgs ropfuscator-utils ropfuscator_stdenv tinytoml fmt llvm clang;
-          ropfuscator = defaultPackage;
-        };
+        ropfuscator_tests =
+          import ./tests.nix { inherit pkgs ropfuscator_stdenv; };
 
         devShells = {
           default = import ./shell.nix {
