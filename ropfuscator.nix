@@ -6,11 +6,11 @@ let
   python = pkgs32.python3.withPackages python-deps;
 
   derivation_function =
-    { stdenv, cmake, ninja, git, curl, pkg-config, z3, libxml2, debug ? false }:
+    { stdenv, cmake, git, curl, pkg-config, z3, libxml2, debug ? false }:
     stdenv.mkDerivation {
       pname = "ropfuscator";
       version = "0.1.0";
-      nativeBuildInputs = [ cmake ninja git curl python pkg-config z3 libxml2 ];
+      nativeBuildInputs = [ cmake git curl python pkg-config z3 libxml2 ];
       srcs = [ ./cmake ./src ./thirdparty ];
       patches = [ ./patches/ropfuscator_pass.patch ];
       postPatch = "patchShebangs .";
