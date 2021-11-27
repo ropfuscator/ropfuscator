@@ -27,6 +27,21 @@
         "type": "github"
       }
     },
+    "flake-utils_2": {
+      "locked": {
+        "lastModified": 1637014545,
+        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "fmt": {
       "flake": false,
       "locked": {
@@ -45,13 +60,16 @@
       }
     },
     "librop": {
-      "flake": false,
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": "nixpkgs"
+      },
       "locked": {
-        "lastModified": 1637339125,
-        "narHash": "sha256-hGgA2FnVExMD9yl3pc2DswqLAfUjbR6SaHw6+vONFqo=",
+        "lastModified": 1637974905,
+        "narHash": "sha256-7NwhRd8d4Ip5vpF/pzJsNHuoJ+EhTecCKJ6d29bxt5w=",
         "ref": "master",
-        "rev": "2557e0b3e92326ce89d42dd206fb56d91345661d",
-        "revCount": 1,
+        "rev": "1b607a18ceaa061fd1f2bd1bfb9b3ec52a4a056e",
+        "revCount": 6,
         "type": "git",
         "url": "ssh://git@github.com/ropfuscator/librop.git"
       },
@@ -88,6 +106,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1637771604,
+        "narHash": "sha256-S5h/GXm1PKwIFJupdPmSUxhSWCjopE5HVKIa3vCWUTo=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "4b675777b5ef03b8c47eeb8572693855bc8fc223",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "4b675777",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "clang": "clang",
@@ -95,7 +129,7 @@
         "fmt": "fmt",
         "librop": "librop",
         "llvm": "llvm",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs": "nixpkgs_2",
         "ropfuscator-utils": "ropfuscator-utils",
         "tinytoml": "tinytoml"
       }

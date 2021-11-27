@@ -2,10 +2,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/4b675777";
     flake-utils.url = "github:numtide/flake-utils";
-    librop = {
-      url = "git+ssh://git@github.com/ropfuscator/librop.git";
-      flake = false;
-    };
+    librop.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
       url = "git+ssh://git@github.com/ropfuscator/utilities.git";
       flake = false;
@@ -44,16 +41,17 @@
         releaseBuild = defaultPackage;
         debugBuild = defaultPackage.override { debug = true; };
         ropfuscator_stdenv = ropfuscator.stdenv;
-        ropfuscator_tests =
-          import ./tests.nix { inherit pkgs ropfuscator_stdenv ropfuscator-utils; };
+        ropfuscator_tests = import ./tests.nix {
+          inherit pkgs ropfuscator_stdenv ropfuscator-utils;
+        };
 
         devShells = flake-utils.lib.flattenTree {
           default = import ./shell.nix {
-            inherit pkgs librop ropfuscator_stdenv;
+            inherit pkgs librop ropfuscator_stdenv system;
             ropfuscator = releaseBuild;
           };
           debug = import ./shell.nix {
-            inherit pkgs librop ropfuscator_stdenv;
+            inherit pkgs librop ropfuscator_stdenv system;
             ropfuscator = debugBuild;
           };
         };
