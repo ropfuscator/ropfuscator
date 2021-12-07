@@ -7,13 +7,19 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
       - run: nix build -L
-      - run: nix build --json | jq -r '.[].outputs | to_entries[].value' | cachix push ropfuscator
 
   test-release:
     runs-on: self-hosted
     needs: build-release
     steps:
       - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
       - run: nix build .#testsBuild -L
-      - run: nix build .#testsBuild --json | jq -r '.[].outputs | to_entries[].value' | cachix push ropfuscator
