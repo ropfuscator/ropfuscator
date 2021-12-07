@@ -32,6 +32,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        librop_drv = librop.defaultPackage.${system};
         ropfuscator = import ./ropfuscator.nix {
           inherit pkgs tinytoml fmt llvm clang;
           lib = nixpkgs.lib;
@@ -47,12 +48,14 @@
 
         devShells = flake-utils.lib.flattenTree {
           default = import ./shell.nix {
-            inherit pkgs librop ropfuscator_stdenv system;
+            inherit pkgs ropfuscator_stdenv system;
             ropfuscator = releaseBuild;
+            librop = librop_drv;
           };
           debug = import ./shell.nix {
-            inherit pkgs librop ropfuscator_stdenv system;
+            inherit pkgs ropfuscator_stdenv system;
             ropfuscator = debugBuild;
+            librop = librop_drv;
           };
         };
 
