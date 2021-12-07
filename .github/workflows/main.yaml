@@ -8,12 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: nix build -L
-
-        # build-debug:
-        #   runs-on: self-hosted
-        #   steps:
-        #     - uses: actions/checkout@v2
-        #     - run: nix build .#debugBuild -L
+      - run: nix build --json | jq -r '.[].outputs | to_entries[].value' | cachix push ropfuscator
 
   test-release:
     runs-on: self-hosted
@@ -21,3 +16,4 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: nix build .#testsBuild -L
+      - run: nix build .#testsBuild --json | jq -r '.[].outputs | to_entries[].value' | cachix push ropfuscator
