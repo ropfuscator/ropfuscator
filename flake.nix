@@ -47,7 +47,7 @@
         };
 
         devShells = flake-utils.lib.flattenTree {
-          default = import ./shell.nix {
+          release = import ./shell.nix {
             inherit pkgs ropfuscator_stdenv system;
             ropfuscator = releaseBuild;
             librop = librop_drv;
@@ -59,7 +59,6 @@
           };
         };
 
-        devShell = devShells.default;
         packages = flake-utils.lib.flattenTree {
           releaseBuild = releaseBuild;
           debugBuild = debugBuild;
