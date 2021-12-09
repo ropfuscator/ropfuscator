@@ -33,3 +33,22 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
   - Target (runtime): Ubuntu 18.04 (64bit OS with 32bit support / 32bit OS)
 - Compatible LLVM versions: 9
 - For detailed limitations, see [limitation.md](./docs/limitation.md).
+
+# Nix instructions
+
+## Using `ccache`
+
+Make sure to have created a folder that `ccache` can use as buffer and that `nix-daemon` has that path added to the sandbox whitelisted directories.
+
+To do so, make sure to have this in your `configuration.nix`:
+
+```nix
+extra-sandbox-paths = /nix/var/cache/ccache
+```
+
+You can then use `ccache` by setting the right ownership to the buffer directory:
+
+```sh
+# mkdir -m0770 -p /nix/var/cache/ccache
+# chown --reference=/nix/store /nix/var/cache/ccache
+```
