@@ -34,6 +34,7 @@ let
       ] ++ lib.optional (debug == true) [
         "-DCMAKE_BUILD_TYPE=Debug"
         "-DLLVM_PARALLEL_LINK_JOBS=2"
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=On"
       ] ++ lib.optional (use_ccache == true) [ "-DLLVM_CCACHE_BUILD=On" ];
 
       CCACHE_DIR = ccache_path;
