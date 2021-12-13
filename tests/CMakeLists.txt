@@ -10,7 +10,9 @@ if(NOT ROPFUSCATOR_CONFIGS_DIR)
   )
 endif()
 
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/utils/.git")
+file(GLOB UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/utils)
+list(LENGTH UTILS_FILES UTILS_LEN)
+if(UTILS_LEN EQUAL 0)
   message(SEND_ERROR "The utilities submodule is not available. Please run
 git submodule update --init --recursive")
 endif()
@@ -20,8 +22,6 @@ enable_testing()
 file(GLOB sources "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB ROPF_CONFIGURATION_FILES "${ROPFUSCATOR_CONFIGS_DIR}/*.toml")
 
-message("${ROPFUSCATOR_CONFIGS_DIR}")
-message("${ROPF_CONFIGURATION_FILES}")
 # making CMake aware of the targets so we can configure them later
 foreach(source ${sources})
   get_filename_component(testcase ${source} NAME_WE)
