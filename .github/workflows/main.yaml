@@ -9,6 +9,13 @@ jobs:
       - uses: actions/checkout@v2
       - run: nix build -L
 
+  tests-release:
+    runs-on: self-hosted
+    needs: build-release
+    steps:
+      - uses: actions/checkout@v2
+      - run: nix build .#tests -L
+
   build-debug:
     runs-on: self-hosted
     steps:
