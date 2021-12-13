@@ -81,6 +81,10 @@
           debugCcache = debugCcacheBuild;
           stdenv = ropfuscatorStdenv;
           stdenvDebug = ropfuscatorStdenvDebug;
+          tests = import ./tests.nix {
+            inherit pkgs ropfuscator-utils ropfuscatorStdenv;
+            librop = librop_drv;
+          };
         };
       });
 }

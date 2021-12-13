@@ -1,20 +1,26 @@
-{ pkgs, ropfuscator-utils, ropfuscator_stdenv }:
+{ pkgs, ropfuscator-utils, ropfuscatorStdenv, librop }:
 let
-  pkgs32 = pkgs.pkgsi686Linux;
-
-  ropfuscator_tests = ropfuscator_stdenv.mkDerivation {
+  ropfuscator_tests = ropfuscatorStdenv.mkDerivation rec {
     pname = "ropfuscator_tests";
+    buildInputs = with pkgs; [ cmake librop ];
     version = "0.1.0";
-    stdenv = ropfuscator_stdenv;
     src = ./tests;
     doCheck = true;
-    doInstall = false;
+    dontInstall = true;
+    cmakeFlags = [
+      "-DUSE_LIBROP=On"
+      "-DUSE_LIBC=On"
+      # hardcoded /build, could break if build root is changed!
+      "-DROPFUSCATOR_CONFIGS_DIR=/build/utils/configs"
+    ];
     unpackPhase = ''
       runHook preUnpack
 
       cp -r --no-preserve=mode,ownership $src/* .
-      mkdir -p utils
-      cp -r --no-preserve=mode,ownership ${ropfuscator-utils}/* utils
+      cp -r --no-preserve=mode,ownership ${ropfuscator-utils} utils
+      
+      # fake output
+      mkdir $out
 
       runHook postUnpack
     '';
