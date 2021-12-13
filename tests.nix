@@ -8,6 +8,7 @@ let
     stdenv = ropfuscator_stdenv;
     src = ./tests;
     doCheck = true;
+    doInstall = false;
     unpackPhase = ''
       runHook preUnpack
 

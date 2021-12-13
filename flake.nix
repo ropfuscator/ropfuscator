@@ -38,32 +38,49 @@
           lib = nixpkgs.lib;
         };
       in rec {
-        defaultPackage = ropfuscator.ropfuscator;
-        releaseBuild = defaultPackage;
-        debugBuild = defaultPackage.override { debug = true; };
-        ropfuscator_stdenv = ropfuscator.stdenv;
-        ropfuscator_tests = import ./tests.nix {
-          inherit pkgs ropfuscator_stdenv ropfuscator-utils;
-        };
+        releaseBuild = ropfuscator.ropfuscator;
+        releaseCcacheBuild = ropfuscator.ropfuscatorCcache;
+        debugBuild = ropfuscator.ropfuscatorDebug;
+        debugCcacheBuild = ropfuscator.ropfuscatorCcacheDebug;
+        ropfuscatorStdenv = ropfuscator.stdenv;
+        ropfuscatorStdenvCcache = ropfuscator.stdenvCcache;
+        ropfuscatorStdenvDebug = ropfuscator.stdenvDebug;
+        ropfuscatorStdenvCcacheDebug = ropfuscator.stdenvCcacheDebug;
 
+        defaultPackage = releaseBuild;
+
+        # exposed shells
         devShells = flake-utils.lib.flattenTree {
           release = import ./shell.nix {
-            inherit pkgs ropfuscator_stdenv system;
-            ropfuscator = releaseBuild;
+            inherit pkgs system;
             librop = librop_drv;
+            ropfuscatorStdenv = ropfuscatorStdenv;
+          };
+          releaseCcache = import ./shell.nix {
+            inherit pkgs system;
+            librop = librop_drv;
+            ropfuscatorStdenv = ropfuscatorStdenvCcache;
           };
           debug = import ./shell.nix {
-            inherit pkgs ropfuscator_stdenv system;
-            ropfuscator = debugBuild;
+            inherit pkgs system;
             librop = librop_drv;
+            ropfuscatorStdenv = ropfuscatorStdenvDebug;
+          };
+          debugCcache = import ./shell.nix {
+            inherit pkgs system;
+            librop = librop_drv;
+            ropfuscatorStdenv = ropfuscatorStdenvCcacheDebug;
           };
         };
 
+        # exposed packages
         packages = flake-utils.lib.flattenTree {
-          releaseBuild = releaseBuild;
-          debugBuild = debugBuild;
-          testsBuild = ropfuscator_tests;
-          stdenv = ropfuscator_stdenv;
+          release = releaseBuild;
+          debug = debugBuild;
+          releaseCcache = releaseCcacheBuild;
+          debugCcache = debugCcacheBuild;
+          stdenv = ropfuscatorStdenv;
+          stdenvDebug = ropfuscatorStdenvDebug;
         };
       });
 }
