@@ -53,23 +53,29 @@
         devShells = flake-utils.lib.flattenTree {
           release = import ./shell.nix {
             inherit pkgs system;
+            lib = nixpkgs.lib;
             librop = librop_drv;
             ropfuscatorStdenv = ropfuscatorStdenv;
           };
           releaseCcache = import ./shell.nix {
             inherit pkgs system;
+            lib = nixpkgs.lib;
             librop = librop_drv;
             ropfuscatorStdenv = ropfuscatorStdenvCcache;
           };
           debug = import ./shell.nix {
             inherit pkgs system;
+            lib = nixpkgs.lib;
             librop = librop_drv;
             ropfuscatorStdenv = ropfuscatorStdenvDebug;
+            debug = true;
           };
           debugCcache = import ./shell.nix {
             inherit pkgs system;
+            lib = nixpkgs.lib;
             librop = librop_drv;
             ropfuscatorStdenv = ropfuscatorStdenvCcacheDebug;
+            debug = true;
           };
         };
 
