@@ -14,6 +14,7 @@ jobs:
     needs: build-release
     steps:
       - uses: actions/checkout@v2
+      - run: nix flake update
       - run: nix build .#tests -L
 
   build-debug:
