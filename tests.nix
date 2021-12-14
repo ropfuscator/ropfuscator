@@ -16,10 +16,10 @@ let
     unpackPhase = ''
       runHook preUnpack
       
+      mkdir utils
+
       cp -r --no-preserve=mode,ownership $src/* .
-      cp -r --no-preserve=mode,ownership ${ropfuscator-utils} utils
-      
-      ls -lah utils
+      cp -r --no-preserve=mode,ownership ${ropfuscator-utils}/* utils
       
       # fake output
       mkdir $out
