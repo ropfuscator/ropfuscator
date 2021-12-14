@@ -19,8 +19,8 @@ let
       cp -r --no-preserve=mode,ownership $src/* .
       cp -r --no-preserve=mode,ownership ${ropfuscator-utils} utils
       
-      ls -lah
-
+      ls -lah utils
+      
       # fake output
       mkdir $out
 
