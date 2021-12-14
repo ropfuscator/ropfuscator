@@ -12,6 +12,7 @@ jobs:
   tests-release:
     runs-on: self-hosted
     needs: build-release
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v2
       - run: nix flake update
