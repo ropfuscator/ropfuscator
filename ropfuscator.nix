@@ -84,17 +84,16 @@ in rec {
     pkgs.pkgsCross.gnu32.callPackage derivation_function { };
 
   # release
-  ropfuscator =
-    pkgs32.llvmPackages_10.clang.override { cc = ropfuscator-unwrapped; };
-  ropfuscatorCcache = pkgs32.llvmPackages_10.clang.override {
+  ropfuscator = pkgs32.wrapCCWith { cc = ropfuscator-unwrapped; };
+  ropfuscatorCcache = pkgs32.wrapCCWith {
     cc = ropfuscator-unwrapped.override { use_ccache = true; };
   };
 
   # debug
-  ropfuscatorDebug = pkgs32.llvmPackages_10.clang.override {
+  ropfuscatorDebug = pkgs32.wrapCCWith {
     cc = ropfuscator-unwrapped.override { debug = true; };
   };
-  ropfuscatorCcacheDebug = pkgs32.llvmPackages_10.clang.override {
+  ropfuscatorCcacheDebug = pkgs32.wrapCCWith {
     cc = ropfuscator-unwrapped.override {
       debug = true;
       use_ccache = true;
@@ -102,8 +101,8 @@ in rec {
   };
 
   # stdenvs
-  stdenv = pkgs32.overrideCC pkgs32.clangStdenv ropfuscator;
-  stdenvCcache = pkgs32.overrideCC pkgs32.clangStdenv ropfuscatorCcache;
-  stdenvDebug = pkgs32.overrideCC pkgs32.clangStdenv ropfuscatorDebug;
-  stdenvCcacheDebug = pkgs32.overrideCC pkgs32.clangStdenv ropfuscatorCcacheDebug;
+  stdenv = pkgs32.overrideCC pkgs32.stdenv ropfuscator;
+  stdenvCcache = pkgs32.overrideCC pkgs32.stdenv ropfuscatorCcache;
+  stdenvDebug = pkgs32.overrideCC pkgs32.stdenv ropfuscatorDebug;
+  stdenvCcacheDebug = pkgs32.overrideCC pkgs32.stdenv ropfuscatorCcacheDebug;
 }
