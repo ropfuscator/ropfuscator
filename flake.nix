@@ -49,7 +49,10 @@
 
         defaultPackage = releaseBuild;
 
-        # exposed shells
+        # defaults unwrapped package to allow development
+        devShell = packages.unwrapped;
+
+        # exposed dev "shells" (not really shells as they have ropfuscator compiled)
         devShells = flake-utils.lib.flattenTree {
           release = import ./shell.nix {
             inherit pkgs system;
@@ -81,6 +84,7 @@
 
         # exposed packages
         packages = flake-utils.lib.flattenTree {
+          unwrapped = ropfuscator.ropfuscator-unwrapped;
           release = releaseBuild;
           debug = debugBuild;
           releaseCcache = releaseCcacheBuild;
