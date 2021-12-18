@@ -25,6 +25,11 @@ if(CURRENT_LLVM_TARGET)
   target_link_libraries(${CURRENT_LLVM_TARGET} LINK_PRIVATE LLVMX86Disassembler)
 endif()
 
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+  set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES 
+      ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+endif()
+
 include_directories(${ROPF_DIR}/thirdparty/fmt/include)
 include_directories(${ROPF_DIR}/thirdparty/tinytoml/include)
 add_subdirectory(${ROPF_DIR}/thirdparty)
