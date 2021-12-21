@@ -49,8 +49,20 @@
 
         defaultPackage = releaseBuild;
 
-        # defaults unwrapped package to allow development
-        devShell = packages.unwrapped;
+        # defaults unwrapped package (in debug mode) to allow development.
+        # the shell proceeds to setup a complete LLVM tree with ropfuscator inside
+        devShell = (packages.unwrapped.override { debug = true; }).overrideAttrs
+          (_: {
+            shellHook = ''
+              # move to temporary directory
+              cd `mktemp -d`
+              # unpack and configure project
+              echo "Preparing LLVM source tree..."
+              eval "$unpackPhase" && runHook patchPhase && eval "$configurePhase"
+              # get compile_commands.json and put them in root of LLVM tree
+              cd .. && mv build/compile_commands.json .
+            '';
+          });
 
         # exposed dev "shells" (not really shells as they have ropfuscator compiled)
         devShells = flake-utils.lib.flattenTree {
