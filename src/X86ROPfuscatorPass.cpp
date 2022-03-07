@@ -12,6 +12,7 @@
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
 #include "llvm/Support/CommandLine.h"
+#include "../../X86Subtarget.h"
 #include <memory>
 
 #define X86_ROPFUSCATOR_PASS_NAME "x86-ropfuscator"
@@ -64,11 +65,15 @@ public:
   StringRef getPassName() const override { return X86_ROPFUSCATOR_PASS_NAME; }
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    if (!MF.getSubtarget<X86Subtarget>().is32Bit()) {
+      return false;
+    }
+    
     if (ropfuscator) {
       ropfuscator->obfuscateFunction(MF);
       return true;
     }
-
+    
     return false;
   }
 
@@ -94,7 +99,6 @@ public:
       dbg_fmt("[-] Library not defined. Disabling ROPfuscator.\n");
       return false;
     }
-
     // assign library from command-line if library has not been
     // set in the configuration file
     if (!RopfuscatorGadgetLibrary.empty() &&
