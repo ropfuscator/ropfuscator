@@ -33,8 +33,6 @@
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
-        ropfuscatorStdenv = ropfuscator.stdenv;
-        ropfuscatorStdenvDebug = ropfuscator.stdenvDebug;
 
         defaultPackage = releaseBuild;
 
@@ -55,29 +53,19 @@
 
         # exposed dev "shells" (not really shells as they have ropfuscator compiled)
         
-        devShells = flake-utils.lib.flattenTree {
-          release = import ./shell.nix {
-            inherit ropfuscatorStdenv lib librop;
-            pkgs = pkgs32;
-          };
-          debug = import ./shell.nix {
-            inherit lib librop;
-            pkgs = pkgs32;
-            ropfuscatorStdenv = ropfuscatorStdenvDebug;
-            debug = true;
-          };
-        };
-
         # exposed packages
         packages = flake-utils.lib.flattenTree {
           llvm = ropfuscator.ropfuscator-llvm;
           clang = ropfuscator.ropfuscator-clang;
           release = releaseBuild;
           debug = debugBuild;
-          stdenv = ropfuscatorStdenv;
-          stdenvDebug = ropfuscatorStdenvDebug;
+          stdenv = ropfuscator.stdenv;
+          stdenvDebug = ropfuscator.stdenvDebug;
+          stdenvLibrop = ropfuscator.stdenvLibrop;
+          stdenvLibc = ropfuscator.stdenvLibc;
           tests = import ./tests.nix {
-            inherit ropfuscator-utils ropfuscatorStdenv librop;
+            inherit ropfuscator-utils librop;
+            ropfuscatorStdenv = ropfuscator.stdenv;
             pkgs = pkgs32;
           };
         };

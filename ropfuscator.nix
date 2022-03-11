@@ -70,9 +70,10 @@ let
       inherit gccForLibs;
       cc = clang-unwrapped;
       # add librop to library path
-      extraBuildCommands = old.extraBuildCommands + ''
-        echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags
-      '';
+      extraBuildCommands = old.extraBuildCommands
+        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+        + lib.optionalString ropfuscator-llvm.debug
+        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
 
   # this builds a stdenv with librop to the library path
@@ -103,4 +104,14 @@ in rec {
     pkgs = pkgs32;
     clang = ropfuscator-clang-debug;
   };
+  stdenvLibrop = stdenv.cc.override (old: {
+    extraBuildCommands = old.extraBuildCommands + ''
+      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
+    '';
+  });
+  stdenvLibc = stdenv.cc.override (old: {
+    extraBuildCommands = old.extraBuildCommands + ''
+      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
+    '';
+  });
 }
