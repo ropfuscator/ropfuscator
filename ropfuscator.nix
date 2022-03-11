@@ -71,7 +71,7 @@ let
       cc = clang-unwrapped;
       # add librop to library path
       extraBuildCommands = old.extraBuildCommands
-        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+        + "echo '-pie -L${librop}/lib' >> $out/nix-support/cc-ldflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
