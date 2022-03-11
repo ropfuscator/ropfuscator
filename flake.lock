@@ -1,24 +1,12 @@
 {
   "nodes": {
-    "clang": {
-      "flake": false,
-      "locked": {
-        "narHash": "sha256-aQ8b0FIBKQsBknam5ocswhqEzMIu6rtTa/U+YkxxcC0=",
-        "type": "tarball",
-        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/clang-10.0.1.src.tar.xz"
-      }
-    },
     "flake-utils": {
       "locked": {
-        "lastModified": 1637014545,
-        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
+        "lastModified": 1644229661,
+        "narHash": "sha256-1YdnJAsNy69bpcjuoKdOYQX0YxZBiCYZo4Twxerqv7k=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
+        "rev": "3cecb5b042f7f209c56ffd8371b2711a290ec797",
         "type": "github"
       },
       "original": {
@@ -59,7 +47,7 @@
         "type": "github"
       }
     },
-    "librop": {
+    "librop-git": {
       "inputs": {
         "flake-utils": "flake-utils_2",
         "nixpkgs": "nixpkgs"
@@ -76,18 +64,6 @@
       "original": {
         "type": "git",
         "url": "ssh://git@github.com/ropfuscator/librop.git"
-      }
-    },
-    "llvm": {
-      "flake": false,
-      "locked": {
-        "narHash": "sha256-MUbaPpmKYAMgw7v5qR1GurrJvO3nLkUE4xY8TTTCqXc=",
-        "type": "tarball",
-        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/llvm-10.0.1.src.tar.xz"
       }
     },
     "nixpkgs": {
@@ -108,27 +84,25 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1637771604,
-        "narHash": "sha256-S5h/GXm1PKwIFJupdPmSUxhSWCjopE5HVKIa3vCWUTo=",
+        "lastModified": 1647017938,
+        "narHash": "sha256-6W3019T1e1gJksYvZ6JpOSPwaeimYVACWdur1YnoK1c=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "4b675777b5ef03b8c47eeb8572693855bc8fc223",
+        "rev": "3ee99c82c4976ed932004e2c954cacd0af4430c1",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
-        "ref": "4b675777",
         "repo": "nixpkgs",
+        "rev": "3ee99c82c4976ed932004e2c954cacd0af4430c1",
         "type": "github"
       }
     },
     "root": {
       "inputs": {
-        "clang": "clang",
         "flake-utils": "flake-utils",
         "fmt": "fmt",
-        "librop": "librop",
-        "llvm": "llvm",
+        "librop-git": "librop-git",
         "nixpkgs": "nixpkgs_2",
         "ropfuscator-utils": "ropfuscator-utils",
         "tinytoml": "tinytoml"

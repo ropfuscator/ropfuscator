@@ -1,6 +1,7 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
+    # nixpkgs pinned on 11/03/2022
+    nixpkgs.url = "github:nixos/nixpkgs/3ee99c82c4976ed932004e2c954cacd0af4430c1";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
