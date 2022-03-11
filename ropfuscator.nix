@@ -1,57 +1,40 @@
-{ pkgs, llvm, clang, lib, fmt, tinytoml }:
+{ pkgs, lib, fmt, tinytoml, librop }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
-  python-deps = python-packages: with python-packages; [ pygments ];
-  python = pkgs.python3.withPackages python-deps;
-  ccache_path = "/nix/var/cache/ccache";
+  pkgsCross = pkgs.pkgsCross.gnu32;
 
-  derivation_function = { stdenv, llvmPackages_13, cmake, git, curl, pkg-config
-    , z3, libxml2, ninja, ccache, glibc_multi, use_ccache ? false, debug ? false
-    }:
-    stdenv.mkDerivation {
-      pname = "ropfuscator";
-      version = "0.1.0";
-      enableParallelBuilding = true;
-      nativeBuildInputs =
-        [ cmake git curl pkg-config ninja llvmPackages_13.bintools ]
-        ++ lib.optional (use_ccache == true) [ ccache ];
-      buildInputs = [ libxml2 python glibc_multi ];
-      srcs = [ ./cmake ./src ./thirdparty ];
-      patches = [ ./patches/ropfuscator_pass.patch ];
-      postPatch = "patchShebangs .";
-      dontStrip = debug;
+  pkgsLLVM13 = pkgsCross.llvmPackages_13;
+  stdenv = pkgsCross.stdenv;
 
-      cmakeFlags = [
+  # this builds ropfuscator's llvm
+  llvm_derivation_function = { pkgs, debug ? false }:
+    (pkgs.llvmPackages_10.libllvm.override {
+      inherit stdenv;
+      enablePolly = false;
+    }).overrideAttrs (old: {
+      pname = "ropfuscator-llvm" + lib.optionalString debug "-debug";
+      debug = debug;
+      srcs = [ old.src ./cmake ./src ./thirdparty ];
+      patches = old.patches ++ [ ./patches/ropfuscator_pass.patch ];
+      doCheck = false;
+      nativeBuildInputs = with pkgs;
+        old.nativeBuildInputs ++ [ llvmPackages_13.bintools ];
+      cmakeFlags = old.cmakeFlags ++ [
         "-DLLVM_TARGETS_TO_BUILD=X86"
         "-DLLVM_USE_LINKER=lld"
         "-DLLVM_ENABLE_BINDINGS=Off"
         "-DLLVM_INCLUDE_BENCHMARKS=Off"
         "-DLLVM_INCLUDE_EXAMPLES=Off"
         "-DLLVM_INCLUDE_TESTS=Off"
-        "-DLLVM_BUILD_TOOLS=Off"
         "-DLLVM_TARGET_ARCH=X86"
-        "-GNinja"
-      ] ++ lib.optional (debug == true) [
+      ] ++ lib.optional debug [
         "-DCMAKE_BUILD_TYPE=Debug"
-        "-DLLVM_PARALLEL_LINK_JOBS=2"
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=On"
-      ] ++ lib.optional (use_ccache == true) [ "-DLLVM_CCACHE_BUILD=On" ];
+      ];
 
-      CCACHE_DIR = ccache_path;
-
-      unpackPhase = ''
-        runHook preUnpack
-
-        cp --no-preserve=mode,ownership -r ${llvm}/* .
-
-        # insert clang
-        pushd tools
-          mkdir clang
-          cp --no-preserve=mode,ownership -r ${clang}/* clang
-        popd
-
+      unpackPhase = old.unpackPhase + ''
         # insert ropfuscator
-        pushd lib/Target/X86
+        pushd llvm/lib/Target/X86
           mkdir ropfuscator
           
           for s in $srcs; do
@@ -67,42 +50,57 @@ let
             cp --no-preserve=mode,ownership -r ${fmt}/* fmt
           popd
         popd
-
-        runHook postUnpack
       '';
+    });
 
-      buildPhase = ''
-        runHook preBuild
+  # this builds and wraps ropfuscator's clang
+  clang_derivation_function = { pkgs, ropfuscator-llvm }:
+    let
+      pkgsLLVM10 = pkgs.llvmPackages_10;
+      gccForLibs = pkgs.gcc.cc;
 
-        cmake --build . -- clang
-
-        runHook postBuild
+      clang-unwrapped = (pkgsLLVM10.libclang.override {
+        stdenv = pkgs.stdenv;
+        libllvm = ropfuscator-llvm;
+      }).overrideAttrs (old: {
+        pname = "ropfuscator-clang"
+          + lib.optionalString ropfuscator-llvm.debug "-debug";
+      });
+    in pkgsLLVM10.clang.override (old: {
+      inherit gccForLibs;
+      cc = clang-unwrapped;
+      # add librop to library path
+      extraBuildCommands = old.extraBuildCommands + ''
+        echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags
       '';
-    };
+    });
+
+  # this builds a stdenv with librop to the library path
+  stdenv_derivation_function = { pkgs, clang }:
+    pkgs.overrideCC pkgs.llvmPackages_10.stdenv clang;
 in rec {
-  ropfuscator-unwrapped =
-    pkgs.pkgsCross.gnu32.callPackage derivation_function { };
-
-  # release
-  ropfuscator = pkgs32.wrapCCWith { cc = ropfuscator-unwrapped; };
-  ropfuscatorCcache = pkgs32.wrapCCWith {
-    cc = ropfuscator-unwrapped.override { use_ccache = true; };
+  ropfuscator-llvm = llvm_derivation_function { pkgs = pkgsCross; };
+  ropfuscator-llvm-debug = llvm_derivation_function {
+    pkgs = pkgsCross;
+    debug = true;
   };
 
-  # debug
-  ropfuscatorDebug = pkgs32.wrapCCWith {
-    cc = ropfuscator-unwrapped.override { debug = true; };
+  ropfuscator-clang = clang_derivation_function {
+    pkgs = pkgs32;
+    inherit ropfuscator-llvm;
   };
-  ropfuscatorCcacheDebug = pkgs32.wrapCCWith {
-    cc = ropfuscator-unwrapped.override {
-      debug = true;
-      use_ccache = true;
-    };
+  ropfuscator-clang-debug = clang_derivation_function {
+    pkgs = pkgs32;
+    ropfuscator-llvm = ropfuscator-llvm-debug;
   };
 
   # stdenvs
-  stdenv = pkgs32.overrideCC pkgs32.stdenv ropfuscator;
-  stdenvCcache = pkgs32.overrideCC pkgs32.stdenv ropfuscatorCcache;
-  stdenvDebug = pkgs32.overrideCC pkgs32.stdenv ropfuscatorDebug;
-  stdenvCcacheDebug = pkgs32.overrideCC pkgs32.stdenv ropfuscatorCcacheDebug;
+  stdenv = stdenv_derivation_function {
+    pkgs = pkgs32;
+    clang = ropfuscator-clang;
+  };
+  stdenvDebug = stdenv_derivation_function {
+    pkgs = pkgs32;
+    clang = ropfuscator-clang-debug;
+  };
 }
