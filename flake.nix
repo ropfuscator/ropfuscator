@@ -17,8 +17,8 @@
     };
   };
 
-  outputs =
-    { self, nixpkgs, flake-utils, librop-git, ropfuscator-utils, tinytoml, fmt }:
+  outputs = { self, nixpkgs, flake-utils, librop-git, ropfuscator-utils
+    , tinytoml, fmt }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -27,9 +27,8 @@
 
         librop = librop-git.defaultPackage.${system};
 
-        ropfuscator = import ./ropfuscator.nix {
-          inherit pkgs tinytoml fmt lib librop;
-        };
+        ropfuscator =
+          import ./ropfuscator.nix { inherit pkgs tinytoml fmt lib librop; };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -52,7 +51,7 @@
         #    });
 
         # exposed dev "shells" (not really shells as they have ropfuscator compiled)
-        
+
         # exposed packages
         packages = flake-utils.lib.flattenTree {
           llvm = ropfuscator.ropfuscator-llvm;
@@ -66,6 +65,11 @@
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = ropfuscator.stdenv;
+            pkgs = pkgs32;
+          };
+          testsDebug = import ./tests.nix {
+            inherit ropfuscator-utils librop;
+            ropfuscatorStdenv = ropfuscator.stdenvDebug;
             pkgs = pkgs32;
           };
         };
