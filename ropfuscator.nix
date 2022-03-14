@@ -11,12 +11,14 @@ let
     (pkgs.llvmPackages_10.libllvm.override {
       inherit stdenv;
       enablePolly = false;
+      debugVersion = debug;
     }).overrideAttrs (old: {
       pname = "ropfuscator-llvm" + lib.optionalString debug "-debug";
       debug = debug;
       srcs = [ old.src ./cmake ./src ./thirdparty ];
       patches = old.patches ++ [ ./patches/ropfuscator_pass.patch ];
       doCheck = false;
+      dontStrip = debug;
       nativeBuildInputs = with pkgs;
         old.nativeBuildInputs ++ [ llvmPackages_13.bintools ];
       cmakeFlags = old.cmakeFlags ++ [
@@ -27,10 +29,7 @@ let
         "-DLLVM_INCLUDE_EXAMPLES=Off"
         "-DLLVM_INCLUDE_TESTS=Off"
         "-DLLVM_TARGET_ARCH=X86"
-      ] ++ lib.optional debug [
-        "-DCMAKE_BUILD_TYPE=Debug"
-        "-DCMAKE_EXPORT_COMPILE_COMMANDS=On"
-      ];
+      ] ++ lib.optional debug [ "-DCMAKE_EXPORT_COMPILE_COMMANDS=On" ];
 
       unpackPhase = old.unpackPhase + ''
         # insert ropfuscator
@@ -57,7 +56,6 @@ let
   clang_derivation_function = { pkgs, ropfuscator-llvm }:
     let
       pkgsLLVM10 = pkgs.llvmPackages_10;
-      gccForLibs = pkgs.gcc.cc;
 
       clang-unwrapped = (pkgsLLVM10.libclang.override {
         stdenv = pkgs.stdenv;
@@ -67,7 +65,6 @@ let
           + lib.optionalString ropfuscator-llvm.debug "-debug";
       });
     in pkgsLLVM10.clang.override (old: {
-      inherit gccForLibs;
       cc = clang-unwrapped;
       # add librop to library path
       extraBuildCommands = old.extraBuildCommands

@@ -1,7 +1,7 @@
 {
   inputs = {
-    # nixpkgs pinned on 11/03/2022
-    nixpkgs.url = "github:nixos/nixpkgs/3ee99c82c4976ed932004e2c954cacd0af4430c1";
+    # pinned on fix for https://github.com/NixOS/nixpkgs/issues/146865
+    nixpkgs.url = "github:nixos/nixpkgs/5e540d6ee674183446d57666f5fccc0b57001fe4";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
