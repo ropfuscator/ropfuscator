@@ -66,9 +66,11 @@ let
       });
     in pkgsLLVM10.clang.override (old: {
       cc = clang-unwrapped;
-      # add librop to library path
       extraBuildCommands = old.extraBuildCommands
-        + "echo '-pie -L${librop}/lib' >> $out/nix-support/cc-ldflags"
+        # add librop to library path
+        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+        # add -pie as default compilation flag as it's needed for ropfuscator to work
+        + "echo '-pie' >> $out/nix-support/cc-ccflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
