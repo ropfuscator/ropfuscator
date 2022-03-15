@@ -7,8 +7,9 @@ let
   stdenv = pkgsCross.gcc11Stdenv;
 
   # this builds ropfuscator's llvm
-  llvm_derivation_function = { pkgs, debug ? false }:
-    (pkgs.llvmPackages_10.libllvm.override {
+  llvm_derivation_function = { pkgs, debug ? false, use_ccache ? false }:
+    let ccache_dir = "/nix/var/cache/ccache";
+    in (pkgs.llvmPackages_10.libllvm.override {
       inherit stdenv;
       enablePolly = false;
       debugVersion = debug;
@@ -19,8 +20,11 @@ let
       patches = old.patches ++ [ ./patches/ropfuscator_pass.patch ];
       doCheck = false;
       dontStrip = debug;
+
       nativeBuildInputs = with pkgs;
-        old.nativeBuildInputs ++ [ llvmPackages_13.bintools ];
+        old.nativeBuildInputs ++ [ llvmPackages_13.bintools ]
+        ++ lib.optional use_ccache [ ccache ];
+
       cmakeFlags = old.cmakeFlags ++ [
         "-DLLVM_TARGETS_TO_BUILD=X86"
         "-DLLVM_USE_LINKER=lld"
@@ -29,7 +33,13 @@ let
         "-DLLVM_INCLUDE_EXAMPLES=Off"
         "-DLLVM_INCLUDE_TESTS=Off"
         "-DLLVM_TARGET_ARCH=X86"
-      ] ++ lib.optional debug [ "-DCMAKE_EXPORT_COMPILE_COMMANDS=On" ];
+      ] ++ lib.optional debug [ "-DCMAKE_EXPORT_COMPILE_COMMANDS=On" ]
+        ++ lib.optional use_ccache [ "-DLLVM_CCACHE_BUILD=On" ];
+
+      preConfigure = lib.optional use_ccache ''
+        export CCACHE_DIR=${ccache_dir}
+        export CCACHE_UMASK=007
+      '';
 
       unpackPhase = old.unpackPhase + ''
         # insert ropfuscator
@@ -69,8 +79,8 @@ let
       extraBuildCommands = old.extraBuildCommands
         # add librop to library path
         + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
-        # add -pie as default compilation flag as it's needed for ropfuscator to work
-        + "echo '-pie' >> $out/nix-support/cc-ccflags"
+        # add -pie as default linking flag as it's needed for ropfuscator to work
+        + "echo '-pie' >> $out/nix-support/cc-ldflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
