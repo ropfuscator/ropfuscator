@@ -4,7 +4,7 @@ let
   pkgsCross = pkgs.pkgsCross.gnu32;
 
   pkgsLLVM13 = pkgsCross.llvmPackages_13;
-  stdenv = pkgsCross.stdenv;
+  stdenv = pkgsCross.gcc11Stdenv;
 
   # this builds ropfuscator's llvm
   llvm_derivation_function = { pkgs, debug ? false }:
@@ -58,7 +58,7 @@ let
       pkgsLLVM10 = pkgs.llvmPackages_10;
 
       clang-unwrapped = (pkgsLLVM10.libclang.override {
-        stdenv = pkgs.stdenv;
+        stdenv = pkgs.gcc11Stdenv;
         libllvm = ropfuscator-llvm;
       }).overrideAttrs (old: {
         pname = "ropfuscator-clang"
