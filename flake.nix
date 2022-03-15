@@ -1,7 +1,8 @@
 {
   inputs = {
     # pinned on fix for https://github.com/NixOS/nixpkgs/issues/146865
-    nixpkgs.url = "github:nixos/nixpkgs/5e540d6ee674183446d57666f5fccc0b57001fe4";
+    nixpkgs.url =
+      "github:nixos/nixpkgs/5e540d6ee674183446d57666f5fccc0b57001fe4";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
@@ -36,22 +37,18 @@
 
         defaultPackage = releaseBuild;
 
-        #  # defaults unwrapped package (in debug mode) to allow development.
-        #  # the shell proceeds to setup a complete LLVM tree with ropfuscator inside
-        #  devShell = (packages.unwrapped.override { debug = true; }).overrideAttrs
-        #    (_: {
-        #      shellHook = ''
-        #        # move to temporary directory
-        #        cd `mktemp -d`
-        #        # unpack and configure project
-        #        echo "Preparing LLVM source tree..."
-        #        eval "$unpackPhase" && runHook patchPhase && eval "$configurePhase"
-        #        # get compile_commands.json and put them in root of LLVM tree
-        #        cd .. && mv build/compile_commands.json .
-        #      '';
-        #    });
-
-        # exposed dev "shells" (not really shells as they have ropfuscator compiled)
+        # development shell
+        devShell = ropfuscator.ropfuscator-llvm-debug.overrideAttrs (_: {
+          shellHook = ''
+            # move to temporary directory
+            cd `mktemp -d`
+            # unpack and configure project
+            echo "Preparing LLVM source tree..."
+            eval "$unpackPhase" && cd llvm && runHook patchPhase && eval "$configurePhase"
+            # get compile_commands.json and put them in root of LLVM tree
+            cd .. && mv build/compile_commands.json .
+          '';
+        });
 
         # exposed packages
         packages = flake-utils.lib.flattenTree {
