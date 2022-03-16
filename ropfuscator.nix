@@ -81,6 +81,8 @@ let
         + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
         # add -pie as default linking flag as it's needed for ropfuscator to work
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
+        # add -fno-pic as default compiling flag as it's needed for ropfuscator to work
+        + "echo '-fno-pic' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
