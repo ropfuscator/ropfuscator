@@ -11,6 +11,10 @@
 using std::string;
 using namespace llvm;
 
+#if LLVM_MAJOR_VERSION < 10
+using Register = unsigned int;
+#endif
+
 namespace ropf {
 
 class ROPChainBuilder {
@@ -33,7 +37,7 @@ class ROPChainBuilder {
     bool isImmediate() const { return type == GadgetType::UNDEFINED; }
   };
 
-  const BinaryAutopsy &            BA;
+  const BinaryAutopsy             &BA;
   const std::vector<unsigned int> &scratchRegs;
   std::vector<VirtualInstr>        vchain;
   size_t                           numScratchRegs;
@@ -59,7 +63,7 @@ public:
     return *this;
   }
 
-  explicit ROPChainBuilder(const BinaryAutopsy &            BA,
+  explicit ROPChainBuilder(const BinaryAutopsy             &BA,
                            const std::vector<unsigned int> &scratchRegs)
       : BA(BA), scratchRegs(scratchRegs), vchain(), numScratchRegs(0),
         normalInstrFlag(false), jumpInstrFlag(false),
@@ -78,8 +82,8 @@ public:
   }
 
 private:
-  ROPChainStatus buildAux(XchgState &       state,
-                          ROPChain &        result,
+  ROPChainStatus buildAux(XchgState        &state,
+                          ROPChain         &result,
                           std::vector<int> &regList) const {
     if (regList.size() < numScratchRegs) {
       for (unsigned int r : scratchRegs) {
@@ -238,7 +242,7 @@ void ROPChain::merge(const ROPChain &other) {
 ROPEngine::ROPEngine(const BinaryAutopsy &BA) : BA(BA) {}
 
 bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand,
-                                             ChainElem &           result) {
+                                             ChainElem            &result) {
   if (operand.isImm()) {
     result = ChainElem::fromImmediate(operand.getImm());
     return true;
@@ -253,7 +257,7 @@ bool ROPEngine::convertOperandToChainPushImm(const MachineOperand &operand,
 }
 
 ROPChainStatus
-ROPEngine::handleArithmeticRI(MachineInstr *             MI,
+ROPEngine::handleArithmeticRI(MachineInstr              *MI,
                               std::vector<unsigned int> &scratchRegs) {
   GadgetType gadget_type;
   int        imm;
@@ -315,7 +319,7 @@ ROPEngine::handleArithmeticRI(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleArithmeticRR(MachineInstr *             MI,
+ROPEngine::handleArithmeticRR(MachineInstr              *MI,
                               std::vector<unsigned int> &scratchRegs) {
   // extract operands
   Register dst  = MI->getOperand(0).getReg();
@@ -352,7 +356,7 @@ ROPEngine::handleArithmeticRR(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleArithmeticRM(MachineInstr *             MI,
+ROPEngine::handleArithmeticRM(MachineInstr              *MI,
                               std::vector<unsigned int> &scratchRegs) {
   GadgetType gadget_type;
 
@@ -398,7 +402,7 @@ ROPEngine::handleArithmeticRM(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleXor32RR(MachineInstr *             MI,
+ROPEngine::handleXor32RR(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // extract operands
   Register dst  = MI->getOperand(0).getReg();
@@ -419,7 +423,7 @@ ROPEngine::handleXor32RR(MachineInstr *             MI,
   return builder.build(state, chain);
 }
 
-ROPChainStatus ROPEngine::handleLea32r(MachineInstr *             MI,
+ROPChainStatus ROPEngine::handleLea32r(MachineInstr              *MI,
                                        std::vector<unsigned int> &scratchRegs) {
   Register                    dst        = MI->getOperand(0).getReg();
   Register                    src        = MI->getOperand(1).getReg();
@@ -468,7 +472,7 @@ ROPChainStatus ROPEngine::handleLea32r(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleMov32rm(MachineInstr *             MI,
+ROPEngine::handleMov32rm(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   if (MI->getOperand(0).getReg() == X86::NoRegister) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -510,7 +514,7 @@ ROPEngine::handleMov32rm(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleMov32mr(MachineInstr *             MI,
+ROPEngine::handleMov32mr(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   if (MI->getOperand(5).getReg() == X86::NoRegister) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -575,7 +579,7 @@ ROPEngine::handleMov32mr(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleMov32mi(MachineInstr *             MI,
+ROPEngine::handleMov32mi(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // skip scaled-index addressing mode since we cannot handle them
   //      mov     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
@@ -640,7 +644,7 @@ ROPEngine::handleMov32mi(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleMov32rr(MachineInstr *             MI,
+ROPEngine::handleMov32rr(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -660,7 +664,7 @@ ROPEngine::handleMov32rr(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleMov32ri(MachineInstr *             MI,
+ROPEngine::handleMov32ri(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -684,7 +688,7 @@ ROPEngine::handleMov32ri(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleCmp32mi(MachineInstr *             MI,
+ROPEngine::handleCmp32mi(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // skip scaled-index addressing mode since we cannot handle them
   //      cmp     [orig_0 + scale_1 * orig_2 + disp_3], orig_5
@@ -725,7 +729,7 @@ ROPEngine::handleCmp32mi(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleCmp32rr(MachineInstr *             MI,
+ROPEngine::handleCmp32rr(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // extract operands
   if (MI->getOperand(0).getReg() == 0) {
@@ -746,7 +750,7 @@ ROPEngine::handleCmp32rr(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleCmp32ri(MachineInstr *             MI,
+ROPEngine::handleCmp32ri(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   // extract operands
   if (MI->getOperand(0).getReg() == 0) {
@@ -772,7 +776,7 @@ ROPEngine::handleCmp32ri(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleCmp32rm(MachineInstr *             MI,
+ROPEngine::handleCmp32rm(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   if (MI->getOperand(0).getReg() == X86::NoRegister) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -811,7 +815,7 @@ ROPEngine::handleCmp32rm(MachineInstr *             MI,
   return builder.build(state, chain);
 }
 
-ROPChainStatus ROPEngine::handleJmp1(MachineInstr *             MI,
+ROPChainStatus ROPEngine::handleJmp1(MachineInstr              *MI,
                                      std::vector<unsigned int> &scratchRegs) {
   if (!MI->getOperand(0).isMBB()) {
     return ROPChainStatus::ERR_UNSUPPORTED;
@@ -824,7 +828,7 @@ ROPChainStatus ROPEngine::handleJmp1(MachineInstr *             MI,
   return ROPChainStatus::OK;
 }
 
-ROPChainStatus ROPEngine::handleJcc1(MachineInstr *             MI,
+ROPChainStatus ROPEngine::handleJcc1(MachineInstr              *MI,
                                      std::vector<unsigned int> &scratchRegs) {
   // Jcc1 ROPification strategy:
   //   pop reg1
@@ -898,7 +902,7 @@ ROPChainStatus ROPEngine::handleJcc1(MachineInstr *             MI,
   return builder.build(state, chain);
 }
 
-ROPChainStatus ROPEngine::handleCall(MachineInstr *             MI,
+ROPChainStatus ROPEngine::handleCall(MachineInstr              *MI,
                                      std::vector<unsigned int> &scratchRegs) {
   //   pop reg1
   //   [callee]
@@ -925,7 +929,7 @@ ROPChainStatus ROPEngine::handleCall(MachineInstr *             MI,
 }
 
 ROPChainStatus
-ROPEngine::handleCallReg(MachineInstr *             MI,
+ROPEngine::handleCallReg(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
   //   jmp reg
   //   [return addr]
@@ -944,10 +948,10 @@ ROPEngine::handleCallReg(MachineInstr *             MI,
   return builder.build(state, chain);
 }
 
-ROPChainStatus ROPEngine::ropify(MachineInstr &             MI,
+ROPChainStatus ROPEngine::ropify(MachineInstr              &MI,
                                  std::vector<unsigned int> &scratchRegs,
                                  bool                       shouldFlagSaved,
-                                 ROPChain &                 resultChain) {
+                                 ROPChain                  &resultChain) {
   if (MI.getOpcode() != X86::CALLpcrel32 && MI.getOpcode() != X86::CALL32r &&
       MI.getOpcode() != X86::MOV32mr && MI.getOpcode() != X86::MOV32mi) {
     // if ESP is one of the operands of MI -> abort
