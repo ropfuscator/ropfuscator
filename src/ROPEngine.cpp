@@ -11,7 +11,7 @@
 using std::string;
 using namespace llvm;
 
-#if LLVM_MAJOR_VERSION < 10
+#if LLVM_VERSION_MAJOR < 10
 using Register = unsigned int;
 #endif
 
