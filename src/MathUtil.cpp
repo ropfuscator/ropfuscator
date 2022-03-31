@@ -35,8 +35,8 @@ template <> struct Divisor<uint32_t> {
   Divisor(uint64_t dividend) {
     d0         = dividend;
     uint64_t d = 1 + ((uint64_t)-1) / dividend;
-    d0         = d >> 32;
-    d1         = d;
+    d1         = d >> 32;
+    d2         = d;
   }
 #endif
        operator uint32_t() const { return d0; }
