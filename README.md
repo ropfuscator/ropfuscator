@@ -3,7 +3,7 @@
 
 ROPfuscator is a fine-grained code obfuscation framework for C/C++ programs using ROP (return-oriented programming).
 ROPfuscator obfuscates a program at the assembly code level by transforming regular instructions into ROP chains, thwarting our natural conception of normal control flow.
-It is implemented as an extension to LLVM x86 backend.
+It is implemented as an extension to LLVM (10.0.1) x86 backend.
 
 For build, usage and implementation, see individual documents:
 
@@ -11,6 +11,50 @@ For build, usage and implementation, see individual documents:
 - Using ROPfuscator to obfuscate programs: [usage.md](./docs/usage.md)
 - Obfuscation algorithm details: [algorithm.md](./docs/algorithm.md)
 - Implementation details: [implementation.md](./docs/implementation.md)
+
+## Get started
+
+### Using Nix (recommended)
+
+#### Step 0: Install Nix
+
+Install [Nix](https://nix.dev/tutorials/install-nix) (the package manager) and make sure that its daemon is running.
+
+#### Step 1: Enable Nix to use Flakes
+
+Flakes allow you to specify your code's dependencies in a declarative way and they allow to easily specify inputs and outputs for projects. ROPfuscator exposes different outputs hence we need to enable Nix to use flakes.
+
+[Here](https://nixos.wiki/wiki/Flakes) is a step-by-step process on how to enable them.
+
+#### Step 2: Add ROPfuscator cache repository to Nix's channels (optional) 
+
+This step allows to leverage ROPfuscator cache repository to avoid recompiling the project and all its dependencies from scratch. This step is obviously optional but recommended.
+
+To enable ROPfuscator's cache, first install `cachix`:
+
+```
+nix-env -iA cachix -f https://cachix.org/api/v1/install
+```
+
+Then, configure `nix.conf` to use the binary cache:
+
+```
+cachix use ropfuscator
+```
+
+#### Step 3: Build and use ROPfuscator
+
+The final step is to build ROPfuscator. This can be achieved by invoking:
+
+```
+nix build github:ropfuscator/ropfuscator -L
+```
+
+If you want to drop in a shell configured to use ROPfuscator by default, just invoke:
+
+```
+nix shell github:ropfuscator/ropfuscator
+```
 
 ## ROPfuscator Overview
 
@@ -25,30 +69,7 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
 - Instruction Hiding
   - Instead of applying ROP transformation to all instructions, pick up some original instructions before ROP transformation and interleave them with the opaque predicate instructions.
 
-## Supported platform and limitations
+## Limitations
 
-- Linux 32-bit x86 binary is the only supported target (as of now)
-- Tested on the following platform, though it is expected to work on other Linux x86 distribution.
-  - Host (compiler): Ubuntu 18.04 (64bit)
-  - Target (runtime): Ubuntu 18.04 (64bit OS with 32bit support / 32bit OS)
-- Compatible LLVM versions: 9
+- Linux 32-bit x86 binaries are the only supported target (as of now)
 - For detailed limitations, see [limitation.md](./docs/limitation.md).
-
-# Nix instructions
-
-## Using `ccache`
-
-Make sure to have created a folder that `ccache` can use as buffer and that `nix-daemon` has that path added to the sandbox whitelisted directories.
-
-To do so, make sure to have this in your `configuration.nix`:
-
-```nix
-extra-sandbox-paths = /nix/var/cache/ccache
-```
-
-You can then use `ccache` by setting the right ownership to the buffer directory:
-
-```sh
-# mkdir -m0770 -p /nix/var/cache/ccache
-# chown --reference=/nix/store /nix/var/cache/ccache
-```
