@@ -30,7 +30,7 @@
         librop = librop-git.defaultPackage.${system};
 
         ropfuscator =
-          import ./ropfuscator.nix { inherit pkgs tinytoml fmt lib librop; };
+          import ./ropfuscator.nix { inherit nixpkgs pkgs tinytoml fmt lib librop; };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -58,8 +58,8 @@
           debug = debugBuild;
           stdenv = ropfuscator.stdenv;
           stdenvDebug = ropfuscator.stdenvDebug;
-          stdenvLibrop = ropfuscator.stdenvLibrop;
-          stdenvLibc = ropfuscator.stdenvLibc;
+#          stdenvLibrop = ropfuscator.stdenvLibrop;
+ #         stdenvLibc = ropfuscator.stdenvLibc;
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = ropfuscator.stdenv;
