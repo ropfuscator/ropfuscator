@@ -1,10 +1,20 @@
-{ pkgs, lib, fmt, tinytoml, librop }:
+{ nixpkgs, pkgs, lib, fmt, tinytoml, librop }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
-  pkgsCross = pkgs.pkgsCross.gnu32;
+  pkgsLLVM13 = pkgs.llvmPackages_13;
+  stdenv = pkgs.gcc11Stdenv;
 
-  pkgsLLVM13 = pkgsCross.llvmPackages_13;
-  stdenv = pkgsCross.gcc11Stdenv;
+  # from nixpkgs upstream
+  wrapClangMulti = clang:
+    if stdenv.targetPlatform.system == "x86_64-linux" then
+      pkgs.callPackage (nixpkgs + /pkgs/development/compilers/llvm/multi.nix) {
+        inherit clang;
+        gcc32 = pkgs32.gcc;
+        gcc64 = pkgs.gcc;
+      }
+    else
+      throw
+      "Multilib ${clang.cc.name} not supported for '${stdenv.targetPlatform.system}'";
 
   # this builds ropfuscator's llvm
   llvm_derivation_function = { pkgs, debug ? false, use_ccache ? false }:
@@ -89,40 +99,38 @@ let
 
   # this builds a stdenv with librop to the library path
   stdenv_derivation_function = { pkgs, clang }:
-    pkgs.overrideCC pkgs.llvmPackages_10.stdenv clang;
+    pkgs.overrideCC pkgs.gccMultiStdenv clang;
 in rec {
-  ropfuscator-llvm = llvm_derivation_function { pkgs = pkgsCross; };
+  ropfuscator-llvm = llvm_derivation_function { inherit pkgs; };
   ropfuscator-llvm-debug = llvm_derivation_function {
-    pkgs = pkgsCross;
+    inherit pkgs;
     debug = true;
   };
 
-  ropfuscator-clang = clang_derivation_function {
-    pkgs = pkgs32;
-    inherit ropfuscator-llvm;
-  };
+  ropfuscator-clang =
+    clang_derivation_function { inherit pkgs ropfuscator-llvm; };
   ropfuscator-clang-debug = clang_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     ropfuscator-llvm = ropfuscator-llvm-debug;
   };
 
   # stdenvs
   stdenv = stdenv_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     clang = ropfuscator-clang;
   };
   stdenvDebug = stdenv_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     clang = ropfuscator-clang-debug;
   };
-  stdenvLibrop = stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands + ''
-      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
-    '';
-  });
-  stdenvLibc = stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands + ''
-      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
-    '';
-  });
+  #  stdenvLibrop = stdenv.cc.override (old: {
+  #    extraBuildCommands = old.extraBuildCommands + ''
+  #      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
+  #    '';
+  #  });
+  #  stdenvLibc = stdenv.cc.override (old: {
+  #    extraBuildCommands = old.extraBuildCommands + ''
+  #      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
+  #    '';
+  #  });
 }
