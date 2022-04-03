@@ -4,18 +4,6 @@ let
   pkgsLLVM13 = pkgs.llvmPackages_13;
   stdenv = pkgs.gcc11Stdenv;
 
-  # from nixpkgs upstream
-  wrapClangMulti = clang:
-    if stdenv.targetPlatform.system == "x86_64-linux" then
-      pkgs.callPackage (nixpkgs + /pkgs/development/compilers/llvm/multi.nix) {
-        inherit clang;
-        gcc32 = pkgs32.gcc;
-        gcc64 = pkgs.gcc;
-      }
-    else
-      throw
-      "Multilib ${clang.cc.name} not supported for '${stdenv.targetPlatform.system}'";
-
   # this builds ropfuscator's llvm
   llvm_derivation_function = { pkgs, debug ? false, use_ccache ? false }:
     let ccache_dir = "/nix/var/cache/ccache";
@@ -92,14 +80,14 @@ let
         # add -pie as default linking flag as it's needed for ropfuscator to work
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
-        + "echo '-fno-pie' >> $out/nix-support/cc-cflags"
+        + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
 
   # this builds a stdenv with librop to the library path
   stdenv_derivation_function = { pkgs, clang }:
-    pkgs.overrideCC pkgs.gccMultiStdenv clang;
+    pkgs.overrideCC pkgs.stdenv (pkgs.wrapClangMulti clang);
 in rec {
   ropfuscator-llvm = llvm_derivation_function { inherit pkgs; };
   ropfuscator-llvm-debug = llvm_derivation_function {
