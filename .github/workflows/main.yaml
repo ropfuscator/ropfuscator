@@ -16,9 +16,3 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: nix build .#tests -L
-
-  build-debug:
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v2
-      - run: nix build .#debug -L
