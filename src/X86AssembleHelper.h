@@ -137,13 +137,13 @@ public:
   void lxor(Reg r, Imm i) const { _instrd(llvm::X86::XOR32ri, r, i); }
   void lxor(Reg r, Mem m) const { _instrd(llvm::X86::XOR32rm, r, m); }
   void lxor(Mem m, Imm i) const { _instr(llvm::X86::XOR32mi, m, i); }
-  void lnot(Reg r) const { _instr(llvm::X86::NOT32r, r); }
-  void lnot8(Reg r) const { _instr(llvm::X86::NOT8r, r); }
-  void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r); }
+  void lnot(Reg r) const { _instr(llvm::X86::NOT32r, r, r); }
+  void lnot8(Reg r) const { _instr(llvm::X86::NOT8r, r, r); }
+  void shl(Reg r) const { _instr(llvm::X86::SHL32r1, r, r); }
   void shl(Reg r, Imm i) const { _instrd(llvm::X86::SHL32ri, r, i); }
-  void shr(Reg r) const { _instr(llvm::X86::SHR32r1, r); }
+  void shr(Reg r) const { _instr(llvm::X86::SHR32r1, r, r); }
   void shr(Reg r, Imm i) const { _instrd(llvm::X86::SHR32ri, r, i); }
-  void rol_cl(Reg r) const { _instr(llvm::X86::ROL32rCL, r); }
+  void rol_cl(Reg r) const { _instr(llvm::X86::ROL32rCL, r, r); }
   void ror(Reg r, Imm i) const { _instrd(llvm::X86::ROR32ri, r, i); }
   void push(Reg r) const { _instr(llvm::X86::PUSH32r, r); }
   void push(Imm i) const { _instr(llvm::X86::PUSHi32, i); }
