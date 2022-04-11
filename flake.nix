@@ -58,8 +58,8 @@
           debug = debugBuild;
           stdenv = ropfuscator.stdenv;
           stdenvDebug = ropfuscator.stdenvDebug;
-#          stdenvLibrop = ropfuscator.stdenvLibrop;
- #         stdenvLibc = ropfuscator.stdenvLibc;
+          stdenvLibrop = ropfuscator.stdenvLibrop;
+          stdenvLibc = ropfuscator.stdenvLibc;
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = ropfuscator.stdenv;

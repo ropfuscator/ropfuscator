@@ -61,7 +61,8 @@ let
     });
 
   # this builds and wraps ropfuscator's clang
-  clang_derivation_function = { pkgs, ropfuscator-llvm }:
+  clang_derivation_function =
+    { pkgs, ropfuscator-llvm, extraBuildCommands ? "" }:
     let
       pkgsLLVM10 = pkgs.llvmPackages_10;
 
@@ -82,7 +83,9 @@ let
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
         + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
-        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
+        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis"
+        # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+        + extraBuildCommands;
     });
 
   # this builds a stdenv with librop to the library path
@@ -101,6 +104,20 @@ in rec {
     inherit pkgs;
     ropfuscator-llvm = ropfuscator-llvm-debug;
   };
+  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+  ropfuscator-clang-librop = clang_derivation_function {
+    inherit pkgs ropfuscator-llvm;
+    extraBuildCommands = ''
+      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
+    '';
+  };
+  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+  ropfuscator-clang-libc = clang_derivation_function {
+    inherit pkgs ropfuscator-llvm;
+    extraBuildCommands = ''
+      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
+    '';
+  };
 
   # stdenvs
   stdenv = stdenv_derivation_function {
@@ -111,14 +128,12 @@ in rec {
     inherit pkgs;
     clang = ropfuscator-clang-debug;
   };
-  #  stdenvLibrop = stdenv.cc.override (old: {
-  #    extraBuildCommands = old.extraBuildCommands + ''
-  #      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
-  #    '';
-  #  });
-  #  stdenvLibc = stdenv.cc.override (old: {
-  #    extraBuildCommands = old.extraBuildCommands + ''
-  #      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
-  #    '';
-  #  });
+  stdenvLibc = stdenv_derivation_function {
+    inherit pkgs;
+    clang = ropfuscator-clang-libc;
+  };
+  stdenvLibrop = stdenv_derivation_function {
+    inherit pkgs;
+    clang = ropfuscator-clang-librop;
+  };
 }
