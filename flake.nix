@@ -1,8 +1,8 @@
 {
   inputs = {
-    # pinned on fix for https://github.com/NixOS/nixpkgs/issues/146865
+    # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
     nixpkgs.url =
-      "github:nixos/nixpkgs/5e540d6ee674183446d57666f5fccc0b57001fe4";
+      "github:nixos/nixpkgs/f712cdd62e0e6763897096e62627f72061b2e6a3";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
