@@ -1,7 +1,6 @@
 {
   inputs = {
-    # pinned on fix for https://github.com/NixOS/nixpkgs/issues/146865
-    # and https://github.com/NixOS/nixpkgs/pull/166977
+    # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
     nixpkgs.url =
       "github:nixos/nixpkgs/f712cdd62e0e6763897096e62627f72061b2e6a3";
     flake-utils.url = "github:numtide/flake-utils";
@@ -31,7 +30,7 @@
         librop = librop-git.defaultPackage.${system};
 
         ropfuscator =
-          import ./ropfuscator.nix { inherit pkgs tinytoml fmt lib librop; };
+          import ./ropfuscator.nix { inherit nixpkgs pkgs tinytoml fmt lib librop; };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;

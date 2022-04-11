@@ -1,10 +1,8 @@
-{ pkgs, lib, fmt, tinytoml, librop }:
+{ nixpkgs, pkgs, lib, fmt, tinytoml, librop }:
 let
   pkgs32 = pkgs.pkgsi686Linux;
-  pkgsCross = pkgs.pkgsCross.gnu32;
-
-  pkgsLLVM13 = pkgsCross.llvmPackages_13;
-  stdenv = pkgsCross.gcc11Stdenv;
+  pkgsLLVM13 = pkgs.llvmPackages_13;
+  stdenv = pkgs.gcc11Stdenv;
 
   # this builds ropfuscator's llvm
   llvm_derivation_function = { pkgs, debug ? false, use_ccache ? false }:
@@ -63,7 +61,8 @@ let
     });
 
   # this builds and wraps ropfuscator's clang
-  clang_derivation_function = { pkgs, ropfuscator-llvm }:
+  clang_derivation_function =
+    { pkgs, ropfuscator-llvm, extraBuildCommands ? "" }:
     let
       pkgsLLVM10 = pkgs.llvmPackages_10;
 
@@ -82,47 +81,59 @@ let
         # add -pie as default linking flag as it's needed for ropfuscator to work
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
-        + "echo '-fno-pie' >> $out/nix-support/cc-cflags"
+        + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
-        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
+        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis"
+        # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+        + extraBuildCommands;
     });
 
   # this builds a stdenv with librop to the library path
   stdenv_derivation_function = { pkgs, clang }:
-    pkgs.overrideCC pkgs.llvmPackages_10.stdenv clang;
+    pkgs.overrideCC pkgs.stdenv (pkgs.wrapClangMulti clang);
 in rec {
-  ropfuscator-llvm = llvm_derivation_function { pkgs = pkgsCross; };
+  ropfuscator-llvm = llvm_derivation_function { inherit pkgs; };
   ropfuscator-llvm-debug = llvm_derivation_function {
-    pkgs = pkgsCross;
+    inherit pkgs;
     debug = true;
   };
 
-  ropfuscator-clang = clang_derivation_function {
-    pkgs = pkgs32;
-    inherit ropfuscator-llvm;
-  };
+  ropfuscator-clang =
+    clang_derivation_function { inherit pkgs ropfuscator-llvm; };
   ropfuscator-clang-debug = clang_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     ropfuscator-llvm = ropfuscator-llvm-debug;
+  };
+  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+  ropfuscator-clang-librop = clang_derivation_function {
+    inherit pkgs ropfuscator-llvm;
+    extraBuildCommands = ''
+      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
+    '';
+  };
+  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
+  ropfuscator-clang-libc = clang_derivation_function {
+    inherit pkgs ropfuscator-llvm;
+    extraBuildCommands = ''
+      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
+    '';
   };
 
   # stdenvs
   stdenv = stdenv_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     clang = ropfuscator-clang;
   };
   stdenvDebug = stdenv_derivation_function {
-    pkgs = pkgs32;
+    inherit pkgs;
     clang = ropfuscator-clang-debug;
   };
-  stdenvLibrop = stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands + ''
-      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
-    '';
-  });
-  stdenvLibc = stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands + ''
-      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
-    '';
-  });
+  stdenvLibc = stdenv_derivation_function {
+    inherit pkgs;
+    clang = ropfuscator-clang-libc;
+  };
+  stdenvLibrop = stdenv_derivation_function {
+    inherit pkgs;
+    clang = ropfuscator-clang-librop;
+  };
 }
