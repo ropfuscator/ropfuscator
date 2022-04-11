@@ -61,8 +61,7 @@ let
     });
 
   # this builds and wraps ropfuscator's clang
-  clang_derivation_function =
-    { pkgs, ropfuscator-llvm, extraBuildCommands ? "" }:
+  clang_derivation_function = { pkgs, ropfuscator-llvm }:
     let
       pkgsLLVM10 = pkgs.llvmPackages_10;
 
@@ -76,16 +75,12 @@ let
     in pkgsLLVM10.clang.override (old: {
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
-        # add librop to library path
-        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
         # add -pie as default linking flag as it's needed for ropfuscator to work
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
         + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
-        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis"
-        # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
-        + extraBuildCommands;
+        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
 
   # this builds a stdenv with librop to the library path
@@ -104,20 +99,6 @@ in rec {
     inherit pkgs;
     ropfuscator-llvm = ropfuscator-llvm-debug;
   };
-  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
-  ropfuscator-clang-librop = clang_derivation_function {
-    inherit pkgs ropfuscator-llvm;
-    extraBuildCommands = ''
-      echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so' >> $out/nix-support/cc-cflags
-    '';
-  };
-  # workaround until https://github.com/NixOS/nixpkgs/pull/166947 lands upstream
-  ropfuscator-clang-libc = clang_derivation_function {
-    inherit pkgs ropfuscator-llvm;
-    extraBuildCommands = ''
-      echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags
-    '';
-  };
 
   # stdenvs
   stdenv = stdenv_derivation_function {
@@ -128,12 +109,21 @@ in rec {
     inherit pkgs;
     clang = ropfuscator-clang-debug;
   };
+
   stdenvLibc = stdenv_derivation_function {
     inherit pkgs;
-    clang = ropfuscator-clang-libc;
+    clang = ropfuscator-clang.override (old: {
+      extraBuildCommands = old.extraBuildCommands
+        + "echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
+    });
   };
+
   stdenvLibrop = stdenv_derivation_function {
     inherit pkgs;
-    clang = ropfuscator-clang-librop;
+    clang = ropfuscator-clang.override (old: {
+      extraBuildCommands = old.extraBuildCommands
+        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+        + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
+    });
   };
 }
