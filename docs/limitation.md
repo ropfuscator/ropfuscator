@@ -7,3 +7,4 @@
 - Enabling optimization may lower obfuscation coverage (and robustness); it is recommended to disable optimization for functions that are to be obfuscated.
 - Current implementation does not take any defence measures against ROP exploitation into account, for example, CFI (control flow integrity) and behaviour-based malware detection.
 - Only works in release build mode (with NDEBUG enabled).
+- LibLLVM should be compiled as a native 64bit binary even if we only support 32bit targets.
