@@ -32,6 +32,10 @@
         ropfuscator = import ./ropfuscator.nix {
           inherit nixpkgs pkgs tinytoml fmt lib librop;
         };
+
+        ropfuscate = { deriv, stdenv, config ? "" }:
+          (deriv.override { inherit stdenv; }).overrideAttrs
+          (old: { pname = old.pname + "-ropfuscated"; });
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -61,8 +65,9 @@
           stdenvDebug = ropfuscator.stdenvDebug;
           stdenvLibrop = ropfuscator.stdenvLibrop;
           stdenvLibc = ropfuscator.stdenvLibc;
-          doom = pkgs32.chocolateDoom.override {
+          doom = ropfuscate {
             stdenv = ropfuscator.stdenvLibrop;
+            deriv = pkgs32.chocolateDoom;
           };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
