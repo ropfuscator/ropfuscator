@@ -75,7 +75,7 @@
           };
           quake = ropfuscate {
             stdenv = ropfuscator.stdenvLibrop;
-            deriv = pkgs32.vkquake;
+            deriv = pkgs32.quake3e;
           };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
