@@ -65,9 +65,13 @@
           stdenvDebug = ropfuscator.stdenvDebug;
           stdenvLibrop = ropfuscator.stdenvLibrop;
           stdenvLibc = ropfuscator.stdenvLibc;
-          doom = ropfuscate {
+          chocolateDoom = ropfuscate {
             stdenv = ropfuscator.stdenvLibrop;
             deriv = pkgs32.chocolateDoom;
+          };
+          crispyDoom = ropfuscate {
+            stdenv = ropfuscator.stdenvLibrop;
+            deriv = pkgs32.crispyDoom;
           };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
