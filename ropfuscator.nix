@@ -79,6 +79,8 @@ let
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
         + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
+        # in case Werror is specified, treat unused command line arguments as warning anyway
+        + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
         "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
     });
