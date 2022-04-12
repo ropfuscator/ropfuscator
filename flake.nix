@@ -29,8 +29,9 @@
 
         librop = librop-git.defaultPackage.${system};
 
-        ropfuscator =
-          import ./ropfuscator.nix { inherit nixpkgs pkgs tinytoml fmt lib librop; };
+        ropfuscator = import ./ropfuscator.nix {
+          inherit nixpkgs pkgs tinytoml fmt lib librop;
+        };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -60,6 +61,9 @@
           stdenvDebug = ropfuscator.stdenvDebug;
           stdenvLibrop = ropfuscator.stdenvLibrop;
           stdenvLibc = ropfuscator.stdenvLibc;
+          doom = pkgs32.chocolateDoom.override {
+            stdenv = ropfuscator.stdenvLibrop;
+          };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = ropfuscator.stdenv;
