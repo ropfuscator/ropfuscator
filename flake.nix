@@ -73,6 +73,10 @@
             stdenv = ropfuscator.stdenvLibrop;
             deriv = pkgs32.crispyDoom;
           };
+          quake = ropfuscate {
+            stdenv = ropfuscator.stdenvLibrop;
+            deriv = pkgs32.vkquake;
+          };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = ropfuscator.stdenv;
