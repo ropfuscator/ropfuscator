@@ -20,7 +20,7 @@
 
   outputs = { self, nixpkgs, flake-utils, librop-git, ropfuscator-utils
     , tinytoml, fmt }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachSystem [ flake-utils.lib.system.x86_64-linux ] (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         pkgs32 = pkgs.pkgsi686Linux;
