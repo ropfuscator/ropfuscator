@@ -31,49 +31,6 @@
         ropfuscator = import ./ropfuscator.nix {
           inherit nixpkgs pkgs tinytoml fmt lib librop;
         };
-
-        ropfuscate = { deriv, stdenv, config ? "" }:
-          let
-            stdenv_ = if config == "" then
-              stdenv
-            else
-              pkgs.overrideCC stdenv (stdenv.cc.override (old: {
-                extraBuildCommands = old.extraBuildCommands + ''
-                  echo "-mllvm --ropfuscator-config=${config}" >> $out/nix-support/cc-cflags
-                '';
-              }));
-
-            config_name = if (config == "") then
-              ""
-            else
-              lib.removeSuffix ".toml"
-              (lib.lists.last (lib.splitString "/" config));
-          in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
-            pname = old.pname + "-ropfuscated"
-              + lib.optionalString (config != "") "-${config_name}";
-          });
-
-        # helper functions
-        ropfuscateLevelZero = { deriv, stdenv }:
-          ropfuscate {
-            inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level0.toml";
-          };
-        ropfuscateLevelOne = { deriv, stdenv }:
-          ropfuscate {
-            inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level1.toml";
-          };
-        ropfuscateLevelTwo = { deriv, stdenv }:
-          ropfuscate {
-            inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level2.toml";
-          };
-        ropfuscateLevelThree = { deriv, stdenv }:
-          ropfuscate {
-            inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level3.toml";
-          };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -118,5 +75,48 @@
             pkgs = pkgs32;
           };
         };
+
+        ropfuscate = { deriv, stdenv ? ropfuscator.stdenvLibrop, config ? "" }:
+          let
+            stdenv_ = if config == "" then
+              stdenv
+            else
+              pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+                extraBuildCommands = old.extraBuildCommands + ''
+                  echo "-mllvm --ropfuscator-config=${config}" >> $out/nix-support/cc-cflags
+                '';
+              }));
+
+            config_name = if (config == "") then
+              ""
+            else
+              lib.removeSuffix ".toml"
+              (lib.lists.last (lib.splitString "/" config));
+          in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
+            pname = old.pname + "-ropfuscated"
+              + lib.optionalString (config != "") "-${config_name}";
+          });
+
+        # helper functions
+        ropfuscateLevelZero = { deriv, stdenv ? ropfuscator.stdenvLibrop }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level0.toml";
+          };
+        ropfuscateLevelOne = { deriv, stdenv ? ropfuscator.stdenvLibrop }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level1.toml";
+          };
+        ropfuscateLevelTwo = { deriv, stdenv ? ropfuscator.stdenvLibrop }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level2.toml";
+          };
+        ropfuscateLevelThree = { deriv, stdenv ? ropfuscator.stdenvLibrop }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level3.toml";
+          };
       });
 }
