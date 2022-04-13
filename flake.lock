@@ -2,11 +2,11 @@
   "nodes": {
     "flake-utils": {
       "locked": {
-        "lastModified": 1648297722,
-        "narHash": "sha256-W+qlPsiZd8F3XkzXOzAoR+mpFqzm3ekQkJNa+PIh1BQ=",
+        "lastModified": 1649676176,
+        "narHash": "sha256-OWKJratjt2RW151VUlJPRALb7OU2S5s+f0vLj4o1bHM=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "0f8662f1319ad6abf89b3380dd2722369fc51ade",
+        "rev": "a4b154ebbdc88c8498a5c7b01589addc9e9cb678",
         "type": "github"
       },
       "original": {
@@ -84,17 +84,17 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1649175693,
-        "narHash": "sha256-s241WS3CI8470TOi9pLRQMzVdyqMEdOZXM3PKwIL6zM=",
-        "owner": "nixos",
+        "lastModified": 1649840995,
+        "narHash": "sha256-k0xWlq4km7FyreUsDLiTdTCyVxOpTX65pV3LcOl5iKA=",
+        "owner": "peperunas",
         "repo": "nixpkgs",
-        "rev": "f712cdd62e0e6763897096e62627f72061b2e6a3",
+        "rev": "9e863e82ace0cb390cf7a9349a73bcf4886519ff",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
+        "owner": "peperunas",
+        "ref": "multibintoolsdedup",
         "repo": "nixpkgs",
-        "rev": "f712cdd62e0e6763897096e62627f72061b2e6a3",
         "type": "github"
       }
     },

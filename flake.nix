@@ -1,8 +1,7 @@
 {
   inputs = {
     # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
-    nixpkgs.url =
-      "github:nixos/nixpkgs/f712cdd62e0e6763897096e62627f72061b2e6a3";
+    nixpkgs.url = "github:peperunas/nixpkgs/multibintoolsdedup";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
     ropfuscator-utils = {
@@ -34,8 +33,47 @@
         };
 
         ropfuscate = { deriv, stdenv, config ? "" }:
-          (deriv.override { inherit stdenv; }).overrideAttrs
-          (old: { pname = old.pname + "-ropfuscated"; });
+          let
+            stdenv_ = if config == "" then
+              stdenv
+            else
+              pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+                extraBuildCommands = old.extraBuildCommands + ''
+                  echo "-mllvm --ropfuscator-config=${config}" >> $out/nix-support/cc-cflags
+                '';
+              }));
+
+            config_name = if (config == "") then
+              ""
+            else
+              lib.removeSuffix ".toml"
+              (lib.lists.last (lib.splitString "/" config));
+          in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
+            pname = old.pname + "-ropfuscated"
+              + lib.optionalString (config != "") "-${config_name}";
+          });
+
+        # helper functions
+        ropfuscateLevelZero = { deriv, stdenv }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level0.toml";
+          };
+        ropfuscateLevelOne = { deriv, stdenv }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level1.toml";
+          };
+        ropfuscateLevelTwo = { deriv, stdenv }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level2.toml";
+          };
+        ropfuscateLevelThree = { deriv, stdenv }:
+          ropfuscate {
+            inherit deriv stdenv;
+            config = "${ropfuscator-utils}/configs/level3.toml";
+          };
       in rec {
         releaseBuild = ropfuscator.ropfuscator-clang;
         debugBuild = ropfuscator.ropfuscator-clang-debug;
@@ -68,14 +106,6 @@
           chocolateDoom = ropfuscate {
             stdenv = ropfuscator.stdenvLibrop;
             deriv = pkgs32.chocolateDoom;
-          };
-          crispyDoom = ropfuscate {
-            stdenv = ropfuscator.stdenvLibrop;
-            deriv = pkgs32.crispyDoom;
-          };
-          quake = ropfuscate {
-            stdenv = ropfuscator.stdenvLibrop;
-            deriv = pkgs32.quake3e;
           };
           tests = import ./tests.nix {
             inherit ropfuscator-utils librop;

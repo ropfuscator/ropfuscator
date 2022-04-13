@@ -87,7 +87,7 @@ let
 
   # this builds a stdenv with librop to the library path
   stdenv_derivation_function = { pkgs, clang }:
-    pkgs.overrideCC pkgs.stdenv (pkgs.wrapClangMulti clang);
+    pkgs.overrideCC pkgs.stdenv (pkgs.wrapCCMulti clang);
 in rec {
   ropfuscator-llvm = llvm_derivation_function { inherit pkgs; };
   ropfuscator-llvm-debug = llvm_derivation_function {
@@ -112,20 +112,14 @@ in rec {
     clang = ropfuscator-clang-debug;
   };
 
-  stdenvLibc = stdenv_derivation_function {
-    inherit pkgs;
-    clang = ropfuscator-clang.override (old: {
-      extraBuildCommands = old.extraBuildCommands
-        + "echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
-    });
-  };
+  stdenvLibc = pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+    extraBuildCommands = old.extraBuildCommands
+      + "echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
+  }));
 
-  stdenvLibrop = stdenv_derivation_function {
-    inherit pkgs;
-    clang = ropfuscator-clang.override (old: {
-      extraBuildCommands = old.extraBuildCommands
-        + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
-        + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
-    });
-  };
+  stdenvLibrop = pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+    extraBuildCommands = old.extraBuildCommands
+      + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+      + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
+  }));
 }
