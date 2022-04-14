@@ -95,6 +95,7 @@
           in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
             pname = old.pname + "-ropfuscated"
               + lib.optionalString (config != "") "-${config_name}";
+            doCheck = true;
           });
 
         # helper functions
