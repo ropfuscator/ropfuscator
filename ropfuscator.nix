@@ -1,6 +1,5 @@
 { lib, fmt, tinytoml, librop }:
 
-
 self: super:
 
 let
@@ -9,7 +8,7 @@ let
   LLVM13 = self.llvmPackages_13;
 
   # this builds ropfuscator's llvm
-  llvm_derivation_function = { debug ? false, use_ccache ? true }:
+  llvm_derivation_function = { debug ? false, use_ccache ? false }:
     let ccache_dir = "/nix/var/cache/ccache";
     in (LLVM10.libllvm.override {
       enablePolly = false;
@@ -65,12 +64,12 @@ let
   # this builds and wraps ropfuscator's clang
   clang_derivation_function = { ropfuscator-llvm }:
     let
-      clang-unwrapped = (LLVM10.libclang.override {
-        libllvm = ropfuscator-llvm;
-      }).overrideAttrs (old: {
-        pname = "ropfuscator-clang"
-          + lib.optionalString ropfuscator-llvm.debug "-debug";
-      });
+      clang-unwrapped =
+        (LLVM10.libclang.override { libllvm = ropfuscator-llvm; }).overrideAttrs
+        (old: {
+          pname = "ropfuscator-clang"
+            + lib.optionalString ropfuscator-llvm.debug "-debug";
+        });
     in LLVM10.clang.override (old: {
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
@@ -90,14 +89,17 @@ in {
   ropfuscator-llvm = llvm_derivation_function { };
   ropfuscator-llvm-debug = llvm_derivation_function { debug = true; };
 
-  ropfuscator-clang = clang_derivation_function { inherit (self) ropfuscator-llvm; };
-  ropfuscator-clang-debug =
-    clang_derivation_function { ropfuscator-llvm = self.ropfuscator-llvm-debug; };
+  ropfuscator-clang =
+    clang_derivation_function { inherit (self) ropfuscator-llvm; };
+  ropfuscator-clang-debug = clang_derivation_function {
+    ropfuscator-llvm = self.ropfuscator-llvm-debug;
+  };
 
   # stdenvs
-  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform
-    then stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
-    else super.stdenv;
+  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
+    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
+  else
+    super.stdenv;
   #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
 
   stdenvLibc = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
