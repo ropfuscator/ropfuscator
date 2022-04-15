@@ -1,14 +1,17 @@
-{ nixpkgs, pkgs, lib, fmt, tinytoml, librop }:
+{ lib, fmt, tinytoml, librop }:
+
+
+self: super:
+
 let
-  pkgs32 = pkgs.pkgsi686Linux;
-  pkgsLLVM13 = pkgs.llvmPackages_13;
-  stdenv = pkgs.gcc11Stdenv;
+  # packages that run on the native platform but target the foreign platform
+  LLVM10 = self.llvmPackages_10;
+  LLVM13 = self.llvmPackages_13;
 
   # this builds ropfuscator's llvm
-  llvm_derivation_function = { pkgs, debug ? false, use_ccache ? false }:
+  llvm_derivation_function = { debug ? false, use_ccache ? true }:
     let ccache_dir = "/nix/var/cache/ccache";
-    in (pkgs.llvmPackages_10.libllvm.override {
-      inherit stdenv;
+    in (LLVM10.libllvm.override {
       enablePolly = false;
       debugVersion = debug;
     }).overrideAttrs (old: {
@@ -19,13 +22,12 @@ let
       doCheck = false;
       dontStrip = debug;
 
-      nativeBuildInputs = with pkgs;
-        old.nativeBuildInputs ++ [ llvmPackages_13.bintools ]
-        ++ lib.optional use_ccache [ ccache ];
+      nativeBuildInputs = old.nativeBuildInputs ++ [ LLVM13.bintools ]
+        ++ lib.optional use_ccache
+        [ (self.buildPackages.ccache.overrideAttrs (_: { doCheck = false; })) ];
 
       cmakeFlags = old.cmakeFlags ++ [
         "-DLLVM_TARGETS_TO_BUILD=X86"
-        "-DLLVM_USE_LINKER=lld"
         "-DLLVM_ENABLE_BINDINGS=Off"
         "-DLLVM_INCLUDE_BENCHMARKS=Off"
         "-DLLVM_INCLUDE_EXAMPLES=Off"
@@ -61,24 +63,21 @@ let
     });
 
   # this builds and wraps ropfuscator's clang
-  clang_derivation_function = { pkgs, ropfuscator-llvm }:
+  clang_derivation_function = { ropfuscator-llvm }:
     let
-      pkgsLLVM10 = pkgs.llvmPackages_10;
-
-      clang-unwrapped = (pkgsLLVM10.libclang.override {
-        stdenv = pkgs.gcc11Stdenv;
+      clang-unwrapped = (LLVM10.libclang.override {
         libllvm = ropfuscator-llvm;
       }).overrideAttrs (old: {
         pname = "ropfuscator-clang"
           + lib.optionalString ropfuscator-llvm.debug "-debug";
       });
-    in pkgsLLVM10.clang.override (old: {
+    in LLVM10.clang.override (old: {
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
         # add -pie as default linking flag as it's needed for ropfuscator to work
         + "echo '-pie' >> $out/nix-support/cc-ldflags"
         # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
-        + "echo '-fno-pie -m32' >> $out/nix-support/cc-cflags"
+        + "echo '-fno-pie' >> $out/nix-support/cc-cflags"
         # in case Werror is specified, treat unused command line arguments as warning anyway
         + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
@@ -86,38 +85,27 @@ let
     });
 
   # this builds a stdenv with librop to the library path
-  stdenv_derivation_function = { pkgs, clang }:
-    pkgs.overrideCC pkgs.stdenv (pkgs.wrapCCMulti clang);
-in rec {
-  ropfuscator-llvm = llvm_derivation_function { inherit pkgs; };
-  ropfuscator-llvm-debug = llvm_derivation_function {
-    inherit pkgs;
-    debug = true;
-  };
+  stdenv_derivation_function = { clang }: super.overrideCC super.stdenv clang;
+in {
+  ropfuscator-llvm = llvm_derivation_function { };
+  ropfuscator-llvm-debug = llvm_derivation_function { debug = true; };
 
-  ropfuscator-clang =
-    clang_derivation_function { inherit pkgs ropfuscator-llvm; };
-  ropfuscator-clang-debug = clang_derivation_function {
-    inherit pkgs;
-    ropfuscator-llvm = ropfuscator-llvm-debug;
-  };
+  ropfuscator-clang = clang_derivation_function { inherit (self) ropfuscator-llvm; };
+  ropfuscator-clang-debug =
+    clang_derivation_function { ropfuscator-llvm = self.ropfuscator-llvm-debug; };
 
   # stdenvs
-  stdenv = stdenv_derivation_function {
-    inherit pkgs;
-    clang = ropfuscator-clang;
-  };
-  stdenvDebug = stdenv_derivation_function {
-    inherit pkgs;
-    clang = ropfuscator-clang-debug;
-  };
+  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform
+    then stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
+    else super.stdenv;
+  #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
 
-  stdenvLibc = pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+  stdenvLibc = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
     extraBuildCommands = old.extraBuildCommands
-      + "echo '-mllvm --ropfuscator-library=${pkgs32.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
+      + "echo '-mllvm --ropfuscator-library=${self.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
   }));
 
-  stdenvLibrop = pkgs.overrideCC stdenv (stdenv.cc.override (old: {
+  stdenvLibrop = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
     extraBuildCommands = old.extraBuildCommands
       + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
       + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
