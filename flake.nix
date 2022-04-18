@@ -24,7 +24,7 @@
       let
         localSystem = { inherit system; };
         crossSystem = {
-          config = "i686-unknown-linux-musl";
+          config = "i686-unknown-linux-gnu";
           useLLVM = true;
         };
         pkgsVanilla = import nixpkgs { inherit localSystem crossSystem; };
@@ -64,10 +64,10 @@
           release = releaseBuild;
           debug = debugBuild;
           inherit (pkgs) stdenv stdenvLibrop stdenvLibc chocolateDoom;
-          #  tests = import ./tests.nix {
-          #    inherit pkgs ropfuscator-utils librop;
-          #    ropfuscatorStdenv = pkgs.stdenv;
-          #  };
+          tests = import ./tests.nix {
+            inherit pkgs ropfuscator-utils librop;
+            ropfuscatorStdenv = pkgs.stdenv;
+          };
           #  testsDebug = import ./tests.nix {
           #    inherit pkgs ropfuscator-utils librop;
           #    ropfuscatorStdenv = pkgs.stdenvDebug;
