@@ -3,7 +3,6 @@
 self: super:
 
 let
-  # packages that run on the native platform but target the foreign platform
   LLVM10 = self.llvmPackages_10;
   LLVM13 = self.llvmPackages_13;
 
@@ -73,14 +72,12 @@ let
     in LLVM10.clang.override (old: {
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
-        # add -pie as default linking flag as it's needed for ropfuscator to work
-        + "echo '-pie' >> $out/nix-support/cc-ldflags"
-        # add -fno-pie as default compiling flag as it's needed for ropfuscator to work
-        + "echo '-fno-pie' >> $out/nix-support/cc-cflags"
+        # add mandatory compiler flags neededed for ropfuscator to work
+        + "echo '-fno-pie -pie -Wl,-z,notext' >> $out/nix-support/cc-cflags"
         # in case Werror is specified, treat unused command line arguments as warning anyway
         + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
-        "-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis";
+        "echo '-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis' >> $out/nix-support/cc-flags";
     });
 
   # this builds a stdenv with librop to the library path
