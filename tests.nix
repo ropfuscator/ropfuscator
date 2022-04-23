@@ -25,6 +25,9 @@ let
       # fake output
       mkdir $out
 
+      # force, in case tests are automatically
+      doCheck=1
+
       runHook postUnpack
     '';
   };
