@@ -91,20 +91,18 @@ in {
   };
 
   # stdenvs
-  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
-  else
-    super.stdenv;
+  stdenv = if super.stdenv.hostPlatform == super.stdenv.buildPlatform
+    then
+      super.stdenv
+    else
+      (stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }).override (old: {
+        cc = old.cc.override (old': {
+          extraBuildCommands = old'.extraBuildCommands
+            + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
+            + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
+        });
+      });
+
   #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
 
-  stdenvLibc = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands
-      + "echo '-mllvm --ropfuscator-library=${self.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
-  }));
-
-  stdenvLibrop = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands
-      + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
-      + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
-  }));
 }
