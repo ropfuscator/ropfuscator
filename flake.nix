@@ -22,20 +22,7 @@
     , tinytoml, fmt }:
     flake-utils.lib.eachSystem [ flake-utils.lib.system.x86_64-linux ] (system:
       let
-        # see: https://github.com/NixOS/nixpkgs/issues/170002
-        zlib-fix = (self: super: {
-          zlib = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-            super.zlib.overrideAttrs (_: rec {
-              version = "1.2.11";
-              src = builtins.fetchurl {
-                url = "https://www.zlib.net/fossils/zlib-${version}.tar.gz";
-                sha256 =
-                  "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1";
-              };
-            })
-          else
-            super.zlib;
-        });
+        zlib-fix = import ./zlib-fix.nix;
 
         localSystem = { inherit system; };
         crossSystem = {
@@ -46,15 +33,17 @@
         # vanilla upstream nix packages
         pkgs = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [ zlib-fix ];
+          overlays = [
+            zlib-fix
+          ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
           overlays = [
-            (import ./ropfuscator.nix { inherit tinytoml fmt lib librop; })
             zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib librop; })
           ];
         };
 
