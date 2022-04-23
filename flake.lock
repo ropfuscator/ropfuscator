@@ -53,11 +53,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1638043467,
-        "narHash": "sha256-KtXR2DTU9qXA+uQiH2qeVdiDB1a3EQttJKL4zn80OFY=",
+        "lastModified": 1650744746,
+        "narHash": "sha256-Cgztu47QsVLltWofPvXH1wuiGpebVx9vbhvk6DPZVO4=",
         "ref": "master",
-        "rev": "cbe184bfb8e779b51a1bdc4fe6e2763e5e3ef112",
-        "revCount": 7,
+        "rev": "515a3b6775cf4624027d35f95d62fd64feee274e",
+        "revCount": 10,
         "type": "git",
         "url": "ssh://git@github.com/ropfuscator/librop.git"
       },
@@ -68,16 +68,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1637771604,
-        "narHash": "sha256-S5h/GXm1PKwIFJupdPmSUxhSWCjopE5HVKIa3vCWUTo=",
-        "owner": "nixos",
+        "lastModified": 1650302771,
+        "narHash": "sha256-x2foQq3AWObhk+bgRjN+Mfgx5JvOyzS+P5KC6JqzVsU=",
+        "owner": "peperunas",
         "repo": "nixpkgs",
-        "rev": "4b675777b5ef03b8c47eeb8572693855bc8fc223",
+        "rev": "c44e4498ceff21d3a471aedfc8a9137126cdfddf",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "4b675777",
+        "owner": "peperunas",
+        "ref": "llvm-i686-cross-fix",
         "repo": "nixpkgs",
         "type": "github"
       }
