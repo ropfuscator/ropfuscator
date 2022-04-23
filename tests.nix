@@ -2,7 +2,8 @@
 let
   ropfuscator_tests = ropfuscatorStdenv.mkDerivation rec {
     pname = "ropfuscator_tests";
-    nativeBuildInputs = [ cmake librop ];
+    nativeBuildInputs = [ cmake ];
+    buildInputs = [ librop ];
     version = "0.1.0";
     src = ./tests;
     doCheck = true;

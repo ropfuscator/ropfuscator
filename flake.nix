@@ -74,12 +74,12 @@
         packages = flake-utils.lib.flattenTree {
           llvm = pkgsRopfuscator.buildPackages.ropfuscator-llvm;
           clang = pkgsRopfuscator.buildPackages.ropfuscator-clang;
-          tests = pkgs.callPackage ./tests.nix {
+          tests = pkgsRopfuscator.callPackage ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = pkgsRopfuscator.stdenv;
           };
           #  testsDebug = import ./tests.nix {
-          #    inherit pkgs ropfuscator-utils librop;
+          #    inherit ropfuscator-utils librop;
           #    ropfuscatorStdenv = pkgs.stdenvDebug;
           #  };
           # justOne = pkgsVanilla.chocolateDooom.override (old: {
