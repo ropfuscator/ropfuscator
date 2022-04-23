@@ -53,11 +53,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1650744746,
-        "narHash": "sha256-Cgztu47QsVLltWofPvXH1wuiGpebVx9vbhvk6DPZVO4=",
+        "lastModified": 1650752320,
+        "narHash": "sha256-Hi7u5LLAk9c/qxEZelOmD1vh+8pBiLG1DEafm9aWkuU=",
         "ref": "master",
-        "rev": "515a3b6775cf4624027d35f95d62fd64feee274e",
-        "revCount": 10,
+        "rev": "e4ce5c08bb3150f4008f69dec267becbe4b2d871",
+        "revCount": 11,
         "type": "git",
         "url": "ssh://git@github.com/ropfuscator/librop.git"
       },
