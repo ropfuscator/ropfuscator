@@ -1,8 +1,8 @@
-{ pkgs, ropfuscator-utils, ropfuscatorStdenv, librop }:
+{ ropfuscator-utils, ropfuscatorStdenv, librop, cmake }:
 let
   ropfuscator_tests = ropfuscatorStdenv.mkDerivation rec {
     pname = "ropfuscator_tests";
-    nativeBuildInputs = with pkgs; [ cmake librop ];
+    nativeBuildInputs = [ cmake librop ];
     version = "0.1.0";
     src = ./tests;
     doCheck = true;
@@ -15,12 +15,12 @@ let
     ];
     unpackPhase = ''
       runHook preUnpack
-      
+
       mkdir utils
 
       cp -r --no-preserve=mode,ownership $src/* .
       cp -r --no-preserve=mode,ownership ${ropfuscator-utils}/* utils
-      
+
       # fake output
       mkdir $out
 
