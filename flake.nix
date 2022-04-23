@@ -36,7 +36,7 @@
             (self: super: {
               zlib =
                 if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-                  super.zlib.overrideAttrs (_: {
+                  super.zlib.overrideAttrs (_: rec {
                     version = "1.2.11";
                     src = builtins.fetchurl {
                       url = "https://www.zlib.net/fossils/zlib-${version}.tar.gz";
