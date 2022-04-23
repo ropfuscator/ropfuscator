@@ -15,21 +15,6 @@
         "type": "github"
       }
     },
-    "flake-utils_2": {
-      "locked": {
-        "lastModified": 1637014545,
-        "narHash": "sha256-26IZAc5yzlD9FlDT54io1oqG/bBoyka+FJk5guaX4x4=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "bba5dcc8e0b20ab664967ad83d24d64cb64ec4f4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "fmt": {
       "flake": false,
       "locked": {
@@ -48,10 +33,7 @@
       }
     },
     "librop-git": {
-      "inputs": {
-        "flake-utils": "flake-utils_2",
-        "nixpkgs": "nixpkgs"
-      },
+      "flake": false,
       "locked": {
         "lastModified": 1650752320,
         "narHash": "sha256-Hi7u5LLAk9c/qxEZelOmD1vh+8pBiLG1DEafm9aWkuU=",
@@ -82,28 +64,12 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1650302771,
-        "narHash": "sha256-x2foQq3AWObhk+bgRjN+Mfgx5JvOyzS+P5KC6JqzVsU=",
-        "owner": "peperunas",
-        "repo": "nixpkgs",
-        "rev": "c44e4498ceff21d3a471aedfc8a9137126cdfddf",
-        "type": "github"
-      },
-      "original": {
-        "owner": "peperunas",
-        "ref": "llvm-i686-cross-fix",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
         "fmt": "fmt",
         "librop-git": "librop-git",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": "nixpkgs",
         "ropfuscator-utils": "ropfuscator-utils",
         "tinytoml": "tinytoml"
       }
