@@ -3,7 +3,10 @@
     # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
     nixpkgs.url = "github:peperunas/nixpkgs/llvm-i686-cross-fix";
     flake-utils.url = "github:numtide/flake-utils";
-    librop-git.url = "git+ssh://git@github.com/ropfuscator/librop.git";
+    librop-git = {
+      url = "git+ssh://git@github.com/ropfuscator/librop.git";
+      flake = false;
+    };
     ropfuscator-utils = {
       url = "git+ssh://git@github.com/ropfuscator/utilities.git";
       flake = false;
@@ -48,7 +51,7 @@
         };
 
         lib = nixpkgs.lib;
-        librop = librop-git.defaultPackage.${system};
+        librop = pkgs.callPackage (librop-git + "/pkg.nix") {};
       in rec {
         inherit pkgs pkgsRopfuscator;
 
