@@ -66,8 +66,6 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
   - Convert each instruction into one or more ROP gadgets, and translate the entire code to ROP chains.
 - Opaque Predicate Insertion
   - Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
-- Instruction Hiding
-  - Instead of applying ROP transformation to all instructions, pick up some original instructions before ROP transformation and interleave them with the opaque predicate instructions.
 
 ## Limitations
 
