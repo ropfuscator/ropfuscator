@@ -27,6 +27,22 @@
       let
         zlib-fix = import ./zlib-fix.nix;
 
+        ropfuscatorLibcOverlay = (self: super: {
+          stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
+            (old: {
+              extraBuildCommands = old.extraBuildCommands
+                + "echo '-mllvm --ropfuscator-library=${self.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
+            }));
+        });
+
+        ropfuscatorLibropOverlay = (self: super: {
+          stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
+            (old: {
+              extraBuildCommands = old.extraBuildCommands
+                + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.a' >> $out/nix-support/cc-cflags";
+            }));
+        });
+
         localSystem = { inherit system; };
         crossSystem = {
           config = "i686-unknown-linux-gnu";
@@ -36,24 +52,45 @@
         # vanilla upstream nix packages
         pkgs = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [
-            zlib-fix
-          ];
+          overlays = [ zlib-fix ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
+        # the pass is disabled, though, because no library is defined
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
           overlays = [
             zlib-fix
-            (import ./ropfuscator.nix { inherit tinytoml fmt lib librop; })
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
           ];
         };
 
+        # upstream nix packages that use ROPfuscator as default compiler
+        # with libc as default library
+        pkgsRopfuscatorLibc = import nixpkgs {
+          inherit localSystem crossSystem;
+          overlays = [
+            zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
+          ];
+          crossOverlays = [ ropfuscatorLibcOverlay ];
+        };
+
+        # upstream nix packages that use ROPfuscator as default compiler
+        # with librop as default library
+        pkgsRopfuscatorLibrop = import nixpkgs {
+          inherit localSystem crossSystem;
+          overlays = [
+            zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
+          ];
+          crossOverlays = [ ropfuscatorLibropOverlay ];
+        };
+
         lib = nixpkgs.lib;
-        librop = pkgs.callPackage (librop-git + "/pkg.nix") {};
+        librop = pkgs.callPackage (librop-git + "/pkg.nix") { };
       in rec {
-        inherit pkgs pkgsRopfuscator;
+        inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
         releaseBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang;
         debugBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang-debug;
@@ -77,6 +114,7 @@
         packages = flake-utils.lib.flattenTree {
           llvm = pkgsRopfuscator.buildPackages.ropfuscator-llvm;
           clang = pkgsRopfuscator.buildPackages.ropfuscator-clang;
+          chocolateDoom = pkgsRopfuscator.chocolateDoom;
           tests = pkgsRopfuscator.callPackage ./tests.nix {
             inherit ropfuscator-utils librop;
             ropfuscatorStdenv = pkgsRopfuscator.stdenv;

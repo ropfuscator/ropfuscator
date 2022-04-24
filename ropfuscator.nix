@@ -1,4 +1,4 @@
-{ lib, fmt, tinytoml, librop }:
+{ lib, fmt, tinytoml }:
 
 self: super:
 
@@ -78,7 +78,6 @@ let
         "echo '-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis' >> $out/nix-support/cc-flags";
     });
 
-  # this builds a stdenv with librop to the library path
   stdenv_derivation_function = { clang }: super.overrideCC super.stdenv clang;
 in {
   ropfuscator-llvm = llvm_derivation_function { };
@@ -96,15 +95,4 @@ in {
   else
     super.stdenv;
   #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
-
-  stdenvLibc = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands
-      + "echo '-mllvm --ropfuscator-library=${self.glibc}/lib/libc.so.6' >> $out/nix-support/cc-cflags";
-  }));
-
-  stdenvLibrop = self.overrideCC self.stdenv (self.stdenv.cc.override (old: {
-    extraBuildCommands = old.extraBuildCommands
-      + "echo '-L${librop}/lib' >> $out/nix-support/cc-ldflags"
-      + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.so -lrop' >> $out/nix-support/cc-cflags";
-  }));
 }
