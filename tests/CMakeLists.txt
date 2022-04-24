@@ -29,6 +29,7 @@ foreach(source ${sources})
   # vanilla testcase
   add_executable(${testcase} ${source})
   target_compile_options(${testcase} PRIVATE -mllvm -fno-ropfuscator)
+  install(TARGETS ${testcase})
 
   # obfuscated testcase
   foreach(config ${ROPF_CONFIGURATION_FILES})
@@ -48,6 +49,8 @@ foreach(source ${sources})
         ${config}
         LIBRARY
         ${library})
+      
+      install(TARGETS ${obfuscated_testcase})
     endforeach()
   endforeach()
 endforeach()

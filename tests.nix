@@ -7,7 +7,6 @@ let
     version = "0.1.0";
     src = ./tests;
     doCheck = true;
-    dontInstall = true;
     cmakeFlags = [
       "-DUSE_LIBROP=On"
       "-DUSE_LIBC=On"
