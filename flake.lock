@@ -35,11 +35,11 @@
     "librop-git": {
       "flake": false,
       "locked": {
-        "lastModified": 1650752320,
-        "narHash": "sha256-Hi7u5LLAk9c/qxEZelOmD1vh+8pBiLG1DEafm9aWkuU=",
+        "lastModified": 1650802379,
+        "narHash": "sha256-vw3Wk/9WQK7TMWw0DsW3ZuHoBGX74BRTrgmuibYTTUk=",
         "ref": "master",
-        "rev": "e4ce5c08bb3150f4008f69dec267becbe4b2d871",
-        "revCount": 11,
+        "rev": "82f4cb1250aca887868649aa1efce4fe24dd7f08",
+        "revCount": 15,
         "type": "git",
         "url": "ssh://git@github.com/ropfuscator/librop.git"
       },

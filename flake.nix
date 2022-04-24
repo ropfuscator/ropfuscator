@@ -35,13 +35,15 @@
             }));
         });
 
-        ropfuscatorLibropOverlay = (self: super: {
-          stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
-            (old: {
-              extraBuildCommands = old.extraBuildCommands
-                + "echo '-mllvm --ropfuscator-library=${librop}/lib/librop.a' >> $out/nix-support/cc-cflags";
-            }));
-        });
+        ropfuscatorLibropOverlay = (self: super:
+          let librop-path = "${librop}/lib/librop.so";
+          in {
+            stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
+              (old: {
+                extraBuildCommands = old.extraBuildCommands
+                  + "echo '-mllvm --ropfuscator-library=${librop-path} ${librop-path}' >> $out/nix-support/cc-cflags";
+              }));
+          });
 
         localSystem = { inherit system; };
         crossSystem = {
