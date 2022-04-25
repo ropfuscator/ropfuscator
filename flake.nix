@@ -48,7 +48,9 @@
         localSystem = { inherit system; };
         crossSystem = {
           config = "i686-unknown-linux-gnu";
+          #config = "i686-unknown-linux-musl";
           useLLVM = true;
+          #isStatic = true;
         };
 
         # vanilla upstream nix packages

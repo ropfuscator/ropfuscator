@@ -71,17 +71,26 @@ let
         });
     in LLVM10.clang.override (old: {
       cc = clang-unwrapped;
-      extraBuildCommands = old.extraBuildCommands
-        # add mandatory compiler flags neededed for ropfuscator to work
-        + "echo '-fno-pie -pie -Wl,-z,notext' >> $out/nix-support/cc-cflags"
-        # in case Werror is specified, treat unused command line arguments as warning anyway
-        + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
-        + lib.optionalString ropfuscator-llvm.debug
-        "echo '-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis' >> $out/nix-support/cc-flags";
     });
 
   stdenv_derivation_function = { clang }: super.overrideCC super.stdenv clang;
 in {
+
+  llvmPackages_10 = let
+    old = super.llvmPackages_10;
+    tools = old.tools.extend (self': super': {
+      llvm = self.ropfuscator-llvm;
+      mkExtraBuildCommands0 = cc: old.mkExtraBuildCommands0 cc
+        # add mandatory compiler flags neededed for ropfuscator to work
+        + "echo '-fno-pie -pie' >> $out/nix-support/cc-cflags"
+        # in case Werror is specified, treat unused command line arguments as warning anyway
+        + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
+        + lib.optionalString self.ropfuscator-llvm.debug
+        "echo '-mllvm -debug-only=xchg_chains,ropchains,processed_instr,liveness_analysis' >> $out/nix-support/cc-flags";
+    });
+  in
+    old // { inherit tools; } // tools;
+
   ropfuscator-llvm = llvm_derivation_function { };
   ropfuscator-llvm-debug = llvm_derivation_function { debug = true; };
 
