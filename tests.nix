@@ -1,6 +1,6 @@
-{ ropfuscator-utils, ropfuscatorStdenv, librop, cmake }:
+{ ropfuscator-utils, stdenv, librop, cmake }:
 let
-  ropfuscator_tests = ropfuscatorStdenv.mkDerivation rec {
+  ropfuscator_tests = stdenv.mkDerivation rec {
     pname = "ropfuscator_tests";
     nativeBuildInputs = [ cmake ];
     buildInputs = [ librop ];

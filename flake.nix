@@ -119,7 +119,6 @@
           chocolateDoom = pkgsRopfuscator.chocolateDoom;
           tests = pkgsRopfuscator.callPackage ./tests.nix {
             inherit ropfuscator-utils librop;
-            ropfuscatorStdenv = pkgsRopfuscator.stdenv;
           };
           #  testsDebug = import ./tests.nix {
           #    inherit ropfuscator-utils librop;
