@@ -138,7 +138,7 @@
             stdenv_ = if config == "" then
               stdenv
             else
-              pkgs.buildPkgs.overrideCC stdenv (stdenv.cc.override (old: {
+              pkgs.buildPackages.overrideCC stdenv (stdenv.cc.override (old: {
                 extraBuildCommands = old.extraBuildCommands + ''
                   echo "-mllvm --ropfuscator-config=${config}" >> $out/nix-support/cc-cflags
                 '';
