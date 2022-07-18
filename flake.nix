@@ -99,8 +99,12 @@
 
         defaultPackage = releaseBuild;
 
-        # # development shell
-        # devShell = pkgs.buildPackages.ropfuscator-llvm-debug.overrideAttrs (_: {
+        # development shell
+        devShell = import ./shell.nix {
+          inherit pkgs;
+          stdenv = packages.vanillaRopStdenv;
+        };
+        # pkgs.buildPackages.ropfuscator-llvm-debug.overrideAttrs (_: {
         #   shellHook = ''
         #     # move to temporary directory
         #     cd `mktemp -d`
