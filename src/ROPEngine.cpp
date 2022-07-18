@@ -666,7 +666,7 @@ ROPEngine::handleMov32rr(MachineInstr              *MI,
 ROPChainStatus
 ROPEngine::handleMov32ri(MachineInstr              *MI,
                          std::vector<unsigned int> &scratchRegs) {
-  if (MI->getOperand(0).getReg() == 0 || MI->getOperand(1).getReg() == 0) {
+  if (MI->getOperand(0).getReg() == 0) {
     return ROPChainStatus::ERR_UNSUPPORTED;
   }
 
