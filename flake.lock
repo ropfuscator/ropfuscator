@@ -2,11 +2,11 @@
   "nodes": {
     "flake-utils": {
       "locked": {
-        "lastModified": 1649676176,
-        "narHash": "sha256-OWKJratjt2RW151VUlJPRALb7OU2S5s+f0vLj4o1bHM=",
+        "lastModified": 1656928814,
+        "narHash": "sha256-RIFfgBuKz6Hp89yRr7+NR5tzIAbn52h8vT6vXkYjZoM=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "a4b154ebbdc88c8498a5c7b01589addc9e9cb678",
+        "rev": "7e2a3b3dfd9af950a856d66b0a7d01e3c18aa249",
         "type": "github"
       },
       "original": {
@@ -37,15 +37,15 @@
       "locked": {
         "lastModified": 1650802379,
         "narHash": "sha256-vw3Wk/9WQK7TMWw0DsW3ZuHoBGX74BRTrgmuibYTTUk=",
-        "ref": "master",
+        "owner": "ropfuscator",
+        "repo": "librop",
         "rev": "82f4cb1250aca887868649aa1efce4fe24dd7f08",
-        "revCount": 15,
-        "type": "git",
-        "url": "ssh://git@github.com/ropfuscator/librop.git"
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "ssh://git@github.com/ropfuscator/librop.git"
+        "owner": "ropfuscator",
+        "repo": "librop",
+        "type": "github"
       }
     },
     "nixpkgs": {
@@ -79,15 +79,15 @@
       "locked": {
         "lastModified": 1637857645,
         "narHash": "sha256-MRwxY0QJAHXSELYmUfpQvpdJpDHtF9DDU89jLcFgahs=",
-        "ref": "master",
+        "owner": "ropfuscator",
+        "repo": "utilities",
         "rev": "63df12dee0ed5bb31fc9f157dd825e1a8d2017a2",
-        "revCount": 9,
-        "type": "git",
-        "url": "ssh://git@github.com/ropfuscator/utilities.git"
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "ssh://git@github.com/ropfuscator/utilities.git"
+        "owner": "ropfuscator",
+        "repo": "utilities",
+        "type": "github"
       }
     },
     "tinytoml": {
