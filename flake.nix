@@ -4,11 +4,11 @@
     nixpkgs.url = "github:peperunas/nixpkgs/llvm-i686-cross-fix";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git = {
-      url = "git+ssh://git@github.com/ropfuscator/librop.git";
+      url = "github:ropfuscator/librop";
       flake = false;
     };
     ropfuscator-utils = {
-      url = "git+ssh://git@github.com/ropfuscator/utilities.git";
+      url = "github:ropfuscator/utilities";
       flake = false;
     };
     fmt = {
@@ -99,41 +99,48 @@
 
         defaultPackage = releaseBuild;
 
-       # # development shell
-       # devShell = pkgs.buildPackages.ropfuscator-llvm-debug.overrideAttrs (_: {
-       #   shellHook = ''
-       #     # move to temporary directory
-       #     cd `mktemp -d`
-       #     # unpack and configure project
-       #     echo "Preparing LLVM source tree..."
-       #     eval "$unpackPhase" && cd llvm && runHook patchPhase && eval "$configurePhase"
-       #     # get compile_commands.json and put them in root of LLVM tree
-       #     cd .. && mv build/compile_commands.json .
-       #   '';
-       # });
+        # # development shell
+        # devShell = pkgs.buildPackages.ropfuscator-llvm-debug.overrideAttrs (_: {
+        #   shellHook = ''
+        #     # move to temporary directory
+        #     cd `mktemp -d`
+        #     # unpack and configure project
+        #     echo "Preparing LLVM source tree..."
+        #     eval "$unpackPhase" && cd llvm && runHook patchPhase && eval "$configurePhase"
+        #     # get compile_commands.json and put them in root of LLVM tree
+        #     cd .. && mv build/compile_commands.json .
+        #   '';
+        # });
 
         # exposed packages
-        packages = flake-utils.lib.flattenTree {
+        packages = flake-utils.lib.flattenTree rec {
           llvm = pkgsRopfuscator.buildPackages.ropfuscator-llvm;
           clang = pkgsRopfuscator.buildPackages.ropfuscator-clang;
-          chocolateDoom = pkgsRopfuscator.chocolateDoom;
+          vanillaRopStdenv = pkgs.overrideCC pkgs.stdenv clang;
+          libcRopStdenv = pkgs.overrideCC vanillaRopStdenv
+            (vanillaRopStdenv.cc.override (old: {
+              extraBuildCommands = old.extraBuildCommands
+                + "echo '-mllvm --ropfuscator-library=${pkgs.openssl.lib}/lib/openssl.so' >> $out/nix-support/cc-cflags";
+            }));
+          libropRopStdenv = pkgs.overrideCC vanillaRopStdenv
+            (let librop-path = "${librop}/lib/librop.so";
+            in (vanillaRopStdenv.cc.override (old: {
+              extraBuildCommands = old.extraBuildCommands
+                + "echo '-mllvm --ropfuscator-library=${librop-path} ${librop-path}' >> $out/nix-support/cc-cflags";
+            })));
+
           tests = pkgsRopfuscator.callPackage ./tests.nix {
             inherit ropfuscator-utils librop;
           };
-          #  testsDebug = import ./tests.nix {
-          #    inherit ropfuscator-utils librop;
-          #    ropfuscatorStdenv = pkgs.stdenvDebug;
-          #  };
-          # justOne = pkgsVanilla.chocolateDooom.override (old: {
-          #   stdenv = pkgsVanilla.overrideCC
-          #     old.stdenv
-          #     pkgs.buildPackges.ropfuscator-clang;
-          # });
+
+          hello_zero = ropfuscateLevelZero {
+            deriv = pkgs.hello;
+            stdenv = libropRopStdenv;
+          };
         };
 
         # helper functions
-        ropfuscate =
-          { deriv, stdenv ? pkgsRopfuscator.stdenvLibrop, config ? "" }:
+        ropfuscate = { deriv, stdenv, config ? "" }:
           let
             stdenv_ = if config == "" then
               stdenv
@@ -154,22 +161,22 @@
               + lib.optionalString (config != "") "-${config_name}";
             doCheck = true;
           });
-        ropfuscateLevelZero = { deriv, stdenv ? pkgsRopfuscator.stdenvLibrop }:
+        ropfuscateLevelZero = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
             config = "${ropfuscator-utils}/configs/level0.toml";
           };
-        ropfuscateLevelOne = { deriv, stdenv ? pkgsRopfuscator.stdenvLibrop }:
+        ropfuscateLevelOne = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
             config = "${ropfuscator-utils}/configs/level1.toml";
           };
-        ropfuscateLevelTwo = { deriv, stdenv ? pkgsRopfuscator.stdenvLibrop }:
+        ropfuscateLevelTwo = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
             config = "${ropfuscator-utils}/configs/level2.toml";
           };
-        ropfuscateLevelThree = { deriv, stdenv ? pkgsRopfuscator.stdenvLibrop }:
+        ropfuscateLevelThree = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
             config = "${ropfuscator-utils}/configs/level3.toml";
