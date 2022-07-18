@@ -276,9 +276,9 @@ private:
         block.getParent()->getFunction().getParent());
     auto *gv = module->getGlobalVariable(name, true);
     if (!gv) {
-      auto *voidT = llvm::Type::getVoidTy(module->getContext());
+      auto *intT = llvm::Type::getInt8PtrTy(module->getContext());
       gv          = new llvm::GlobalVariable(*module,
-                                    voidT,
+                                    intT,
                                     true,
                                     llvm::GlobalValue::ExternalLinkage,
                                     nullptr,
