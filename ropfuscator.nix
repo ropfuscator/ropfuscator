@@ -73,7 +73,7 @@ let
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
         # add mandatory compiler flags neededed for ropfuscator to work
-        + "echo '-fno-pie -pie -Wl,-z,notext' >> $out/nix-support/cc-cflags"
+        + "echo '-pie' >> $out/nix-support/cc-cflags"
         # in case Werror is specified, treat unused command line arguments as warning anyway
         + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
