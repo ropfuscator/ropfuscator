@@ -124,7 +124,7 @@
           libcRopStdenv = pkgs.overrideCC vanillaRopStdenv
             (vanillaRopStdenv.cc.override (old: {
               extraBuildCommands = old.extraBuildCommands
-                + "echo '-mllvm --ropfuscator-library=${pkgs.openssl.lib}/lib/openssl.so' >> $out/nix-support/cc-cflags";
+                + "echo '-mllvm --ropfuscator-library=${pkgs.glibc}/lib/libc.so' >> $out/nix-support/cc-cflags";
             }));
           libropRopStdenv = pkgs.overrideCC vanillaRopStdenv
             (let librop-path = "${librop}/lib/librop.so";
