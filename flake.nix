@@ -43,7 +43,11 @@
           });
 
         localSystem = { inherit system; };
-        crossSystem = { config = "i686-unknown-linux-gnu"; };
+        crossSystem = {
+          config = "i686-unknown-linux-gnu";
+          linker = "bfd";
+          useLLVM = true;
+        };
 
         # vanilla upstream nix packages
         pkgs = import nixpkgs {
