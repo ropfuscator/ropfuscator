@@ -48,6 +48,7 @@
         localSystem = { inherit system; };
         crossSystem = {
           config = "i686-unknown-linux-gnu";
+          useLLVM = true;
         };
 
         # vanilla upstream nix packages
@@ -89,7 +90,7 @@
         };
 
         lib = nixpkgs.lib;
-        librop = (import librop-git).librop;
+        librop = pkgs.callPackage (librop-git + "/pkg.nix") { };
       in rec {
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
