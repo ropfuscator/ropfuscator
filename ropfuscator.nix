@@ -4,12 +4,10 @@ self: super:
 
 let
   LLVM10 = self.llvmPackages_10;
-  LLVM13 = self.llvmPackages_13;
 
   # this builds ropfuscator's llvm
-  llvm_derivation_function = { debug ? false, use_ccache ? false }:
-    let ccache_dir = "/nix/var/cache/ccache";
-    in (LLVM10.libllvm.override {
+  llvm_derivation_function = { debug ? false }:
+    (LLVM10.libllvm.override {
       enablePolly = false;
       debugVersion = debug;
     }).overrideAttrs (old: {
@@ -20,10 +18,6 @@ let
       doCheck = false;
       dontStrip = debug;
 
-      nativeBuildInputs = old.nativeBuildInputs ++ [ LLVM13.bintools ]
-        ++ lib.optional use_ccache
-        [ (self.buildPackages.ccache.overrideAttrs (_: { doCheck = false; })) ];
-
       cmakeFlags = old.cmakeFlags ++ [
         "-DLLVM_TARGETS_TO_BUILD=X86"
         "-DLLVM_ENABLE_BINDINGS=Off"
@@ -31,13 +25,7 @@ let
         "-DLLVM_INCLUDE_EXAMPLES=Off"
         "-DLLVM_INCLUDE_TESTS=Off"
         "-DLLVM_TARGET_ARCH=X86"
-      ] ++ lib.optional debug [ "-DCMAKE_EXPORT_COMPILE_COMMANDS=On" ]
-        ++ lib.optional use_ccache [ "-DLLVM_CCACHE_BUILD=On" ];
-
-      preConfigure = lib.optional use_ccache ''
-        export CCACHE_DIR=${ccache_dir}
-        export CCACHE_UMASK=007
-      '';
+      ] ++ lib.optional debug [ "-DCMAKE_EXPORT_COMPILE_COMMANDS=On" ];
 
       unpackPhase = old.unpackPhase + ''
         # insert ropfuscator
@@ -73,7 +61,7 @@ let
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
         # add mandatory compiler flags neededed for ropfuscator to work
-        + "echo '-pie' >> $out/nix-support/cc-cflags"
+        + "echo '-pie -fno-pic' >> $out/nix-support/cc-cflags"
         # in case Werror is specified, treat unused command line arguments as warning anyway
         + "echo '-Wno-error=unused-command-line-argument' >> $out/nix-support/cc-cflags"
         + lib.optionalString ropfuscator-llvm.debug
@@ -91,10 +79,10 @@ in {
     ropfuscator-llvm = self.ropfuscator-llvm-debug;
   };
 
-  # stdenvs
-  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
-  else
-    super.stdenv;
+#  # stdenvs
+#  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
+#    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
+#  else
+#    super.stdenv;
   #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
 }
