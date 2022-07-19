@@ -3,10 +3,7 @@
     # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
     nixpkgs.url = "github:peperunas/nixpkgs/llvm-i686-cross-fix";
     flake-utils.url = "github:numtide/flake-utils";
-    librop-git = {
-      url = "github:ropfuscator/librop";
-      flake = false;
-    };
+    librop-git = { url = "github:ropfuscator/librop"; };
     ropfuscator-utils = {
       url = "github:ropfuscator/utilities";
       flake = false;
@@ -46,10 +43,7 @@
           });
 
         localSystem = { inherit system; };
-        crossSystem = {
-          config = "i686-unknown-linux-gnu";
-          useLLVM = true;
-        };
+        crossSystem = { config = "i686-unknown-linux-gnu"; };
 
         # vanilla upstream nix packages
         pkgs = import nixpkgs {
@@ -90,7 +84,9 @@
         };
 
         lib = nixpkgs.lib;
-        librop = pkgs.callPackage (librop-git + "/pkg.nix") { };
+        librop = pkgs.callPackage (librop-git + "/pkg.nix") {
+          stdenv = pkgs.clangStdenv;
+        };
       in rec {
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
@@ -133,8 +129,9 @@
                 + "echo '-mllvm --ropfuscator-library=${librop-path} ${librop-path}' >> $out/nix-support/cc-cflags";
             })));
 
-          tests = pkgsRopfuscator.callPackage ./tests.nix {
+          tests = pkgs.callPackage ./tests.nix {
             inherit ropfuscator-utils librop;
+            stdenv = vanillaRopStdenv;
           };
 
           hello_zero = ropfuscateLevelZero {
