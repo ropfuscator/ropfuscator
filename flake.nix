@@ -84,9 +84,7 @@
         };
 
         lib = nixpkgs.lib;
-        librop = pkgs.callPackage (librop-git + "/pkg.nix") {
-          stdenv = pkgs.clangStdenv;
-        };
+        librop = librop-git.packages.${system}.librop;
       in rec {
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
