@@ -136,11 +136,65 @@
             stdenv = vanillaRopStdenv;
           };
 
-          hello_zero = ropfuscateLevelZero {
-            deriv = pkgs.hello;
+          helloZero = forceTests {
+            deriv = ropfuscateLevelZero {
+              deriv = pkgs.hello;
+              stdenv = libropRopStdenv;
+            };
+          };
+          
+          helloOne = forceTests {
+            deriv = ropfuscateLevelOne {
+              deriv = pkgs.hello;
+              stdenv = libropRopStdenv;
+            };
+          };
+          
+          helloTwo = forceTests {
+            deriv = ropfuscateLevelTwo {
+              deriv = pkgs.hello;
+              stdenv = libropRopStdenv;
+            };
+          };
+          
+          helloThree = forceTests {
+            deriv = ropfuscateLevelThree {
+              deriv = pkgs.hello;
+              stdenv = libropRopStdenv;
+            };
+          };
+
+          llvmZero = ropfuscateLevelZero {
+            deriv = pkgs.libllvm;
             stdenv = libropRopStdenv;
           };
+          llvmZeroTested = forceTests { deriv = llvmZero; };
+
+          llvmOne = ropfuscateLevelOne {
+            deriv = pkgs.libllvm;
+            stdenv = libropRopStdenv;
+          };
+          llvmOneTested = forceTests { deriv = llvmOne; };
+
+          llvmTwo = ropfuscateLevelTwo {
+            deriv = pkgs.libllvm;
+            stdenv = libropRopStdenv;
+          };
+          llvmTwoTested = forceTests { deriv = llvmTwo; };
+
+          llvmThree = ropfuscateLevelThree {
+            deriv = pkgs.libllvm;
+            stdenv = libropRopStdenv;
+          };
+          llvmThreeTested = forceTests { deriv = llvmThree; };
         };
+
+        forceTests = { deriv }:
+          deriv.overrideAttrs (old: {
+            # forcing the derivation to run tests (if any)
+            doCheck = true;
+            postPatch = (old.postPatch or "") + "export doCheck=1;";
+          });
 
         # helper functions
         ropfuscate = { deriv, stdenv, config ? "" }:
@@ -162,10 +216,6 @@
           in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
             pname = old.pname + "-ropfuscated"
               + lib.optionalString (config != "") "-${config_name}";
-
-            # forcing the derivation to run tests (if any)
-            doCheck = true;
-            postPatch = (old.postPatch or "") + "export doCheck=1;";
           });
         ropfuscateLevelZero = { deriv, stdenv }:
           ropfuscate {
