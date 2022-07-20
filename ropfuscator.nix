@@ -79,10 +79,10 @@ in {
     ropfuscator-llvm = self.ropfuscator-llvm-debug;
   };
 
-#  # stdenvs
-#  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-#    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
-#  else
-#    super.stdenv;
+  # stdenvs
+  stdenv = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
+    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
+  else
+    super.stdenv;
   #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
 }
