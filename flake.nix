@@ -162,7 +162,10 @@
           in (deriv.override { stdenv = stdenv_; }).overrideAttrs (old: {
             pname = old.pname + "-ropfuscated"
               + lib.optionalString (config != "") "-${config_name}";
+
+            # forcing the derivation to run tests (if any)
             doCheck = true;
+            postPatch = (old.postPatch or "") + "export doCheck=1;";
           });
         ropfuscateLevelZero = { deriv, stdenv }:
           ropfuscate {
