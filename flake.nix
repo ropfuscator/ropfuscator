@@ -142,27 +142,29 @@
               stdenv = libropRopStdenv;
             };
           };
-          
+
           helloOne = forceTests {
             deriv = ropfuscateLevelOne {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
-          
+
           helloTwo = forceTests {
             deriv = ropfuscateLevelTwo {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
-          
+
           helloThree = forceTests {
             deriv = ropfuscateLevelThree {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
+          
+          llvmVanilla = forceTests { deriv = pkgs.libllvm; };
 
           llvmZero = ropfuscateLevelZero {
             deriv = pkgs.libllvm;
@@ -187,6 +189,34 @@
             stdenv = libropRopStdenv;
           };
           llvmThreeTested = forceTests { deriv = llvmThree; };
+
+          nanoVanilla = forceTests { deriv = pkgs.nano; };
+
+          nanoZero = forceTests {
+            deriv = ropfuscateLevelZero {
+              deriv = pkgs.nano;
+              stdenv = libropRopStdenv;
+            };
+          };
+          nanoOne = forceTests {
+            deriv = ropfuscateLevelOne {
+              deriv = pkgs.nano;
+              stdenv = libropRopStdenv;
+            };
+          };
+
+          nanoTwo = forceTests {
+            deriv = ropfuscateLevelTwo {
+              deriv = pkgs.nano;
+              stdenv = libropRopStdenv;
+            };
+          };
+          nanoThree = forceTests {
+            deriv = ropfuscateLevelThree {
+              deriv = pkgs.nano;
+              stdenv = libropRopStdenv;
+            };
+          };
         };
 
         forceTests = { deriv }:
