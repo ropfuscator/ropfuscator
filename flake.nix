@@ -240,30 +240,30 @@
           };
           llvmThreeTested = forceTests { deriv = llvmThree; };
 
-          nanoVanilla = forceTests { deriv = pkgs.nano; };
+          coreutilsVanilla = forceTests { deriv = pkgs.coreutils; };
 
-          nanoZero = forceTests {
+          coreutilsZero = forceTests {
             deriv = ropfuscateLevelZero {
-              deriv = pkgs.nano;
+              deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
-          nanoOne = forceTests {
+          coreutilsOne = forceTests {
             deriv = ropfuscateLevelOne {
-              deriv = pkgs.nano;
+              deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
 
-          nanoTwo = forceTests {
+          coreutilsTwo = forceTests {
             deriv = ropfuscateLevelTwo {
-              deriv = pkgs.nano;
+              deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
-          nanoThree = forceTests {
+          coreutilsThree = forceTests {
             deriv = ropfuscateLevelThree {
-              deriv = pkgs.nano;
+              deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
