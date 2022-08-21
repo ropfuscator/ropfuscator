@@ -216,29 +216,33 @@
 
           llvmVanilla = forceTests { deriv = pkgs.libllvm; };
 
-          llvmZero = ropfuscateLevelZero {
-            deriv = pkgs.libllvm;
-            stdenv = libropRopStdenv;
+          llvmZero = forceTests {
+            deriv = ropfuscateLevelZero {
+              deriv = pkgs.libllvm;
+              stdenv = libropRopStdenv;
+            };
           };
-          llvmZeroTested = forceTests { deriv = llvmZero; };
 
-          llvmOne = ropfuscateLevelOne {
-            deriv = pkgs.libllvm;
-            stdenv = libropRopStdenv;
+          llvmOne = forceTests {
+            deriv = ropfuscateLevelOne {
+              deriv = pkgs.libllvm;
+              stdenv = libropRopStdenv;
+            };
           };
-          llvmOneTested = forceTests { deriv = llvmOne; };
 
-          llvmTwo = ropfuscateLevelTwo {
-            deriv = pkgs.libllvm;
-            stdenv = libropRopStdenv;
+          llvmTwo = forceTests {
+            deriv = ropfuscateLevelTwo {
+              deriv = pkgs.libllvm;
+              stdenv = libropRopStdenv;
+            };
           };
-          llvmTwoTested = forceTests { deriv = llvmTwo; };
 
-          llvmThree = ropfuscateLevelThree {
-            deriv = pkgs.libllvm;
-            stdenv = libropRopStdenv;
+          llvmThree = forceTests {
+            deriv = ropfuscateLevelThree {
+              deriv = pkgs.libllvm;
+              stdenv = libropRopStdenv;
+            };
           };
-          llvmThreeTested = forceTests { deriv = llvmThree; };
 
           coreutilsVanilla = forceTests { deriv = pkgs.coreutils; };
 
