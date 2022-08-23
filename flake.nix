@@ -91,12 +91,48 @@
         librop = librop-git.packages.${system}.librop;
 
         # helper functions
+        timePhases = { deriv }:
+          deriv.overrideAttrs (old: {
+            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc ];
+
+            preBuild = ''
+              if [ ! -x $out ]; then
+                mkdir $out
+              fi
+
+              touch $out/ropfuscator_metrics.log
+              export ROPFUSCATOR_BUILD_START=`date +%s.%N`
+            '' + (old.preBuild or "");
+            postBuild = ''
+              export ROPFUSCATOR_BUILD_END=`date +%s.%N`
+              export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
+
+              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> $out/ropfuscator_metrics.log
+            '' + (old.postBuild or "");
+
+            preCheck = ''
+              # allow phase to fail
+              set +e 
+              export ROPFUSCATOR_CHECK_START=`date +%s.%N`
+            '' + (old.preCheck or "");
+            postCheck = ''
+              set -e
+              export ROPFUSCATOR_CHECK_END=`date +%s.%N`
+              export ROPFUSCATOR_CHECK_DURATION=`echo "$ROPFUSCATOR_CHECK_END - $ROPFUSCATOR_CHECK_START" | bc`
+
+              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> $out/ropfuscator_metrics.log
+            '' + (old.postCheck or "");
+          });
+
         forceTests = { deriv }:
           deriv.overrideAttrs (old: {
             # forcing the derivation to run tests (if any)
             doCheck = true;
             postPatch = (old.postPatch or "") + "export doCheck=1;";
           });
+
+        timePhasesAndForceTests = { deriv }:
+          forceTests { deriv = timePhases { inherit deriv; }; };
 
         ropfuscate = { deriv, stdenv, config ? "" }:
           let
@@ -138,7 +174,6 @@
             inherit deriv stdenv;
             config = "${ropfuscator-utils}/configs/level3.toml";
           };
-
       in rec {
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
