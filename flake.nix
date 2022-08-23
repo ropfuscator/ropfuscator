@@ -93,7 +93,7 @@
         # helper functions
         timePhases = { deriv }:
           let
-            obfuscation_stats_file = "ropfuscator_instruction_statistics.log";
+            obfuscation_stats_file = "ropfuscator_obfuscation_stats.log";
             performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
           in deriv.overrideAttrs (old: {
@@ -128,7 +128,7 @@
               printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
 
               # find and move obfuscation stats into ropfuscator out folder
-              find . -type f -name ${obfuscation_stats_file} -exec 'mv {} ${ropfuscator_dir}' \;
+              find . -type f -name ${obfuscation_stats_file} -exec sh -c "mv {} ${ropfuscator_dir}" \;
             '' + (old.postCheck or "");
           });
 
