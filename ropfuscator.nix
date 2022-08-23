@@ -84,5 +84,8 @@ in {
     stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang; }
   else
     super.stdenv;
-  #stdenvDebug = stdenv_derivation_function { clang = ropfuscator-clang-debug; };
+  stdenvDebug = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
+    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang-debug; }
+  else
+    super.stdenv;
 }
