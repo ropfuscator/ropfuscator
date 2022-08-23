@@ -92,22 +92,27 @@
 
         # helper functions
         timePhases = { deriv }:
-          deriv.overrideAttrs (old: {
+          let
+            obfuscation_stats_file = "ropfuscator_instruction_statistics.log";
+            performance_stats_file = "ropfuscator_performance_stats.log";
+            ropfuscator_dir = "$out/ropfuscator";
+          in deriv.overrideAttrs (old: {
             nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc ];
 
             preBuild = ''
-              if [ ! -x $out ]; then
-                mkdir $out
+              if [ ! -x ${ropfuscator_dir} ]; then
+                mkdir -p ${ropfuscator_dir}
               fi
 
-              touch $out/ropfuscator_metrics.log
+              touch ${ropfuscator_dir}/${performance_stats_file}
+
               export ROPFUSCATOR_BUILD_START=`date +%s.%N`
             '' + (old.preBuild or "");
             postBuild = ''
               export ROPFUSCATOR_BUILD_END=`date +%s.%N`
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
 
-              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> $out/ropfuscator_metrics.log
+              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
             '' + (old.postBuild or "");
 
             preCheck = ''
@@ -120,7 +125,10 @@
               export ROPFUSCATOR_CHECK_END=`date +%s.%N`
               export ROPFUSCATOR_CHECK_DURATION=`echo "$ROPFUSCATOR_CHECK_END - $ROPFUSCATOR_CHECK_START" | bc`
 
-              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> $out/ropfuscator_metrics.log
+              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+
+              # find and move obfuscation stats into ropfuscator out folder
+              find . -type f -name ${obfuscation_stats_file} -exec 'mv {} ${ropfuscator_dir}' \;
             '' + (old.postCheck or "");
           });
 
