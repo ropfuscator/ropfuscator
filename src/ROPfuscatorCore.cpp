@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cmath>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -335,19 +336,28 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  if (config.globalConfig.printInstrStat) {
-    dbg_fmt(
-        "{:^7}\t{:^15}\t{:^15}\n",
-        "op-id",
-        "op-name",
-        ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+  if (config.globalConfig.writeInstrStat) {
+    std::ofstream f(ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE, std::ios_base::app);
+    
+    for (auto &kv : instr_stat) {
+      auto out_str = fmt::format("{:^7}\t{:^15}\t{}\n",
+              kv.first,
+              TII->getName(kv.first),
+              kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+      f << out_str;
+    }
 
+    f.close();
+  }
+
+  if (config.globalConfig.printInstrStat) { 
     for (auto &kv : instr_stat) {
       dbg_fmt("{:^7}\t{:^15}\t{}\n",
               kv.first,
               TII->getName(kv.first),
               kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
     }
+
 
     dbg_fmt("============================================================\n");
     dbg_fmt("Total ROP chain elements: {}\n", total_chain_elems);
