@@ -221,86 +221,89 @@
             stdenv = vanillaRopStdenv;
           };
 
-          helloZero = forceTests {
+          helloVanilla = timePhasesAndForceTests { deriv = pkgs.hello; };
+
+          helloZero = timePhasesAndForceTests {
             deriv = ropfuscateLevelZero {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloOne = forceTests {
+          helloOne = timePhasesAndForceTests {
             deriv = ropfuscateLevelOne {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloTwo = forceTests {
+          helloTwo = timePhasesAndForceTests {
             deriv = ropfuscateLevelTwo {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloThree = forceTests {
+          helloThree = timePhasesAndForceTests {
             deriv = ropfuscateLevelThree {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmVanilla = forceTests { deriv = pkgs.libllvm; };
+          llvmVanilla = timePhasesAndForceTests { deriv = pkgs.libllvm; };
 
-          llvmZero = forceTests {
+          llvmZero = timePhasesAndForceTests {
             deriv = ropfuscateLevelZero {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmOne = forceTests {
+          llvmOne = timePhasesAndForceTests {
             deriv = ropfuscateLevelOne {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmTwo = forceTests {
+          llvmTwo = timePhasesAndForceTests {
             deriv = ropfuscateLevelTwo {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmThree = forceTests {
+          llvmThree = timePhasesAndForceTests {
             deriv = ropfuscateLevelThree {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          coreutilsVanilla = forceTests { deriv = pkgs.coreutils; };
+          coreutilsVanilla =
+            timePhasesAndForceTests { deriv = pkgs.coreutils; };
 
-          coreutilsZero = forceTests {
+          coreutilsZero = timePhasesAndForceTests {
             deriv = ropfuscateLevelZero {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
-          coreutilsOne = forceTests {
+          coreutilsOne = timePhasesAndForceTests {
             deriv = ropfuscateLevelOne {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
 
-          coreutilsTwo = forceTests {
+          coreutilsTwo = timePhasesAndForceTests {
             deriv = ropfuscateLevelTwo {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
-          coreutilsThree = forceTests {
+          coreutilsThree = timePhasesAndForceTests {
             deriv = ropfuscateLevelThree {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
