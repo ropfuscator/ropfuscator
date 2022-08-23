@@ -30,6 +30,7 @@ namespace ropf {
 #define CONFIG_PRINT_INSTR_STAT    "print_instr_stat"
 #define CONFIG_USE_CHAIN_LABEL     "use_chain_label"
 #define CONFIG_RNG_SEED            "rng_seed"
+#define CONFIG_WRITE_INSTR_STAT    "write_instr_stat"
 
 // =========================
 // Functions-specific options
@@ -134,12 +135,14 @@ struct GlobalConfig {
   bool useChainLabel;
   // random number generator seed
   size_t rng_seed;
+  // if enabled, write instruction obfuscation statistics to file
+  bool writeInstrStat;
 
   GlobalConfig()
       : libraryPath(), librarySHA1(), linkedLibraries(),
         obfuscationEnabled(true), searchSegmentForGadget(true),
         avoidMultiversionSymbol(false), showProgress(false),
-        printInstrStat(false), useChainLabel(false), rng_seed(0) {}
+        printInstrStat(false), useChainLabel(false), rng_seed(0), writeInstrStat(false) {}
 };
 
 struct ROPfuscatorConfig {

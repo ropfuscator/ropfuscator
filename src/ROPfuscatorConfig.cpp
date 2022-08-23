@@ -326,6 +326,12 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
                 CONFIG_GENERAL_SECTION,
                 CONFIG_RNG_SEED,
                 (int &)globalConfig.rng_seed);
+    
+    // Write instruction statistics to file
+    parseOption(*general_section,
+                CONFIG_GENERAL_SECTION,
+                CONFIG_WRITE_INSTR_STAT,
+                globalConfig.writeInstrStat);
   }
 
   // =====================================
