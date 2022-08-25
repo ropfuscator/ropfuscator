@@ -195,6 +195,17 @@
           inherit pkgs;
           stdenv = packages.vanillaRopStdenv;
         };
+        # pkgs.buildPackages.ropfuscator-llvm-debug.overrideAttrs (_: {
+        #   shellHook = ''
+        #     # move to temporary directory
+        #     cd `mktemp -d`
+        #     # unpack and configure project
+        #     echo "Preparing LLVM source tree..."
+        #     eval "$unpackPhase" && cd llvm && runHook patchPhase && eval "$configurePhase"
+        #     # get compile_commands.json and put them in root of LLVM tree
+        #     cd .. && mv build/compile_commands.json .
+        #   '';
+        # });
 
         # exposed packages
         packages = flake-utils.lib.flattenTree rec {
