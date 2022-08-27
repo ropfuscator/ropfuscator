@@ -799,9 +799,6 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   curr_func_count++;
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
-    dbg_fmt("[*] Extracting gadgets from: {}\n",
-            config.globalConfig.libraryPath);
-
     if (config.globalConfig.linkedLibraries.empty()) {
       for (std::string libname : {"libgcc_s.so.1",
                                   "libpthread.so.0",
