@@ -13,6 +13,7 @@
 #define ROPFUSCATOR_INSTRUCTION_STAT
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
+#define ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE "ropfuscator_obfuscation_stats.log"
 #include <map>
 #endif
 

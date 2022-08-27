@@ -14,13 +14,13 @@
 #include "OpaqueConstruct.h"
 #include "ROPEngine.h"
 #include "ROPfuscatorConfig.h"
+#include "Utils.h"
 #include "X86.h"
 #include "X86AssembleHelper.h"
 #include "X86MachineFunctionInfo.h"
 #include "X86RegisterInfo.h"
 #include "X86Subtarget.h"
 #include "X86TargetMachine.h"
-#include "Utils.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/CommandLine.h"
@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cmath>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -75,7 +76,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
     return os;
   }
 
-  friend std::ostream &operator<<(std::ostream &           os,
+  friend std::ostream &operator<<(std::ostream            &os,
                                   const ROPChainStatEntry &entry) {
     return entry.printTo(os, DEBUG_FMT_NORMAL);
   }
@@ -305,7 +306,7 @@ public:
   }
 };
 
-ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
+ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
                                  const ROPfuscatorConfig &config)
     : config(config), BA(nullptr), TII(nullptr) {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
@@ -335,13 +336,31 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module &           module,
 
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  if (config.globalConfig.printInstrStat) {
-    dbg_fmt(
-        "{:^7}\t{:^15}\t{:^15}\n",
-        "op-id",
-        "op-name",
-        ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+  if (config.globalConfig.writeInstrStat) {
+    std::ofstream f(ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE,
+                    std::ios_base::app);
 
+    // if empty, print header
+    f.seekp(0, std::ios::end);
+    if (!f.tellp())
+      f << fmt::format(
+          "{:^15}\t{}\n",
+          "OPCODE",
+          ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+
+    for (auto &kv : instr_stat) {
+      auto out_str =
+          fmt::format("{:^15}\t{}\n",
+                      TII->getName(kv.first),
+                      kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+      f << out_str;
+    }
+
+    f.flush();
+    f.close();
+  }
+
+  if (config.globalConfig.printInstrStat) {
     for (auto &kv : instr_stat) {
       dbg_fmt("{:^7}\t{:^15}\t{}\n",
               kv.first,
@@ -364,9 +383,9 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 #endif
 }
 
-void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
-                                     MachineBasicBlock &         MBB,
-                                     MachineInstr &              MI,
+void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
+                                     MachineBasicBlock          &MBB,
+                                     MachineInstr               &MI,
                                      int                         chainID,
                                      const ObfuscationParameter &param) {
   auto as = X86AssembleHelper(MBB, MI.getIterator());
@@ -499,7 +518,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain &                  chain,
 
     case ChainElem::Type::GADGET: {
       // Get a random symbol to reference this gadget in memory
-      const Symbol *               sym       = BA->getRandomSymbol();
+      const Symbol                *sym       = BA->getRandomSymbol();
       // Choose a random address in the gadget
       const std::vector<uint64_t> &addresses = elem.microgadget->addresses;
       std::vector<uint32_t>        offsets;

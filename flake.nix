@@ -92,22 +92,27 @@
 
         # helper functions
         timePhases = { deriv }:
-          deriv.overrideAttrs (old: {
-            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc ];
+          let
+            obfuscation_stats_file = "ropfuscator_obfuscation_stats.log";
+            performance_stats_file = "ropfuscator_performance_stats.log";
+            ropfuscator_dir = "$out/ropfuscator";
+          in deriv.overrideAttrs (old: {
+            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc pkgs.datamash ];
 
             preBuild = ''
-              if [ ! -x $out ]; then
-                mkdir $out
+              if [ ! -x ${ropfuscator_dir} ]; then
+                mkdir -p ${ropfuscator_dir}
               fi
 
-              touch $out/ropfuscator_metrics.log
+              touch ${ropfuscator_dir}/${performance_stats_file}
+
               export ROPFUSCATOR_BUILD_START=`date +%s.%N`
             '' + (old.preBuild or "");
             postBuild = ''
               export ROPFUSCATOR_BUILD_END=`date +%s.%N`
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
 
-              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> $out/ropfuscator_metrics.log
+              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
             '' + (old.postBuild or "");
 
             preCheck = ''
@@ -120,7 +125,13 @@
               export ROPFUSCATOR_CHECK_END=`date +%s.%N`
               export ROPFUSCATOR_CHECK_DURATION=`echo "$ROPFUSCATOR_CHECK_END - $ROPFUSCATOR_CHECK_START" | bc`
 
-              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> $out/ropfuscator_metrics.log
+              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+
+              # find and move obfuscation stats into ropfuscator out folder
+              find . -type f -name ${obfuscation_stats_file} -exec sh -c "mv {} ${ropfuscator_dir}/tmp" \;
+
+              # process and prettify obfuscation stats
+              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby OPCODE sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file} && rm ${ropfuscator_dir}/tmp
             '' + (old.postCheck or "");
           });
 
@@ -183,14 +194,22 @@
         defaultPackage = releaseBuild;
 
         # development shell
-        devShell = import ./shell.nix {
-          inherit pkgs;
-          stdenv = packages.vanillaRopStdenv;
-        };
+        devShell = packages.llvmDebug.overrideAttrs (_: {
+          shellHook = ''
+            # move to temporary directory
+            cd `mktemp -d`
+            # unpack and configure project
+            echo "Preparing LLVM source tree..."
+            eval "$unpackPhase" && cd llvm && runHook patchPhase && eval "$configurePhase"
+            # get compile_commands.json and put them in root of LLVM tree
+            cd .. && mv build/compile_commands.json .
+          '';
+        });
 
         # exposed packages
         packages = flake-utils.lib.flattenTree rec {
           llvm = pkgsRopfuscator.buildPackages.ropfuscator-llvm;
+          llvmDebug = pkgsRopfuscator.buildPackages.ropfuscator-llvm-debug;
           clang = pkgsRopfuscator.buildPackages.ropfuscator-clang;
           vanillaRopStdenv = pkgs.overrideCC pkgs.stdenv clang;
           libcRopStdenv = pkgs.overrideCC vanillaRopStdenv
