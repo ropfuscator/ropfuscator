@@ -22,8 +22,6 @@
     , tinytoml, fmt }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        zlib-fix = import ./zlib-fix.nix;
-
         ropfuscatorLibcOverlay = (self: super: {
           stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
             (old: {
@@ -52,7 +50,6 @@
         # vanilla upstream nix packages
         pkgs = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [ zlib-fix ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
@@ -60,7 +57,6 @@
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
           overlays = [
-            zlib-fix
             (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
           ];
         };
@@ -70,7 +66,6 @@
         pkgsRopfuscatorLibc = import nixpkgs {
           inherit localSystem crossSystem;
           overlays = [
-            zlib-fix
             (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
           ];
           crossOverlays = [ ropfuscatorLibcOverlay ];
@@ -81,7 +76,6 @@
         pkgsRopfuscatorLibrop = import nixpkgs {
           inherit localSystem crossSystem;
           overlays = [
-            zlib-fix
             (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
           ];
           crossOverlays = [ ropfuscatorLibropOverlay ];
