@@ -97,7 +97,7 @@
             performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
           in deriv.overrideAttrs (old: {
-            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc ];
+            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc pkgs.datamash ];
 
             preBuild = ''
               if [ ! -x ${ropfuscator_dir} ]; then
@@ -128,7 +128,10 @@
               printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
 
               # find and move obfuscation stats into ropfuscator out folder
-              find . -type f -name ${obfuscation_stats_file} -exec sh -c "mv {} ${ropfuscator_dir}" \;
+              find . -type f -name ${obfuscation_stats_file} -exec sh -c "mv {} ${ropfuscator_dir}/tmp" \;
+
+              # process and prettify obfuscation stats
+              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby OPCODE sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file} && rm ${ropfuscator_dir}/tmp
             '' + (old.postCheck or "");
           });
 
