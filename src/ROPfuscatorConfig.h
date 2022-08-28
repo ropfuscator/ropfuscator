@@ -70,31 +70,31 @@ namespace ropf {
 /// obfuscation configuration parameter for each function
 struct ObfuscationParameter {
   /// true if obfuscation is enabled for this function
-  bool obfuscationEnabled;
+  bool         obfuscationEnabled;
   /// true if opaque construct is enabled for this function
-  bool opaquePredicatesEnabled;
+  bool         opaquePredicatesEnabled;
   /// true if obfuscation of immediate operand is enabled for this function
   /// (only effective if opaquePredicatesEnabled == true)
-  bool opaqueImmediateOperandsEnabled;
+  bool         opaqueImmediateOperandsEnabled;
   /// percentage of total immediate operands to obfuscate for this function
   unsigned int opaqueImmediateOperandsPercentage;
   /// true if contextual opaque predicate is enabled
-  bool contextualOpaquePredicatesEnabled;
+  bool         contextualOpaquePredicatesEnabled;
   /// true if obfuscation of branch address is enabled for this function
   /// (only effective if opaquePredicatesEnabled == true)
-  bool opaqueBranchTargetsEnabled;
+  bool         opaqueBranchTargetsEnabled;
   /// percentage of total branches to obfuscate for this function
   unsigned int opaqueBranchTargetsPercentage;
   /// true if saved stack values should be obfuscated
-  bool opaqueSavedStackValuesEnabled;
+  bool         opaqueSavedStackValuesEnabled;
   /// true if gadget addresses should be obfuscated with opaque constants
-  bool opaqueGadgetAddressesEnabled;
+  bool         opaqueGadgetAddressesEnabled;
   /// percentage of total addresses to obfuscate for this function
   unsigned int gadgetAddressesObfuscationPercentage;
   /// opaque constant algorithm for this function
-  std::string opaqueConstantsAlgorithm;
+  std::string  opaqueConstantsAlgorithm;
   /// opaque predicate input generation algorithm for this function
-  std::string opaqueInputGenAlgorithm;
+  std::string  opaqueInputGenAlgorithm;
 
   ObfuscationParameter()
       : obfuscationEnabled(true), opaquePredicatesEnabled(false),
@@ -111,38 +111,39 @@ struct ObfuscationParameter {
 /// obfuscation configuration for the entire compilation unit
 struct GlobalConfig {
   // [BinaryAutopsy] library path where the gadgets are extracted
-  std::string libraryPath;
+  std::string              libraryPath;
   // [BinaryAutopsy] expected library sha1 hash where the gadgets are extracted
   // If set, SHA1 hash is checked and stop obfuscation if it does not match
-  std::string librarySHA1;
+  std::string              librarySHA1;
   // [BinaryAutopsy] other library paths linked at run-time
   // If set, the symbol names in these libraries are put in avoid-list in gadget
   std::vector<std::string> linkedLibraries;
   // true if obfuscation is enabled, false if obfuscation is disabled globally
-  bool obfuscationEnabled;
+  bool                     obfuscationEnabled;
   // [BinaryAutopsy] If set to true, find gadget in code segment instead of code
   // section (which will find more gadgets since code segment is wider)
-  bool searchSegmentForGadget;
+  bool                     searchSegmentForGadget;
   // [BinaryAutopsy] If set to true, symbols which have multiple versions are
   // not used; if set to false, only one version of those symbols is used. (angr
   // will not work correctly if this is set to false)
-  bool avoidMultiversionSymbol;
+  bool                     avoidMultiversionSymbol;
   // show obfuscation progress
-  bool showProgress;
+  bool                     showProgress;
   // print instruction obfuscated status
-  bool printInstrStat;
+  bool                     printInstrStat;
   // use chain label
-  bool useChainLabel;
+  bool                     useChainLabel;
   // random number generator seed
-  size_t rng_seed;
+  size_t                   rng_seed;
   // if enabled, write instruction obfuscation statistics to file
-  bool writeInstrStat;
+  bool                     writeInstrStat;
 
   GlobalConfig()
       : libraryPath(), librarySHA1(), linkedLibraries(),
         obfuscationEnabled(true), searchSegmentForGadget(true),
         avoidMultiversionSymbol(false), showProgress(false),
-        printInstrStat(false), useChainLabel(false), rng_seed(0), writeInstrStat(false) {}
+        printInstrStat(false), useChainLabel(false), rng_seed(0),
+        writeInstrStat(false) {}
 };
 
 struct ROPfuscatorConfig {

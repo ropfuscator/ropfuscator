@@ -59,18 +59,18 @@ class BinaryAutopsy {
 private:
   // Singleton
   static BinaryAutopsy *instance;
-  BinaryAutopsy(const GlobalConfig &       config,
-                const llvm::Module &       module,
+  BinaryAutopsy(const GlobalConfig        &config,
+                const llvm::Module        &module,
                 const llvm::TargetMachine &target,
-                llvm::MCContext &          context);
+                llvm::MCContext           &context);
   BinaryAutopsy()                      = delete;
   BinaryAutopsy(const BinaryAutopsy &) = delete;
   ~BinaryAutopsy();
 
-  const llvm::Module &       module;
+  const llvm::Module        &module;
   const llvm::TargetMachine &target;
-  llvm::MCContext &          context;
-  const GlobalConfig &       config;
+  llvm::MCContext           &context;
+  const GlobalConfig        &config;
 
 public:
   // XchgGraph instance
@@ -98,7 +98,7 @@ public:
   bool isModuleSymbolAnalysed;
 
   // getInstance - returns an instance of this singleton class
-  static BinaryAutopsy *getInstance(const GlobalConfig &   config,
+  static BinaryAutopsy *getInstance(const GlobalConfig    &config,
                                     llvm::MachineFunction &MF);
 
   // -----------------------------------------------------------------------------
@@ -162,7 +162,7 @@ public:
                                 unsigned int op0,
                                 unsigned int op1 = llvm::X86::NoRegister) const;
 
-  ROPChain findGadgetPrimitive(XchgState &  state,
+  ROPChain findGadgetPrimitive(XchgState   &state,
                                GadgetType   type,
                                unsigned int reg1,
                                unsigned int reg2 = llvm::X86::NoRegister) const;

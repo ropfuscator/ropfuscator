@@ -13,7 +13,8 @@
 #define ROPFUSCATOR_INSTRUCTION_STAT
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-#define ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD "ropfuscator_obfuscation_stats"
+#define ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD                           \
+  "ropfuscator_obfuscation_stats"
 #include <map>
 #endif
 
@@ -37,19 +38,19 @@ class ChainElementSelector;
 
 class ROPfuscatorCore {
 public:
-  explicit ROPfuscatorCore(llvm::Module &           module,
+  explicit ROPfuscatorCore(llvm::Module            &module,
                            const ROPfuscatorConfig &config);
   ~ROPfuscatorCore();
   void obfuscateFunction(llvm::MachineFunction &MF);
 
 private:
   ROPfuscatorConfig         config;
-  BinaryAutopsy *           BA;
+  BinaryAutopsy            *BA;
   const llvm::X86InstrInfo *TII;
-  ChainElementSelector *gadgetAddressSelector;
-  ChainElementSelector *immediateSelector;
-  ChainElementSelector *branchTargetSelector;
-  std::string sourceFileName;
+  ChainElementSelector     *gadgetAddressSelector;
+  ChainElementSelector     *immediateSelector;
+  ChainElementSelector     *branchTargetSelector;
+  std::string               sourceFileName;
 
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
@@ -63,14 +64,14 @@ private:
   // Randomly reduces the number of specific type(s) of chain elements to the
   // specified percentage. The indices of the chain elements are saved into
   // outVector.
-  void reduceChainElemTypeToPercentage(ROPChain &                   chain,
+  void reduceChainElemTypeToPercentage(ROPChain                    &chain,
                                        unsigned int                 percentage,
                                        std::vector<ChainElem::Type> elemTypes,
-                                       std::vector<unsigned> &      outVector);
+                                       std::vector<unsigned>       &outVector);
 
-  void insertROPChain(ROPChain &                  chain,
-                      llvm::MachineBasicBlock &   MBB,
-                      llvm::MachineInstr &        MI,
+  void insertROPChain(ROPChain                   &chain,
+                      llvm::MachineBasicBlock    &MBB,
+                      llvm::MachineInstr         &MI,
                       int                         chainID,
                       const ObfuscationParameter &param);
 };

@@ -19,7 +19,7 @@ typedef MCPhysReg reg_type;
 typedef unsigned int reg_type;
 #endif
 
-void addReg(MachineInstr &                             MI,
+void addReg(MachineInstr                              &MI,
             int                                        reg,
             map<MachineInstr *, vector<unsigned int>> &regs) {
   auto it = regs.find(&MI);
@@ -38,8 +38,8 @@ performLivenessAnalysis(MachineBasicBlock &MBB) {
   map<MachineInstr *, vector<unsigned int>> regs;
   vector<unsigned int>                      emptyVect;
 
-  const MachineFunction *    MF  = MBB.getParent();
-  const TargetRegisterInfo & TRI = *MF->getSubtarget().getRegisterInfo();
+  const MachineFunction     *MF  = MBB.getParent();
+  const TargetRegisterInfo  &TRI = *MF->getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MRI = MF->getRegInfo();
   LivePhysRegs               LiveRegs(TRI);
   LiveRegs.addLiveIns(MBB);

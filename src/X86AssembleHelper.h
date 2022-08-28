@@ -62,7 +62,7 @@ public:
     }
   };
 
-  X86AssembleHelper(llvm::MachineBasicBlock &         block,
+  X86AssembleHelper(llvm::MachineBasicBlock          &block,
                     llvm::MachineBasicBlock::iterator position)
       : block(block), position(position), ctx(block.getParent()->getContext()),
         TII(block.getParent()->getTarget().getMCInstrInfo()) {}
@@ -218,10 +218,10 @@ public:
   }
 
 private:
-  llvm::MachineBasicBlock &         block;
+  llvm::MachineBasicBlock          &block;
   llvm::MachineBasicBlock::iterator position;
-  llvm::MCContext &                 ctx;
-  const llvm::MCInstrInfo *         TII;
+  llvm::MCContext                  &ctx;
+  const llvm::MCInstrInfo          *TII;
 
   void _instr(unsigned int opcode) const {
     BuildMI(block, position, nullptr, TII->get(opcode));
@@ -277,7 +277,7 @@ private:
     auto *gv = module->getGlobalVariable(name, true);
     if (!gv) {
       auto *intT = llvm::Type::getInt8PtrTy(module->getContext());
-      gv          = new llvm::GlobalVariable(*module,
+      gv         = new llvm::GlobalVariable(*module,
                                     intT,
                                     true,
                                     llvm::GlobalValue::ExternalLinkage,
@@ -292,7 +292,7 @@ private:
     auto *data_alloc = block.getParent()->createExternalSymbolName(
         llvm::StringRef((const char *)data, size));
     llvm::StringRef dataRef(data_alloc, size);
-    auto *          module = const_cast<llvm::Module *>(
+    auto           *module = const_cast<llvm::Module *>(
         block.getParent()->getFunction().getParent());
     llvm::Constant *constant =
         llvm::ConstantDataArray::getString(module->getContext(),

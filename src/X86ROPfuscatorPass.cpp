@@ -68,12 +68,12 @@ public:
     if (!MF.getSubtarget<X86Subtarget>().is32Bit()) {
       return false;
     }
-    
+
     if (ropfuscator) {
       ropfuscator->obfuscateFunction(MF);
       return true;
     }
-    
+
     return false;
   }
 

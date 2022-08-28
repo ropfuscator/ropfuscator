@@ -51,7 +51,7 @@ struct OpaqueStorage {
     /// when type == REG, contains the register (LLVM)
     llvm_reg_t reg;
     /// when type == STACK, contains the stack offset
-    int stackOffset;
+    int        stackOffset;
   };
 
   static const OpaqueStorage EAX, ECX, EDX, EBX;
@@ -106,7 +106,7 @@ struct OpaqueValue {
   /// when type == CONSTANT | CONSTANT_MULTIPLE, contains the constant value(s)
   std::vector<uint32_t> values;
   /// when type == CONTEXTUAL, contains the compute function
-  compute_fun_type compute;
+  compute_fun_type      compute;
 
   /// create a value with type == ANY.
   static OpaqueValue createAny() { return OpaqueValue(Type::ANY, {}, nullptr); }
@@ -173,18 +173,18 @@ struct OpaqueState {
 class OpaqueConstruct {
 public:
   /// get input constraints.
-  virtual OpaqueState getInput() const = 0;
+  virtual OpaqueState             getInput() const                       = 0;
   /// get output constraints.
-  virtual OpaqueState getOutput() const = 0;
+  virtual OpaqueState             getOutput() const                      = 0;
   /// get clobbered registers, including flag registers.
   /// it is the responsibility of invoker to save the registers.
-  virtual std::vector<llvm_reg_t> getClobberedRegs() const = 0;
+  virtual std::vector<llvm_reg_t> getClobberedRegs() const               = 0;
   /// generate x86 code which implements the opaque construct.
   /// @param as assembler to generate instruction
   /// @param stack current stack offset and saved registers
-  virtual void compile(X86AssembleHelper &as, StackState &stack) const = 0;
+  virtual void   compile(X86AssembleHelper &as, StackState &stack) const = 0;
   /// return the number of opaque predicates (stegano insertion points)
-  virtual size_t opaquePredicateCount() const = 0;
+  virtual size_t opaquePredicateCount() const                            = 0;
   /// virtual destructor
   virtual ~OpaqueConstruct();
 };
@@ -201,8 +201,8 @@ public:
   static std::shared_ptr<OpaqueConstruct>
   createOpaqueConstant32(const OpaqueStorage &target,
                          uint32_t             value,
-                         const std::string &  algorithm,
-                         const std::string &  inputAlgorithm,
+                         const std::string   &algorithm,
+                         const std::string   &inputAlgorithm,
                          bool                 contextualOpEnabled);
 
   /// create a 32-bit opaque constant with random result value.
@@ -212,8 +212,8 @@ public:
   /// @param contextualOpEnabled true if contextual opaque predicate is enabled
   static std::shared_ptr<OpaqueConstruct>
   createOpaqueConstant32(const OpaqueStorage &target,
-                         const std::string &  algorithm,
-                         const std::string &  inputAlgorithm,
+                         const std::string   &algorithm,
+                         const std::string   &inputAlgorithm,
                          bool                 contextualOpEnabled);
 
   /// create a 32-bit opaque constant with specified algorithm.
@@ -222,9 +222,9 @@ public:
   /// @param algorithm opaque constant algorithm, in the form of
   ///  "randomgenerator+selector"
   static std::shared_ptr<OpaqueConstruct>
-  createBranchingOpaqueConstant32(const OpaqueStorage &        target,
+  createBranchingOpaqueConstant32(const OpaqueStorage         &target,
                                   const std::vector<uint32_t> &values,
-                                  const std::string &          algorithm);
+                                  const std::string           &algorithm);
 
   /// create a 32-bit opaque constant with specified algorithm.
   /// @param target target location into which the value is stored
@@ -234,10 +234,10 @@ public:
   static std::shared_ptr<OpaqueConstruct>
   createBranchingOpaqueConstant32(const OpaqueStorage &target,
                                   size_t               n_choices,
-                                  const std::string &  algorithm);
+                                  const std::string   &algorithm);
 
   static std::shared_ptr<OpaqueConstruct>
-  createValueAdjustor(const OpaqueStorage &        target,
+  createValueAdjustor(const OpaqueStorage         &target,
                       const std::vector<uint32_t> &inputvalues,
                       const std::vector<uint32_t> &outputvalues);
 

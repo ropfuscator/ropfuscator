@@ -222,9 +222,9 @@ private:
   std::unique_ptr<ELF32LEFile> elf;
   std::vector<char>            buf;
   mutable std::string          sha1hash;
-  const ELF32LE::Shdr *        dynsym;
-  const ELF32LE::Shdr *        verdef;
-  const ELF32LE::Shdr *        versym;
+  const ELF32LE::Shdr         *dynsym;
+  const ELF32LE::Shdr         *verdef;
+  const ELF32LE::Shdr         *versym;
   StringRef                    dynstrtab;
   std::vector<std::string>     verdefs;
 
@@ -299,10 +299,10 @@ private:
   }
 };
 
-BinaryAutopsy::BinaryAutopsy(const GlobalConfig & config,
-                             const Module &       module,
+BinaryAutopsy::BinaryAutopsy(const GlobalConfig  &config,
+                             const Module        &module,
                              const TargetMachine &target,
-                             MCContext &          context)
+                             MCContext           &context)
     : module(module), target(target), context(context), config(config),
       elf(new ELFParser(config.libraryPath)) {
   std::string sha1 = elf->getSHA1HashHex();
@@ -339,7 +339,7 @@ void BinaryAutopsy::dissect(ELFParser *elf) {
 
 BinaryAutopsy *BinaryAutopsy::instance = 0;
 
-BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &   config,
+BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig    &config,
                                           llvm::MachineFunction &MF) {
   if (instance == nullptr) {
     instance = new BinaryAutopsy(config,
@@ -351,7 +351,7 @@ BinaryAutopsy *BinaryAutopsy::getInstance(const GlobalConfig &   config,
   return instance;
 }
 
-void BinaryAutopsy::dumpSegments(const ELFParser *     elf,
+void BinaryAutopsy::dumpSegments(const ELFParser      *elf,
                                  std::vector<Section> &segments) const {
   for (auto &seg : elf->getCodeSegments()) {
     segments.push_back(
@@ -359,7 +359,7 @@ void BinaryAutopsy::dumpSegments(const ELFParser *     elf,
   }
 }
 
-void BinaryAutopsy::dumpSections(const ELFParser *     elf,
+void BinaryAutopsy::dumpSections(const ELFParser      *elf,
                                  std::vector<Section> &sections) const {
   DEBUG_WITH_TYPE(SECTIONS,
                   dbg_fmt("[SECTIONS]\tLooking for CODE sections... \n"));
@@ -374,7 +374,7 @@ void BinaryAutopsy::dumpSections(const ELFParser *     elf,
   }
 }
 
-void BinaryAutopsy::dumpDynamicSymbols(const ELFParser *    elf,
+void BinaryAutopsy::dumpDynamicSymbols(const ELFParser     *elf,
                                        std::vector<Symbol> &Symbols,
                                        bool                 safeOnly) const {
   // dbg_fmt("[*] Scanning for symbols... \n");
@@ -476,14 +476,14 @@ const Symbol *BinaryAutopsy::getRandomSymbol() const {
 extern "C" void LLVMInitializeX86Disassembler();
 
 class DisassemblerHelper {
-  MCDisassembler *     disasm;
+  MCDisassembler      *disasm;
   X86IntelInstPrinter *printer;
   ArrayRef<uint8_t>    data;
 
 public:
   DisassemblerHelper(const TargetMachine &target,
-                     MCContext &          context,
-                     const ELFParser &    elf) {
+                     MCContext           &context,
+                     const ELFParser     &elf) {
     LLVMInitializeX86Disassembler();
     disasm =
         target.getTarget().createMCDisassembler(*target.getMCSubtargetInfo(),
@@ -546,7 +546,7 @@ public:
 };
 
 void BinaryAutopsy::dumpGadgets(
-    const ELFParser *                          elf,
+    const ELFParser                           *elf,
     std::vector<std::shared_ptr<Microgadget>> &gadgets) const {
   DisassemblerHelper disasm(target, context, *elf);
 
@@ -904,7 +904,7 @@ bool BinaryAutopsy::areExchangeable(unsigned int a, unsigned int b) const {
   return xgraph.checkPath(a, b, pred, dist, visited);
 }
 
-ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState &  state,
+ROPChain BinaryAutopsy::findGadgetPrimitive(XchgState   &state,
                                             GadgetType   type,
                                             unsigned int reg1,
                                             unsigned int reg2) const {
@@ -997,7 +997,7 @@ ROPChain BinaryAutopsy::buildXchgChain(XchgPath const &path) const {
   return result;
 }
 
-ROPChain BinaryAutopsy::exchangeRegs(XchgState &  state,
+ROPChain BinaryAutopsy::exchangeRegs(XchgState   &state,
                                      unsigned int reg1,
                                      unsigned int reg2) const {
   ROPChain result;

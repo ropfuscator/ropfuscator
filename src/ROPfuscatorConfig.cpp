@@ -35,7 +35,7 @@ template <typename T>
 inline bool parseOption(const toml::Value &section,
                         const std::string &sectionname,
                         const std::string &key,
-                        T &                ref) {
+                        T                 &ref) {
   if (const toml::Value *v = section.find(key)) {
     if (!v->is<T>()) {
       dbg_fmt("TOML parse warning: {}.{} should have type {}, thus ignored\n",
@@ -47,10 +47,11 @@ inline bool parseOption(const toml::Value &section,
     }
     const auto &value = v->as<T>();
     ref               = value;
-    
-// TODO: implement formattable<T> for libfmt
-//    DEBUG_WITH_TYPE(OBF_CONFIG,
-//                   dbg_fmt("Setting {}.{} to {}\n", sectionname, key, value));
+
+    // TODO: implement formattable<T> for libfmt
+    //    DEBUG_WITH_TYPE(OBF_CONFIG,
+    //                   dbg_fmt("Setting {}.{} to {}\n", sectionname, key,
+    //                   value));
     return true;
   }
 
@@ -84,8 +85,8 @@ std::set<std::string> validBranchDivergenceAlgorithmNames = {
     OPAQUE_BRANCH_ALGORITHM_RDTSC_MOV,
 };
 
-void parseFunctionOptions(const toml::Value &   config,
-                          const std::string &   tomlSect,
+void parseFunctionOptions(const toml::Value    &config,
+                          const std::string    &tomlSect,
                           ObfuscationParameter &funcParam) {
 
   /* =========================
@@ -326,7 +327,7 @@ void ROPfuscatorConfig::loadFromFile(const std::string &filename) {
                 CONFIG_GENERAL_SECTION,
                 CONFIG_RNG_SEED,
                 (int &)globalConfig.rng_seed);
-    
+
     // Write instruction statistics to file
     parseOption(*general_section,
                 CONFIG_GENERAL_SECTION,

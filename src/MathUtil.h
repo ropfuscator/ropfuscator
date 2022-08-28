@@ -32,11 +32,11 @@ class Matrix {
 
 public:
   class View {
-    Matrix &     matrix;
+    Matrix      &matrix;
     unsigned int offX, offY, M, N;
 
   public:
-    View(Matrix &     matrix,
+    View(Matrix      &matrix,
          unsigned int offX,
          unsigned int offY,
          unsigned int M,
@@ -57,7 +57,7 @@ public:
     }
     unsigned int width() const { return M; }
     unsigned int height() const { return N; }
-    View &       operator=(const View &other) {
+    View        &operator=(const View &other) {
       assert(width() == other.width() && height() == other.height());
       for (unsigned int i = 0; i < height(); i++) {
         for (unsigned int j = 0; j < width(); j++) {
@@ -153,14 +153,14 @@ public:
         return result;
       }
 
-      unsigned int n1 = (N + 1) / 2;
-      unsigned int n2 = N - n1;
+      unsigned int n1   = (N + 1) / 2;
+      unsigned int n2   = N - n1;
       // split matrix
-      View   A    = view(0, 0, n1, n1);
-      View   B    = view(n1, 0, n2, n1);
-      View   C    = view(0, n1, n1, n2);
-      View   D    = view(n1, n1, n2, n2);
-      Matrix InvA = A.inverse_mod(modulus);
+      View         A    = view(0, 0, n1, n1);
+      View         B    = view(n1, 0, n2, n1);
+      View         C    = view(0, n1, n1, n2);
+      View         D    = view(n1, n1, n2, n2);
+      Matrix       InvA = A.inverse_mod(modulus);
 
       if (InvA.width() == 0) {
         return Matrix(0, 0); // failure

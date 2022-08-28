@@ -50,7 +50,7 @@ namespace { // implementation details
 // symbolic (random) value implementation
 
 void moveConstant(X86AssembleHelper &as,
-                  StackState &       stack,
+                  StackState        &stack,
                   unsigned int       targetReg,
                   uint32_t           value,
                   size_t             size) {
@@ -81,8 +81,8 @@ void moveConstant(X86AssembleHelper &as,
   }
 }
 
-void moveMixedRegs(X86AssembleHelper &              as,
-                   StackState &                     stack,
+void moveMixedRegs(X86AssembleHelper               &as,
+                   StackState                      &stack,
                    unsigned int                     targetReg,
                    const std::vector<unsigned int> &regs) {
   // targetReg := targetReg + sum(regs)
@@ -138,8 +138,8 @@ void moveMixedRegs(X86AssembleHelper &              as,
 
 class RuntimeValueGenerator {
 public:
-  virtual void compile(X86AssembleHelper &            as,
-                       StackState &                   stack,
+  virtual void compile(X86AssembleHelper             &as,
+                       StackState                    &stack,
                        const std::vector<llvm_reg_t> &targetRegs,
                        const std::vector<llvm_reg_t> &sourceRegs) const = 0;
   virtual ~RuntimeValueGenerator() = default;
@@ -147,8 +147,8 @@ public:
 
 class ConstantRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &            as,
-               StackState &                   stack,
+  void compile(X86AssembleHelper             &as,
+               StackState                    &stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     for (llvm_reg_t target : targetRegs) {
@@ -166,8 +166,8 @@ public:
 
 class AddRegRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &            as,
-               StackState &                   stack,
+  void compile(X86AssembleHelper             &as,
+               StackState                    &stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     if (targetRegs.size() > 1) {
@@ -189,8 +189,8 @@ public:
 
 class RdtscRuntimeValueGenerator : RuntimeValueGenerator {
 public:
-  void compile(X86AssembleHelper &            as,
-               StackState &                   stack,
+  void compile(X86AssembleHelper             &as,
+               StackState                    &stack,
                const std::vector<llvm_reg_t> &targetRegs,
                const std::vector<llvm_reg_t> &sourceRegs) const override {
     if (targetRegs.size() == 1) {
@@ -287,7 +287,7 @@ public:
   MovConstant32(const OpaqueStorage &target, uint32_t value)
       : target(target), value(value) {}
 
-  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+  static OpaqueConstruct *create(const OpaqueStorage                   &target,
                                  uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
@@ -436,7 +436,7 @@ private:
 
 class MultiplyCompareBasedOpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<MultiplyCompareOpaquePredicate>> predicates;
-  const OpaqueStorage &                                        target;
+  const OpaqueStorage                                         &target;
   uint32_t                                                     value;
   std::shared_ptr<RuntimeValueGenerator>                       rvg;
 
@@ -455,7 +455,7 @@ public:
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+  static OpaqueConstruct *create(const OpaqueStorage                   &target,
                                  uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
@@ -507,7 +507,7 @@ public:
 
 private:
   void compileConstant(X86AssembleHelper &as,
-                       StackState &       stack,
+                       StackState        &stack,
                        uint32_t           eax,
                        uint32_t           edx) const {
     moveConstant(as, stack, X86::EAX, eax, 3);
@@ -769,12 +769,12 @@ public:
 
 class Random3SAT32OpaqueConstant : public OpaqueConstant32 {
   std::vector<std::shared_ptr<Random3SAT32OpaquePredicate>> predicates;
-  const OpaqueStorage &                                     target;
+  const OpaqueStorage                                      &target;
   uint32_t                                                  value;
   std::shared_ptr<RuntimeValueGenerator>                    rvg;
 
 public:
-  Random3SAT32OpaqueConstant(const OpaqueStorage &                  target,
+  Random3SAT32OpaqueConstant(const OpaqueStorage                   &target,
                              uint32_t                               value,
                              std::shared_ptr<RuntimeValueGenerator> rvg,
                              bool contextualOpEnabled)
@@ -788,7 +788,7 @@ public:
     }
   }
 
-  static OpaqueConstruct *create(const OpaqueStorage &                  target,
+  static OpaqueConstruct *create(const OpaqueStorage                   &target,
                                  uint32_t                               value,
                                  std::shared_ptr<RuntimeValueGenerator> rvg,
                                  bool contextualOpEnabled) {
@@ -844,10 +844,10 @@ public:
 
 private:
   void compileConstant(X86AssembleHelper &as,
-                       StackState &       stack,
+                       StackState        &stack,
                        uint32_t           value) const {
     moveConstant(as, stack, X86::EDX, value, 6);
-  } 
+  }
   void compileRandom(X86AssembleHelper &as, StackState &stack) const {
     // moveMixedRegs(as, stack, X86::EDX,
     //               {X86::EAX, X86::EBX, X86::ECX, X86::EDI, X86::ESI});
@@ -864,12 +864,14 @@ private:
 
 class MovRandomSelectorOC : public OpaqueConstruct {
 public:
-  MovRandomSelectorOC(const OpaqueStorage &        target,
+  MovRandomSelectorOC(const OpaqueStorage         &target,
                       const std::vector<uint32_t> &values)
       : target(target), values(values) {
-    std::shuffle(this->values.begin(), this->values.end(), math::Random::engine());
+    std::shuffle(this->values.begin(),
+                 this->values.end(),
+                 math::Random::engine());
   }
-  static OpaqueConstruct *create(const OpaqueStorage &        target,
+  static OpaqueConstruct *create(const OpaqueStorage         &target,
                                  const std::vector<uint32_t> &values) {
     return new MovRandomSelectorOC(target, values);
   }
@@ -912,14 +914,14 @@ private:
   OpaqueStorage         target;
   std::vector<uint32_t> values;
 
-  void compileAux(X86AssembleHelper &             as,
-                  const X86AssembleHelper::Reg &  target,
-                  const X86AssembleHelper::Reg &  tmpreg,
+  void compileAux(X86AssembleHelper              &as,
+                  const X86AssembleHelper::Reg   &target,
+                  const X86AssembleHelper::Reg   &tmpreg,
                   const X86AssembleHelper::Label &endLabel,
                   uint32_t                        m,
                   uint32_t                        n,
                   uint32_t                        flag,
-                  bool &                          labelUsed) const {
+                  bool                           &labelUsed) const {
     if (n == 1) {
       as.mov(target, as.imm(values[m]));
       if (m + n != values.size()) {
@@ -1021,13 +1023,15 @@ public:
 //   not implemented. maybe matrix-modulo-inverse based implementation?
 class ValueAdjustingOpaqueConstruct : public OpaqueConstruct {
 public:
-  ValueAdjustingOpaqueConstruct(const OpaqueStorage &        target,
+  ValueAdjustingOpaqueConstruct(const OpaqueStorage         &target,
                                 const std::vector<uint32_t> &inputvalues,
                                 const std::vector<uint32_t> &outputvalues)
       : target(target), inputvalues(inputvalues), outputvalues(outputvalues) {
     assert(inputvalues.size() == outputvalues.size());
     std::sort(this->inputvalues.begin(), this->inputvalues.end());
-    std::shuffle(this->outputvalues.begin(), this->outputvalues.end(), math::Random::engine());
+    std::shuffle(this->outputvalues.begin(),
+                 this->outputvalues.end(),
+                 math::Random::engine());
   }
 
   void compile(X86AssembleHelper &as, StackState &stack) const override {
@@ -1077,11 +1081,11 @@ private:
   std::vector<uint32_t> inputvalues;
   std::vector<uint32_t> outputvalues;
 
-  void compileAux(X86AssembleHelper &             as,
+  void compileAux(X86AssembleHelper              &as,
                   uint32_t                        pos,
                   uint32_t                        N,
                   unsigned int                    targetreg,
-                  bool &                          endLabelUsed,
+                  bool                           &endLabelUsed,
                   const X86AssembleHelper::Label &endLabel) const {
     if (N == 1) {
       uint32_t xorval = inputvalues[pos] ^ outputvalues[pos];
@@ -1139,7 +1143,7 @@ private:
   bool computeParams(uint32_t               pos,
                      uint32_t               N,
                      std::vector<uint32_t> &params,
-                     uint32_t &             shift) const {
+                     uint32_t              &shift) const {
     math::Matrix mat(N, N);
     for (uint32_t s = 0; s + N < 32 + 2; s++) {
       for (uint32_t i = 0; i < N; i++) {
@@ -1210,7 +1214,7 @@ std::map<std::string,
 template <typename Result, typename... Args>
 Result *
 callFactory(const std::map<std::string, oc_factory<Result, Args...>> &factories,
-            const std::string &                                       key,
+            const std::string                                        &key,
             Args &&...args) {
   auto it = factories.find(key);
   return it == factories.end() ? nullptr
@@ -1224,8 +1228,8 @@ callFactory(const std::map<std::string, oc_factory<Result, Args...>> &factories,
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
     const OpaqueStorage &target,
     uint32_t             value,
-    const std::string &  algorithm,
-    const std::string &  inputAlgorithm,
+    const std::string   &algorithm,
+    const std::string   &inputAlgorithm,
     bool                 contextualOpEnabled) {
   std::shared_ptr<RuntimeValueGenerator> rvg {
       callFactory(runtimevaluegen_factories, inputAlgorithm)};
@@ -1250,8 +1254,8 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
     const OpaqueStorage &target,
-    const std::string &  algorithm,
-    const std::string &  inputAlgorithm,
+    const std::string   &algorithm,
+    const std::string   &inputAlgorithm,
     bool                 contextualOpEnabled) {
   uint32_t value = math::Random::rand();
   return createOpaqueConstant32(target,
@@ -1263,9 +1267,9 @@ std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createOpaqueConstant32(
 
 std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createBranchingOpaqueConstant32(
-    const OpaqueStorage &        target,
+    const OpaqueStorage         &target,
     const std::vector<uint32_t> &values,
-    const std::string &          algorithm) {
+    const std::string           &algorithm) {
   std::string random_algo   = OPAQUE_RANDOM_ALGORITHM_ADDREG,
               selector_algo = OPAQUE_SELECTOR_ALGORITHM_MOV;
   size_t pos                = algorithm.find("+");
@@ -1301,7 +1305,7 @@ std::shared_ptr<OpaqueConstruct>
 OpaqueConstructFactory::createBranchingOpaqueConstant32(
     const OpaqueStorage &target,
     size_t               n_choices,
-    const std::string &  algorithm) {
+    const std::string   &algorithm) {
   std::set<uint32_t> values;
   while (values.size() < n_choices) {
     values.insert(math::Random::rand());
@@ -1317,7 +1321,7 @@ OpaqueConstructFactory::compose(std::shared_ptr<OpaqueConstruct> f,
 }
 
 std::shared_ptr<OpaqueConstruct> OpaqueConstructFactory::createValueAdjustor(
-    const OpaqueStorage &        target,
+    const OpaqueStorage         &target,
     const std::vector<uint32_t> &inputvalues,
     const std::vector<uint32_t> &outputvalues) {
   return std::shared_ptr<OpaqueConstruct>(

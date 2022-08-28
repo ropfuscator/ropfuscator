@@ -30,7 +30,7 @@ enum class FlagSaveMode { NOT_SAVED, SAVE_BEFORE_EXEC, SAVE_AFTER_EXEC };
 class ROPChain {
 public:
   std::vector<ChainElem> chain;
-  ChainElem *            successor; // jump target at the end of chain
+  ChainElem             *successor; // jump target at the end of chain
   FlagSaveMode           flagSave;
   bool hasNormalInstr, hasConditionalJump, hasUnconditionalJump;
   // call target information, if this chain calls other function
@@ -146,16 +146,16 @@ class ROPEngine {
   ROPChainStatus handleCallReg(llvm::MachineInstr *,
                                std::vector<unsigned int> &scratchRegs);
   bool convertOperandToChainPushImm(const llvm::MachineOperand &operand,
-                                    ChainElem &                 result);
+                                    ChainElem                  &result);
 
 public:
   // Constructor
   ROPEngine(const BinaryAutopsy &BA);
 
-  ROPChainStatus ropify(llvm::MachineInstr &       MI,
+  ROPChainStatus ropify(llvm::MachineInstr        &MI,
                         std::vector<unsigned int> &scratchRegs,
                         bool                       shouldFlagSaved,
-                        ROPChain &                 resultChain);
+                        ROPChain                  &resultChain);
 
   void mergeChains(ROPChain &chain1, const ROPChain &chain2);
 };

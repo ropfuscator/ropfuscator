@@ -30,11 +30,11 @@ struct ChainElem {
     // global - global symbol address
     const llvm::GlobalValue *global;
     // pointer to a microgadget
-    const Microgadget *microgadget;
+    const Microgadget       *microgadget;
     // jump target MBB
     llvm::MachineBasicBlock *jmptarget;
     // id for ESP_PUSH and ESP_OFFSET
-    int esp_id;
+    int                      esp_id;
   };
 
   // value - immediate value
