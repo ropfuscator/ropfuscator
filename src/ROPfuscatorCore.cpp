@@ -310,6 +310,8 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
                                  const ROPfuscatorConfig &config)
     : config(config), BA(nullptr), TII(nullptr),
       sourceFileName(module.getSourceFileName()) {
+  // the filename might contain slashes, replacing them to dashes
+  std::replace(sourceFileName.begin(), sourceFileName.end(), '/', '-');
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems   = 0;
   stegano_chain_elems = 0;
@@ -339,10 +341,11 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.writeInstrStat) {
-    std::ofstream f(fmt::format("{}-{}",
-                                ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
-                                sourceFileName),
-                    std::ios_base::app);
+    auto logfile = fmt::format("{}-{}",
+                               ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
+                               sourceFileName);
+    dbg_fmt("[*] Writing coverage information in {}\n", logfile);
+    std::ofstream f(logfile, std::ios_base::app);
 
     // if empty, print header
     f.seekp(0, std::ios::end);
