@@ -48,26 +48,22 @@
         };
 
         # vanilla upstream nix packages
-        pkgs = import nixpkgs {
-          inherit localSystem crossSystem;
-        };
+        pkgs = import nixpkgs { inherit localSystem crossSystem; };
 
         # upstream nix packages that use ROPfuscator as default compiler
         # the pass is disabled, though, because no library is defined
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [
-            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
-          ];
+          overlays =
+            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
         # with libc as default library
         pkgsRopfuscatorLibc = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [
-            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
-          ];
+          overlays =
+            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
           crossOverlays = [ ropfuscatorLibcOverlay ];
         };
 
@@ -75,9 +71,8 @@
         # with librop as default library
         pkgsRopfuscatorLibrop = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays = [
-            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
-          ];
+          overlays =
+            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
           crossOverlays = [ ropfuscatorLibropOverlay ];
         };
 
@@ -91,7 +86,8 @@
             performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
           in deriv.overrideAttrs (old: {
-            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.bc pkgs.datamash ];
+            nativeBuildInputs = (old.nativeBuildInputs or [ ])
+              ++ [ pkgs.bc pkgs.datamash ];
 
             preBuild = ''
               if [ ! -x ${ropfuscator_dir} ]; then
@@ -180,7 +176,13 @@
             config = "${ropfuscator-utils}/configs/level3.toml";
           };
       in rec {
+        # expose packages
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
+
+        # expose helper functions
+        inherit ropfuscate ropfuscateLevelZero ropfuscateLevelOne
+          ropfuscateLevelTwo ropfuscateLevelThree;
+        inherit timePhases timePhasesAndForceTests;
 
         releaseBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang;
         debugBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang-debug;
