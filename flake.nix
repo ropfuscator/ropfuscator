@@ -103,13 +103,6 @@
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
 
               printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
-
-              # find and move obfuscation stats into ropfuscator out folder
-              find . -type f -name "${obfuscation_stats_file_header}*" -exec sh -c "([[ ! -x ${ropfuscator_dir}/tmp ]] && cat {} > ${ropfuscator_dir}/tmp || (sed -u 1q {} >> ${ropfuscator_dir}/tmp)) && mv {} ${ropfuscator_dir}" \;
-
-              # process and prettify obfuscation stats.
-              # paste header into total coverage file
-              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby 1 sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file_header}
             '' + (old.postBuild or "");
 
             preCheck = ''
