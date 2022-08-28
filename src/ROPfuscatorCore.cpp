@@ -308,7 +308,8 @@ public:
 
 ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
                                  const ROPfuscatorConfig &config)
-    : config(config), BA(nullptr), TII(nullptr) {
+    : config(config), BA(nullptr), TII(nullptr),
+      sourceFileName(module.getSourceFileName()) {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems   = 0;
   stegano_chain_elems = 0;
@@ -320,6 +321,7 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
       total_func_count++;
     }
   }
+
   if (config.globalConfig.rng_seed) {
     math::Random::engine().seed(config.globalConfig.rng_seed);
   }
@@ -337,7 +339,9 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.writeInstrStat) {
-    std::ofstream f(ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE,
+    std::ofstream f(fmt::format("{}-{}",
+                                ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
+                                sourceFileName),
                     std::ios_base::app);
 
     // if empty, print header
