@@ -82,7 +82,7 @@
         # helper functions
         timePhases = { deriv }:
           let
-            obfuscation_stats_file = "ropfuscator_obfuscation_stats.log";
+            obfuscation_stats_file_header = "ropfuscator_obfuscation_stats";
             performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
           in deriv.overrideAttrs (old: {
@@ -103,6 +103,13 @@
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
 
               printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+
+              # find and move obfuscation stats into ropfuscator out folder
+              find . -type f -name "${obfuscation_stats_file_header}*" -exec sh -c "([[ ! -x ${ropfuscator_dir}/tmp ]] && cat {} > ${ropfuscator_dir}/tmp || (sed -u 1q {} >> ${ropfuscator_dir}/tmp)) && mv {} ${ropfuscator_dir}" \;
+
+              # process and prettify obfuscation stats.
+              # paste header into total coverage file
+              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby 1 sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file_header}
             '' + (old.postBuild or "");
 
             preCheck = ''
@@ -118,10 +125,11 @@
               printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
 
               # find and move obfuscation stats into ropfuscator out folder
-              find . -type f -name ${obfuscation_stats_file} -exec sh -c "mv {} ${ropfuscator_dir}/tmp" \;
+              find /build -type f -name "${obfuscation_stats_file_header}*" -exec sh -c "([[ ! -x ${ropfuscator_dir}/tmp ]] && cat {} > ${ropfuscator_dir}/tmp || (sed -u 1q {} >> ${ropfuscator_dir}/tmp)) && mv {} ${ropfuscator_dir}" \;
 
-              # process and prettify obfuscation stats
-              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby OPCODE sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file} && rm ${ropfuscator_dir}/tmp
+              # process and prettify obfuscation stats.
+              # paste header into total coverage file
+              cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby 1 sum 2,3,4,5,6,7,8 | tr "\\t" "," > ${ropfuscator_dir}/${obfuscation_stats_file_header} && rm ${ropfuscator_dir}/tmp
             '' + (old.postCheck or "");
           });
 
