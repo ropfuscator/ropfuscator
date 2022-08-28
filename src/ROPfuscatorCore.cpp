@@ -339,7 +339,7 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
 ROPfuscatorCore::~ROPfuscatorCore() {
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.writeInstrStat) {
-    std::ofstream f(fmt::format("{}-{}.log",
+    std::ofstream f(fmt::format("{}-{}",
                                 ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
                                 sourceFileName),
                     std::ios_base::app);
