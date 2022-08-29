@@ -1,4 +1,4 @@
-{ lib, fmt, tinytoml, stdenv }:
+{ lib, fmt, tinytoml }:
 
 self: super:
 
@@ -8,7 +8,6 @@ let
   # this builds ropfuscator's llvm
   llvm_derivation_function = { debug ? false }:
     (LLVM10.libllvm.override {
-      inherit stdenv;
       enablePolly = false;
       debugVersion = debug;
     }).overrideAttrs (old: {
@@ -52,13 +51,12 @@ let
   # this builds and wraps ropfuscator's clang
   clang_derivation_function = { ropfuscator-llvm }:
     let
-      clang-unwrapped = (LLVM10.libclang.override {
-        inherit stdenv;
-        libllvm = ropfuscator-llvm;
-      }).overrideAttrs (old: {
-        pname = "ropfuscator-clang"
-          + lib.optionalString ropfuscator-llvm.debug "-debug";
-      });
+      clang-unwrapped =
+        (LLVM10.libclang.override { libllvm = ropfuscator-llvm; }).overrideAttrs
+        (old: {
+          pname = "ropfuscator-clang"
+            + lib.optionalString ropfuscator-llvm.debug "-debug";
+        });
     in LLVM10.clang.override (old: {
       cc = clang-unwrapped;
       extraBuildCommands = old.extraBuildCommands
@@ -87,9 +85,7 @@ in {
   else
     super.stdenv;
   stdenvDebug = if super.stdenv.hostPlatform != super.stdenv.buildPlatform then
-    stdenv_derivation_function {
-      clang = self.buildPackages.ropfuscator-clang-debug;
-    }
+    stdenv_derivation_function { clang = self.buildPackages.ropfuscator-clang-debug; }
   else
     super.stdenv;
 }
