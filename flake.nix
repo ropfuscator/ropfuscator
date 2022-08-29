@@ -54,16 +54,24 @@
         # the pass is disabled, though, because no library is defined
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            (import ./ropfuscator.nix {
+              inherit (pkgs) stdenv;
+              inherit tinytoml fmt lib;
+            })
+          ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
         # with libc as default library
         pkgsRopfuscatorLibc = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            (import ./ropfuscator.nix {
+              inherit (pkgs) stdenv;
+              inherit tinytoml fmt lib;
+            })
+          ];
           crossOverlays = [ ropfuscatorLibcOverlay ];
         };
 
@@ -71,8 +79,12 @@
         # with librop as default library
         pkgsRopfuscatorLibrop = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            (import ./ropfuscator.nix {
+              inherit (pkgs) stdenv;
+              inherit tinytoml fmt lib;
+            })
+          ];
           crossOverlays = [ ropfuscatorLibropOverlay ];
         };
 
@@ -83,7 +95,8 @@
         timePhases = { deriv }:
           let
             obfuscation_stats_file_header = "ropfuscator_obfuscation_stats";
-            aggregated_obfuscation_stats_file = "ropfuscator_obfuscation_stats-aggregated";
+            aggregated_obfuscation_stats_file =
+              "ropfuscator_obfuscation_stats-aggregated";
             performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
           in deriv.overrideAttrs (old: {
