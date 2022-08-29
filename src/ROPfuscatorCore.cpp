@@ -314,7 +314,6 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
   std::replace(sourceFileName.begin(), sourceFileName.end(), '/', '-');
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems   = 0;
-  stegano_chain_elems = 0;
 #endif
   total_func_count = 0;
   curr_func_count  = 0;
@@ -379,11 +378,6 @@ ROPfuscatorCore::~ROPfuscatorCore() {
 
     dbg_fmt("============================================================\n");
     dbg_fmt("Total ROP chain elements: {}\n", total_chain_elems);
-
-    if (stegano_chain_elems > 0) {
-      dbg_fmt("ROP chain elements hidden in opaque predicates: {}\n",
-              stegano_chain_elems);
-    }
   }
 
   delete gadgetAddressSelector;

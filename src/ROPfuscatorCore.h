@@ -56,7 +56,6 @@ private:
   struct ROPChainStatEntry;
   std::map<unsigned, ROPChainStatEntry> instr_stat;
   size_t                                total_chain_elems;
-  size_t                                stegano_chain_elems;
   size_t                                total_instructions;
 #endif
   // for progress report
