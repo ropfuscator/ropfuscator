@@ -363,6 +363,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
       f << out_str;
     }
 
+    f << fmt::format("Total instructions: {}\n", total_instructions);
+
     f.flush();
     f.close();
   }
@@ -964,6 +966,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
     instrToDelete.clear();
   }
+
+  total_instructions = processed;
 
   // print obfuscation stats for this function
   DEBUG_WITH_TYPE(OBF_STATS,
