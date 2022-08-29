@@ -323,8 +323,6 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
     if (!f.empty()) {
       total_func_count++;
     }
-
-    total_instructions += f.getInstructionCount();
   }
 
   if (config.globalConfig.rng_seed) {
@@ -340,9 +338,8 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
 
     // if the file is empty, write header and total instructions
     if (!f.tellp()) {
-      dbg_fmt("[*] Writing total instructions and header in {}\n", logfile);
+      dbg_fmt("[*] Writing header in {}\n", logfile);
 
-      f << fmt::format("Total instructions: {}\n", total_instructions);
       f << fmt::format(
           "{:^15}\t{}\n",
           "OPCODE",
@@ -381,6 +378,9 @@ ROPfuscatorCore::~ROPfuscatorCore() {
                       kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
       f << out_str;
     }
+
+    if (total_instructions)
+      f << fmt::format("Total instructions: {}\n", total_instructions);
 
     f.flush();
     f.close();
@@ -818,6 +818,8 @@ void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
 
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   curr_func_count++;
+  total_instructions += MF.getInstructionCount();
+
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
     if (config.globalConfig.linkedLibraries.empty()) {
