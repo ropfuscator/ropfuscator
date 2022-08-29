@@ -193,8 +193,7 @@ public:
               unsigned int offY,
               unsigned int m,
               unsigned int n) const {
-      assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
-             n + offY <= N);
+      assert(m + offX <= M && n + offY <= N);
       return View(matrix, this->offX + offX, this->offY + offY, m, n);
     }
   };
@@ -212,8 +211,7 @@ public:
   View         view() { return View(*this, 0, 0, M, N); }
   View
   view(unsigned int offX, unsigned int offY, unsigned int m, unsigned int n) {
-    assert(offX >= 0 && offY >= 0 && m >= 0 && n >= 0 && m + offX <= M &&
-           n + offY <= N);
+    assert(m + offX <= M && n + offY <= N);
     return View(*this, offX, offY, m, n);
   }
   Matrix operator+(const View &other) const {
