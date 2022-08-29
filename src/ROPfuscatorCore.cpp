@@ -313,7 +313,7 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
   // the filename might contain slashes, replacing them to dashes
   std::replace(sourceFileName.begin(), sourceFileName.end(), '/', '-');
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  total_chain_elems   = 0;
+  total_chain_elems = 0;
 #endif
   total_func_count = 0;
   curr_func_count  = 0;
@@ -321,10 +321,36 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
     if (!f.empty()) {
       total_func_count++;
     }
+
+    total_instructions += f.getInstructionCount();
   }
 
   if (config.globalConfig.rng_seed) {
     math::Random::engine().seed(config.globalConfig.rng_seed);
+  }
+
+  if (config.globalConfig.writeInstrStat) {
+    auto          logfile = fmt::format("{}-{}",
+                               ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
+                               sourceFileName);
+    std::ofstream f(logfile, std::ios_base::app);
+    f.seekp(0, std::ios::end);
+
+    // if the file is empty, write header and total instructions
+    if (!f.tellp()) {
+      dbg_fmt("[*] Writing total instructions and header in {}\n", logfile);
+
+      f << fmt::format("Total instructions: {}\n", total_instructions);
+      f << fmt::format(
+          "{:^15}\t{}\n",
+          "OPCODE",
+          ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
+
+      f.flush();
+      f.close();
+    } else {
+      dbg_fmt("[*] {} exists already!\n", logfile);
+    }
   }
 
   gadgetAddressSelector =
@@ -346,14 +372,6 @@ ROPfuscatorCore::~ROPfuscatorCore() {
     dbg_fmt("[*] Writing coverage information in {}\n", logfile);
     std::ofstream f(logfile, std::ios_base::app);
 
-    // if empty, print header
-    f.seekp(0, std::ios::end);
-    if (!f.tellp())
-      f << fmt::format(
-          "{:^15}\t{}\n",
-          "OPCODE",
-          ROPChainStatEntry::headerString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
-
     for (auto &kv : instr_stat) {
       auto out_str =
           fmt::format("{:^15}\t{}\n",
@@ -361,8 +379,6 @@ ROPfuscatorCore::~ROPfuscatorCore() {
                       kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
       f << out_str;
     }
-
-    f << fmt::format("Total instructions: {}\n", total_instructions);
 
     f.flush();
     f.close();
@@ -874,6 +890,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       MachineInstr &MI = *it;
 
       if (MI.isDebugInstr()) {
+        dbg_fmt("[*] Found debug instruction\n");
         continue;
       }
 
@@ -960,8 +977,6 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
     instrToDelete.clear();
   }
-
-  total_instructions = processed;
 
   // print obfuscation stats for this function
   DEBUG_WITH_TYPE(OBF_STATS,
