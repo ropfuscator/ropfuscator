@@ -58,9 +58,9 @@ struct ROPfuscatorCore::ROPChainStatEntry {
   static constexpr const char *DEBUG_FMT_NORMAL =
       "stat: ropfuscated {0} / total {6}\n[not-implemented: {1} | "
       "no-register: {2} | no-gadget: {3} "
-      "| unsupported: {4} | unsupported-esp: {5}]";
+      "| unsupported: {4} | unsupported-esp: {5} | debug-instr: {6}]";
   static constexpr const char *DEBUG_FMT_SIMPLE =
-      "{0:^13}\t{1:^13}\t{2:^13}\t{3:^13}\t{4:^13}\t{5:^13}\t{6:^13}";
+      "{0:^13}\t{1:^13}\t{2:^13}\t{3:^13}\t{4:^13}\t{5:^13}\t{6:^13}\t{7:^13}";
 
   std::ostream &printTo(std::ostream &os, const char *fmt) const {
     const ROPChainStatEntry &entry = *this;
@@ -72,6 +72,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
                entry[ROPChainStatus::ERR_NO_GADGETS_AVAILABLE],
                entry[ROPChainStatus::ERR_UNSUPPORTED],
                entry[ROPChainStatus::ERR_UNSUPPORTED_STACKPOINTER],
+               entry[ROPChainStatus::ERR_DEBUG_INSTRUCTION],
                entry.total());
     return os;
   }
@@ -95,6 +96,7 @@ struct ROPfuscatorCore::ROPChainStatEntry {
                        "no-gadget",
                        "unsupported",
                        "unsupported-esp",
+                       "debug-instr",
                        "total");
   }
 };
@@ -890,7 +892,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       MachineInstr &MI = *it;
 
       if (MI.isDebugInstr()) {
-        dbg_fmt("[*] Found debug instruction\n");
+        instr_stat[MI.getOpcode()][ROPChainStatus::ERR_DEBUG_INSTRUCTION]++;
         continue;
       }
 

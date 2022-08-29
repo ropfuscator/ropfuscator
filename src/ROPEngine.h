@@ -97,6 +97,7 @@ enum class ROPChainStatus {
   ERR_UNSUPPORTED, // known instruction, but not supported for some reason
   ERR_UNSUPPORTED_STACKPOINTER, // not supported as it uses/modifies stack
                                 // pointer
+  ERR_DEBUG_INSTRUCTION,     // debug instruction
   COUNT
 };
 
