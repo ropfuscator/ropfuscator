@@ -154,6 +154,20 @@
         timePhasesAndForceTests = { deriv }:
           forceTests { deriv = timePhases { inherit deriv; }; };
 
+        noOptimize = deriv:
+          deriv.overrideAttrs (old: {
+            pname = old.pname ++ "-ozero";
+            NIX_CFLAGS_COMPILE = "-O0";
+            NIX_CXXFLAGS_COMPILE = "-O0";
+          });
+
+        optimize = deriv:
+          deriv.overrideAttrs (old: {
+            pname = old.pname ++ "-othree";
+            NIX_CFLAGS_COMPILE = "-O3";
+            NIX_CXXFLAGS_COMPILE = "-O3";
+          });
+
         ropfuscate = { deriv, stdenv, config ? "" }:
           let
             stdenv_ = if config == "" then
