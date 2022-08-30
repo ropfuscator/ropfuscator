@@ -371,16 +371,16 @@ ROPfuscatorCore::~ROPfuscatorCore() {
     dbg_fmt("[*] Writing coverage information in {}\n", logfile);
     std::ofstream f(logfile, std::ios_base::app);
 
-    for (auto &kv : instr_stat) {
-      auto out_str =
-          fmt::format("{:^15}\t{}\n",
-                      TII->getName(kv.first),
-                      kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
-      f << out_str;
-    }
+    for (auto &kv : instr_stat)
+      f << fmt::format("{:^15}\t{}\n",
+                       TII->getName(kv.first),
+                       kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
 
-    if (total_instructions)
-      f << fmt::format("Total instructions: {}\n", total_instructions);
+    if (module_total_instructions != processed_instructions) {
+      dbg_fmt("Module instructions: {} | Processed instructions: {}\n",
+              module_total_instructions,
+              processed_instructions);
+    }
 
     f.flush();
     f.close();
@@ -402,6 +402,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
   delete immediateSelector;
   delete branchTargetSelector;
 #endif
+
+  assert(module_total_instructions == processed_instructions);
 }
 
 void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
@@ -818,7 +820,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
 
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   curr_func_count++;
-  total_instructions += MF.getInstructionCount();
+  module_total_instructions += MF.getInstructionCount();
 
   // create a new singleton instance of Binary Autopsy
   if (BA == nullptr) {
@@ -869,7 +871,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   }
 
   // stats
-  int processed = 0, obfuscated = 0;
+  size_t obfuscated                      = 0;
+  size_t processed_function_instructions = 0;
 
   // ASM labels for each ROP chain
   int chainID = 0;
@@ -899,7 +902,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       }
 
       DEBUG_WITH_TYPE(PROCESSED_INSTR, dbg_fmt("    {}", MI));
-      processed++;
+      processed_instructions++;
+      processed_function_instructions++;
 
       // get the list of scratch registers available for this instruction
       std::vector<unsigned int> MIScratchRegs =
@@ -983,12 +987,13 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
   }
 
   // print obfuscation stats for this function
-  DEBUG_WITH_TYPE(OBF_STATS,
-                  dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
-                          funcName,
-                          obfuscated,
-                          processed,
-                          (obfuscated * 100) / processed));
+  DEBUG_WITH_TYPE(
+      OBF_STATS,
+      dbg_fmt("{}: {}/{} ({}%) instructions obfuscated\n",
+              funcName,
+              obfuscated,
+              processed_function_instructions,
+              (obfuscated * 100) / processed_function_instructions));
 }
 
 } // namespace ropf

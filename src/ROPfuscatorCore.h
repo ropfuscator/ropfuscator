@@ -55,11 +55,13 @@ private:
 #ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
   std::map<unsigned, ROPChainStatEntry> instr_stat;
-  size_t                                total_chain_elems  = 0;
-  size_t                                total_instructions = 0;
+  size_t                                total_chain_elems = 0;
 #endif
+  size_t module_total_instructions = 0;
+  size_t processed_instructions    = 0;
   // for progress report
-  size_t total_func_count = 0, curr_func_count = 0;
+  size_t total_func_count          = 0;
+  size_t curr_func_count           = 0;
 
   // Randomly reduces the number of specific type(s) of chain elements to the
   // specified percentage. The indices of the chain elements are saved into
