@@ -38,7 +38,6 @@ using namespace llvm;
 
 namespace ropf {
 
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
 struct ROPfuscatorCore::ROPChainStatEntry {
   static const int entry_size = static_cast<int>(ROPChainStatus::COUNT);
   int              data[entry_size];
@@ -100,7 +99,6 @@ struct ROPfuscatorCore::ROPChainStatEntry {
                        "total");
   }
 };
-#endif
 
 // ----------------------------------------------------------------
 
@@ -312,13 +310,13 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
                                  const ROPfuscatorConfig &config)
     : config(config), BA(nullptr), TII(nullptr),
       sourceFileName(module.getSourceFileName()) {
+  total_chain_elems = 0;
+  total_func_count  = 0;
+  curr_func_count   = 0;
+
   // the filename might contain slashes, replacing them to dashes
   std::replace(sourceFileName.begin(), sourceFileName.end(), '/', '-');
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
-  total_chain_elems = 0;
-#endif
-  total_func_count = 0;
-  curr_func_count  = 0;
+
   for (auto &f : module.getFunctionList()) {
     if (!f.empty()) {
       total_func_count++;
@@ -363,7 +361,6 @@ ROPfuscatorCore::ROPfuscatorCore(llvm::Module            &module,
 }
 
 ROPfuscatorCore::~ROPfuscatorCore() {
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
   if (config.globalConfig.writeInstrStat) {
     auto logfile = fmt::format("{}-{}",
                                ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD,
@@ -401,7 +398,6 @@ ROPfuscatorCore::~ROPfuscatorCore() {
   delete gadgetAddressSelector;
   delete immediateSelector;
   delete branchTargetSelector;
-#endif
 
   assert(module_total_instructions == processed_instructions);
 }
@@ -411,8 +407,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
                                      MachineInstr               &MI,
                                      int                         chainID,
                                      const ObfuscationParameter &param) {
-  auto as = X86AssembleHelper(MBB, MI.getIterator());
-
+  X86AssembleHelper           as = X86AssembleHelper(MBB, MI.getIterator());
   bool                        isLastInstrInBlock  = MI.getNextNode() == nullptr;
   bool                        resumeLabelRequired = false;
   std::map<int, int>          espOffsetMap;
@@ -421,9 +416,7 @@ void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
   std::vector<unsigned>       gadgetsIdxToObfuscate, immediatesIdxToObfuscate,
       branchIdxToObfuscate;
 
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
   total_chain_elems += chain.size();
-#endif
 
   // stack layout:
   // (A) if FlagSaveMode == SAVE_AFTER_EXEC:
@@ -936,9 +929,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
         status = ROPChainStatus::ERR_UNSUPPORTED;
       }
 
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
       instr_stat[MI.getOpcode()][status]++;
-#endif
 
       if (status != ROPChainStatus::OK) {
         DEBUG_WITH_TYPE(PROCESSED_INSTR,

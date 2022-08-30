@@ -9,14 +9,9 @@
 #ifndef ROPFUSCATORCORE_H
 #define ROPFUSCATORCORE_H
 
-// To generate instruction coverage, define this
-#define ROPFUSCATOR_INSTRUCTION_STAT
-
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
 #define ROPFUSCATOR_OBFUSCATION_STATISTICS_FILE_HEAD                           \
   "ropfuscator_obfuscation_stats"
 #include <map>
-#endif
 
 #include "ChainElem.h"
 #include "ROPfuscatorConfig.h"
@@ -52,16 +47,14 @@ private:
   ChainElementSelector     *branchTargetSelector;
   std::string               sourceFileName;
 
-#ifdef ROPFUSCATOR_INSTRUCTION_STAT
   struct ROPChainStatEntry;
   std::map<unsigned, ROPChainStatEntry> instr_stat;
-  size_t                                total_chain_elems = 0;
-#endif
-  size_t module_total_instructions = 0;
-  size_t processed_instructions    = 0;
+  size_t                                total_chain_elems         = 0;
+  size_t                                module_total_instructions = 0;
+  size_t                                processed_instructions    = 0;
   // for progress report
-  size_t total_func_count          = 0;
-  size_t curr_func_count           = 0;
+  size_t                                total_func_count          = 0;
+  size_t                                curr_func_count           = 0;
 
   // Randomly reduces the number of specific type(s) of chain elements to the
   // specified percentage. The indices of the chain elements are saved into
