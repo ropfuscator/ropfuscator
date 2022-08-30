@@ -1,0 +1,48 @@
+name: "Packages"
+on:
+  pull_request:
+  push:
+jobs:
+  llvmZero:
+    runs-on: self-hosted
+    needs: tests-release
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#llvmZero -L
+
+  llvmOne:
+    runs-on: self-hosted
+    needs: tests-release
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#llvmOne -L
+  
+  llvmTwo:
+    runs-on: self-hosted
+    needs: tests-release
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#llvmTwo -L
+
+  llvmThree:
+    runs-on: self-hosted
+    needs: tests-release
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#llvmThree -L
