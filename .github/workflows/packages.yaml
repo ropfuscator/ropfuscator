@@ -1,11 +1,14 @@
 name: "Packages"
 on:
-  pull_request:
-  push:
+  workflow_run:
+    workflows: ["Build"]
+    branches: [main]
+    types:
+      - completed
 jobs:
   llvmZero:
     runs-on: self-hosted
-    needs: tests-release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/cachix-action@v10
@@ -16,7 +19,7 @@ jobs:
 
   llvmOne:
     runs-on: self-hosted
-    needs: tests-release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/cachix-action@v10
@@ -27,7 +30,7 @@ jobs:
   
   llvmTwo:
     runs-on: self-hosted
-    needs: tests-release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/cachix-action@v10
@@ -38,7 +41,7 @@ jobs:
 
   llvmThree:
     runs-on: self-hosted
-    needs: tests-release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/cachix-action@v10
