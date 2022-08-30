@@ -22,6 +22,8 @@
     , tinytoml, fmt }:
     flake-utils.lib.eachDefaultSystem (system:
       let
+        zlib-fix = import ./zlib-fix.nix;
+
         ropfuscatorLibcOverlay = (self: super: {
           stdenv = super.overrideCC super.stdenv (super.stdenv.cc.override
             (old: {
@@ -48,22 +50,29 @@
         };
 
         # vanilla upstream nix packages
-        pkgs = import nixpkgs { inherit localSystem crossSystem; };
+        pkgs = import nixpkgs {
+          inherit localSystem crossSystem;
+          overlays = [ zlib-fix ];
+        };
 
         # upstream nix packages that use ROPfuscator as default compiler
         # the pass is disabled, though, because no library is defined
         pkgsRopfuscator = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
+          ];
         };
 
         # upstream nix packages that use ROPfuscator as default compiler
         # with libc as default library
         pkgsRopfuscatorLibc = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
+          ];
           crossOverlays = [ ropfuscatorLibcOverlay ];
         };
 
@@ -71,8 +80,10 @@
         # with librop as default library
         pkgsRopfuscatorLibrop = import nixpkgs {
           inherit localSystem crossSystem;
-          overlays =
-            [ (import ./ropfuscator.nix { inherit tinytoml fmt lib; }) ];
+          overlays = [
+            zlib-fix
+            (import ./ropfuscator.nix { inherit tinytoml fmt lib; })
+          ];
           crossOverlays = [ ropfuscatorLibropOverlay ];
         };
 
