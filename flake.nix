@@ -188,33 +188,33 @@
             pname = old.pname + "-ropfuscated"
               + lib.optionalString (config != "") "-${config_name}";
           });
-        ropfuscateLevelZero = { deriv, stdenv }:
+        ropfuscateRopOnly = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level0.toml";
+            config = "${ropfuscator-utils}/configs/roponly.toml";
           };
-        ropfuscateLevelOne = { deriv, stdenv }:
+        ropfuscateHalfAddresses = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level1.toml";
+            config = "${ropfuscator-utils}/configs/halfaddresses.toml";
           };
-        ropfuscateLevelTwo = { deriv, stdenv }:
+        ropfuscateAllAddresses = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level2.toml";
+            config = "${ropfuscator-utils}/configs/alladdresses.toml";
           };
-        ropfuscateLevelThree = { deriv, stdenv }:
+        ropfuscateFull = { deriv, stdenv }:
           ropfuscate {
             inherit deriv stdenv;
-            config = "${ropfuscator-utils}/configs/level3.toml";
+            config = "${ropfuscator-utils}/configs/full.toml";
           };
       in rec {
         # expose packages
         inherit pkgs pkgsRopfuscator pkgsRopfuscatorLibc pkgsRopfuscatorLibrop;
 
         # expose helper functions
-        inherit ropfuscate ropfuscateLevelZero ropfuscateLevelOne
-          ropfuscateLevelTwo ropfuscateLevelThree;
+        inherit ropfuscate ropfuscateRopOnly ropfuscateHalfAddresses
+          ropfuscateAllAddresses ropfuscateFull;
         inherit timePhases timePhasesAndForceTests;
 
         releaseBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang;
@@ -260,29 +260,29 @@
 
           helloVanilla = timePhasesAndForceTests { deriv = pkgs.hello; };
 
-          helloZero = timePhasesAndForceTests {
-            deriv = ropfuscateLevelZero {
+          helloRopOnly = timePhasesAndForceTests {
+            deriv = ropfuscateRopOnly {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloOne = timePhasesAndForceTests {
-            deriv = ropfuscateLevelOne {
+          helloHalfAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateHalfAddresses {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloTwo = timePhasesAndForceTests {
-            deriv = ropfuscateLevelTwo {
+          helloAllAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateAllAddresses {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloThree = timePhasesAndForceTests {
-            deriv = ropfuscateLevelThree {
+          helloFull = timePhasesAndForceTests {
+            deriv = ropfuscateFull {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
@@ -290,29 +290,29 @@
 
           llvmVanilla = timePhasesAndForceTests { deriv = pkgs.libllvm; };
 
-          llvmZero = timePhasesAndForceTests {
-            deriv = ropfuscateLevelZero {
+          llvmRopOnly = timePhasesAndForceTests {
+            deriv = ropfuscateRopOnly {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmOne = timePhasesAndForceTests {
-            deriv = ropfuscateLevelOne {
+          llvmHalfAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateHalfAddresses {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmTwo = timePhasesAndForceTests {
-            deriv = ropfuscateLevelTwo {
+          llvmAllAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateAllAddresses {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
           };
 
-          llvmThree = timePhasesAndForceTests {
-            deriv = ropfuscateLevelThree {
+          llvmFull = timePhasesAndForceTests {
+            deriv = ropfuscateFull {
               deriv = pkgs.libllvm;
               stdenv = libropRopStdenv;
             };
@@ -321,27 +321,29 @@
           coreutilsVanilla =
             timePhasesAndForceTests { deriv = pkgs.coreutils; };
 
-          coreutilsZero = timePhasesAndForceTests {
-            deriv = ropfuscateLevelZero {
-              deriv = pkgs.coreutils;
-              stdenv = libropRopStdenv;
-            };
-          };
-          coreutilsOne = timePhasesAndForceTests {
-            deriv = ropfuscateLevelOne {
+          coreutilsRopOnly = timePhasesAndForceTests {
+            deriv = ropfuscateRopOnly {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
 
-          coreutilsTwo = timePhasesAndForceTests {
-            deriv = ropfuscateLevelTwo {
+          coreutilsHalfAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateHalfAddresses {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
-          coreutilsThree = timePhasesAndForceTests {
-            deriv = ropfuscateLevelThree {
+
+          coreutilsAllAddresses = timePhasesAndForceTests {
+            deriv = ropfuscateAllAddresses {
+              deriv = pkgs.coreutils;
+              stdenv = libropRopStdenv;
+            };
+          };
+
+          coreutilsFull = timePhasesAndForceTests {
+            deriv = ropfuscateFull {
               deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };

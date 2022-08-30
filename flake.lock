@@ -111,11 +111,11 @@
     "ropfuscator-utils": {
       "flake": false,
       "locked": {
-        "lastModified": 1661276067,
-        "narHash": "sha256-/k26bN9aWWxh4etCNfk47kAjNt3nyocpAi3yWbSlp/A=",
+        "lastModified": 1661895864,
+        "narHash": "sha256-Hjzg0VclH/ynaLafgJRV1JsXNoiLHrEj9065h5rpGMs=",
         "owner": "ropfuscator",
         "repo": "utilities",
-        "rev": "37e135a94812a620e667df526579b6906cbd35bb",
+        "rev": "f24d86b0fcc5fb3591b0b40f44dbfa5735587bb4",
         "type": "github"
       },
       "original": {

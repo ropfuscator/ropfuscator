@@ -17,7 +17,7 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - run: nix build .#helloVanilla -L
   
-  helloZero:
+  helloRopOnly:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -26,9 +26,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#helloZero -L
+      - run: nix build .#helloRopOnly -L
   
-  helloOne:
+  helloHalfAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -37,9 +37,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#helloOne -L
+      - run: nix build .#helloHalfAddresses -L
   
-  helloTwo:
+  helloAllAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -48,9 +48,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#helloTwo -L
+      - run: nix build .#helloAllAddresses -L
   
-  helloThree:
+  helloFull:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -59,7 +59,7 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#helloThree -L
+      - run: nix build .#helloFull -L
   
   coreutilsVanilla:
     runs-on: self-hosted
@@ -72,7 +72,7 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - run: nix build .#coreutilsVanilla -L
   
-  coreutilsZero:
+  coreutilsRopOnly:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -81,9 +81,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#coreutilsZero -L
+      - run: nix build .#coreutilsRopOnly -L
   
-  coreutilsOne:
+  coreutilsHalfAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -92,9 +92,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#coreutilsOne -L
+      - run: nix build .#coreutilsHalfAddresses -L
   
-  coreutilsTwo:
+  coreutilsAllAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -103,9 +103,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#coreutilsTwo -L
+      - run: nix build .#coreutilsAllAddresses -L
   
-  coreutilsThree:
+  coreutilsFull:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -114,7 +114,7 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#coreutilsThree -L
+      - run: nix build .#coreutilsFull -L
 
   llvmVanilla:
     runs-on: self-hosted
@@ -127,7 +127,7 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - run: nix build .#llvmVanilla -L
 
-  llvmZero:
+  llvmRopOnly:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -136,9 +136,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#llvmZero -L
+      - run: nix build .#llvmRopOnly -L
 
-  llvmOne:
+  llvmHalfAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -147,9 +147,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#llvmOne -L
+      - run: nix build .#llvmHalfAddresses -L
   
-  llvmTwo:
+  llvmAllAddresses:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -158,9 +158,9 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#llvmTwo -L
+      - run: nix build .#llvmAllAddresses -L
 
-  llvmThree:
+  llvmFull:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -169,4 +169,4 @@ jobs:
         with:
           name: ropfuscator
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix build .#llvmThree -L
+      - run: nix build .#llvmFull -L
