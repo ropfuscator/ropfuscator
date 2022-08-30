@@ -812,6 +812,20 @@ void ROPfuscatorCore::insertROPChain(ROPChain                   &chain,
 }
 
 void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
+  std::string          funcName = MF.getName().str();
+  ObfuscationParameter param    = config.getParameter(funcName);
+
+  if (!param.obfuscationEnabled) {
+    if (config.globalConfig.showProgress) {
+      dbg_fmt("[*] skipping    [{2:4d}/{1:4d}] {0}...\n",
+              funcName,
+              total_func_count,
+              curr_func_count);
+    }
+
+    return;
+  }
+
   curr_func_count++;
   module_total_instructions += MF.getInstructionCount();
 
@@ -838,17 +852,6 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
     TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
   }
 
-  std::string          funcName = MF.getName().str();
-  ObfuscationParameter param    = config.getParameter(funcName);
-  if (!param.obfuscationEnabled) {
-    if (config.globalConfig.showProgress) {
-      dbg_fmt("[*] skipping    [{2:4d}/{1:4d}] {0}...\n",
-              funcName,
-              total_func_count,
-              curr_func_count);
-    }
-    return;
-  }
   if (config.globalConfig.showProgress) {
     dbg_fmt("[*] obfuscating [{2:4d}/{1:4d}] {0}...\n",
             funcName,
