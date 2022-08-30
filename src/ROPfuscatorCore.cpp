@@ -882,7 +882,8 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
     ROPChain      chain0; // merged chain
     MachineInstr *prevMI = nullptr;
-    for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
+    for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end;
+         ++it, processed_instructions++, processed_function_instructions++) {
       MachineInstr &MI = *it;
 
       if (MI.isDebugInstr()) {
@@ -891,8 +892,6 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
       }
 
       DEBUG_WITH_TYPE(PROCESSED_INSTR, dbg_fmt("    {}", MI));
-      processed_instructions++;
-      processed_function_instructions++;
 
       // get the list of scratch registers available for this instruction
       std::vector<unsigned int> MIScratchRegs =
