@@ -373,6 +373,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
                        TII->getName(kv.first),
                        kv.second.toString(ROPChainStatEntry::DEBUG_FMT_SIMPLE));
 
+    // this can happen as MachineFunction.getInstructionCount()
+    // does not take in account some opcodes such as GC_LABEL
     if (module_total_instructions != processed_instructions) {
       dbg_fmt("Module instructions: {} | Processed instructions: {}\n",
               module_total_instructions,
