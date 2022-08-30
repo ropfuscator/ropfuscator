@@ -835,14 +835,7 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
   if (TII == nullptr) {
     // description of the target ISA (used to generate new instructions, below)
-    const X86Subtarget &target = MF.getSubtarget<X86Subtarget>();
-
-    if (target.is64Bit()) {
-      dbg_fmt("Error: currently ROPfuscator only works for 32bit.\n");
-      exit(1);
-    }
-
-    TII = target.getInstrInfo();
+    TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
   }
 
   std::string          funcName = MF.getName().str();
