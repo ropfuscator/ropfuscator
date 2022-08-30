@@ -6,6 +6,127 @@ on:
     types:
       - completed
 jobs:
+  helloVanilla:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#helloVanilla -L
+  
+  helloZero:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#helloZero -L
+  
+  helloOne:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#helloOne -L
+  
+  helloTwo:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#helloTwo -L
+  
+  helloThree:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#helloThree -L
+  
+  coreutilsVanilla:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#coreutilsVanilla -L
+  
+  coreutilsZero:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#coreutilsZero -L
+  
+  coreutilsOne:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#coreutilsOne -L
+  
+  coreutilsTwo:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#coreutilsTwo -L
+  
+  coreutilsThree:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#coreutilsThree -L
+
+  llvmVanilla:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/cachix-action@v10
+        with:
+          name: ropfuscator
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: nix build .#llvmVanilla -L
+
   llvmZero:
     runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
