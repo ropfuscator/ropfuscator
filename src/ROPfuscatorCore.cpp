@@ -884,9 +884,15 @@ void ROPfuscatorCore::obfuscateFunction(MachineFunction &MF) {
 
     ROPChain      chain0; // merged chain
     MachineInstr *prevMI = nullptr;
-    for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end;
-         ++it, processed_instructions++, processed_function_instructions++) {
+    for (auto it = MBB.begin(), it_end = MBB.end(); it != it_end; ++it) {
       MachineInstr &MI = *it;
+
+      // MachineFunction.getInstructionCount() does not take in account
+      // GC_LABEL hence we adapt to match LLVM's instruction count
+      if (MI.getOpcode() != llvm::TargetOpcode::GC_LABEL) {
+        processed_instructions++;
+        processed_function_instructions++;
+      }
 
       if (MI.isDebugInstr()) {
         instr_stat[MI.getOpcode()][ROPChainStatus::ERR_DEBUG_INSTRUCTION]++;
