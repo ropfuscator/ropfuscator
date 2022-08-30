@@ -128,11 +128,17 @@
           });
 
         forceTests = { deriv }:
-          deriv.overrideAttrs (old: {
-            # forcing the derivation to run tests (if any)
-            doCheck = true;
-            postPatch = (old.postPatch or "") + "export doCheck=1;";
-          });
+          # since ROPfuscator works only on x86_32,
+          # we should execute the tests only if the host
+          # is x86
+          if (pkgs.stdenv.isx86_32 or pkgs.stdenv.isx86_64) then
+            deriv.overrideAttrs (old: {
+              # forcing the derivation to run tests (if any)
+              doCheck = true;
+              postPatch = (old.postPatch or "") + "export doCheck=1;";
+            })
+          else
+            deriv;
 
         timePhasesAndForceTests = { deriv }:
           forceTests { deriv = timePhases { inherit deriv; }; };
