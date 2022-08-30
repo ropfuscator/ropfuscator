@@ -376,7 +376,8 @@ ROPfuscatorCore::~ROPfuscatorCore() {
     // this can happen as MachineFunction.getInstructionCount()
     // does not take in account some opcodes such as GC_LABEL
     if (module_total_instructions != processed_instructions) {
-      dbg_fmt("Module instructions: {} | Processed instructions: {}\n",
+      dbg_fmt("[!] Instruction count mismatch: module instructions: {} | "
+              "processed instructions: {}\n",
               module_total_instructions,
               processed_instructions);
     }
