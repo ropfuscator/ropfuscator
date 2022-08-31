@@ -220,6 +220,7 @@
         inherit ropfuscate ropfuscateRopOnly ropfuscateHalfAddresses
           ropfuscateAllAddresses ropfuscateFull;
         inherit benchmarkPhases benchmarkPhasesAndForceTests forceTests;
+        inherit optimize noOptimize;
 
         defaultPackage = packages.clang;
 
