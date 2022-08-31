@@ -129,13 +129,15 @@
               export ROPFUSCATOR_CHECK_DURATION=`echo "$ROPFUSCATOR_CHECK_END - $ROPFUSCATOR_CHECK_START" | bc`
 
               printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+            '' + (old.postCheck or "");
 
+            preInstall = ''
               # find and move obfuscation stats into ropfuscator out folder
               find /build -type f -name "${obfuscation_stats_file_header}*" -exec sh -c "([[ ! -f ${ropfuscator_dir}/tmp ]] && cat {} > ${ropfuscator_dir}/tmp || tail -n +2 {} >> ${ropfuscator_dir}/tmp) && mv {} ${ropfuscator_dir}" \;
 
               # process and prettify obfuscation stats, if present
               if [ -f ${ropfuscator_dir}/tmp ]; then cat ${ropfuscator_dir}/tmp | (sed -u 1q; sort) | datamash -HW groupby 1 sum 2,3,4,5,6,7,8,9 | tr "\\t" "," > ${ropfuscator_dir}/${aggregated_obfuscation_stats_file} && rm ${ropfuscator_dir}/tmp; fi
-            '' + (old.postCheck or "");
+            '' + (old.preInstall or "");
           });
 
         forceTests = { deriv }:
