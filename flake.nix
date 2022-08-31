@@ -91,7 +91,7 @@
         librop = librop-git.packages.${system}.librop;
 
         # helper functions
-        timePhases = { deriv }:
+        benchmarkPhases = { deriv }:
           let
             obfuscation_stats_file_header = "ropfuscator_obfuscation_stats";
             aggregated_obfuscation_stats_file =
@@ -151,8 +151,8 @@
           else
             deriv;
 
-        timePhasesAndForceTests = { deriv }:
-          forceTests { deriv = timePhases { inherit deriv; }; };
+        benchmarkPhasesAndForceTests = { deriv }:
+          forceTests { deriv = benchmarkPhases { inherit deriv; }; };
 
         noOptimize = deriv:
           deriv.overrideAttrs (old: {
@@ -215,7 +215,7 @@
         # expose helper functions
         inherit ropfuscate ropfuscateRopOnly ropfuscateHalfAddresses
           ropfuscateAllAddresses ropfuscateFull;
-        inherit timePhases timePhasesAndForceTests forceTests;
+        inherit benchmarkPhases benchmarkPhasesAndForceTests forceTests;
 
         defaultPackage = packages.clang;
 
