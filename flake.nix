@@ -160,14 +160,14 @@
 
         noOptimize = { deriv }:
           deriv.overrideAttrs (old: {
-            pname = old.pname ++ "-ozero";
+            pname = old.pname + "-ozero";
             NIX_CFLAGS_COMPILE = "-O0";
             NIX_CXXFLAGS_COMPILE = "-O0";
           });
 
         optimize = { deriv }:
           deriv.overrideAttrs (old: {
-            pname = old.pname ++ "-othree";
+            pname = old.pname + "-othree";
             NIX_CFLAGS_COMPILE = "-O3";
             NIX_CXXFLAGS_COMPILE = "-O3";
           });
