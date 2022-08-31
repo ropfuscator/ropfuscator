@@ -1,7 +1,6 @@
 {
   inputs = {
-    # pinned on fix for https://github.com/NixOS/nixpkgs/pull/166977
-    nixpkgs.url = "github:peperunas/nixpkgs/llvm-i686-cross-fix";
+    nixpkgs.url = "github:peperunas/nixpkgs/ropfuscator";
     flake-utils.url = "github:numtide/flake-utils";
     librop-git = { url = "github:ropfuscator/librop"; };
     ropfuscator-utils = {

@@ -84,16 +84,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1658214944,
-        "narHash": "sha256-YucU2hn1q38nn9m9WEn75SOic+HfhALYcCswLuq8bqw=",
+        "lastModified": 1661947171,
+        "narHash": "sha256-ro62HEewzzNOzJ56Rx8T05nu7fVeUYGFrKdLc6r4z1Y=",
         "owner": "peperunas",
         "repo": "nixpkgs",
-        "rev": "7283c8f31b42a16b847aa6fe1535aefcfb2329bc",
+        "rev": "c378b2817bc2cc700826ee102274590bce515cfc",
         "type": "github"
       },
       "original": {
         "owner": "peperunas",
-        "ref": "llvm-i686-cross-fix",
+        "ref": "ropfuscator",
         "repo": "nixpkgs",
         "type": "github"
       }
