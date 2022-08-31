@@ -158,14 +158,14 @@
         benchmarkPhasesAndForceTests = { deriv }:
           forceTests { deriv = benchmarkPhases { inherit deriv; }; };
 
-        noOptimize = deriv:
+        noOptimize = { deriv }:
           deriv.overrideAttrs (old: {
             pname = old.pname ++ "-ozero";
             NIX_CFLAGS_COMPILE = "-O0";
             NIX_CXXFLAGS_COMPILE = "-O0";
           });
 
-        optimize = deriv:
+        optimize = { deriv }:
           deriv.overrideAttrs (old: {
             pname = old.pname ++ "-othree";
             NIX_CFLAGS_COMPILE = "-O3";
