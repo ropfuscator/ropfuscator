@@ -258,93 +258,18 @@
             stdenv = vanillaRopStdenv;
           };
 
-          helloVanilla = timePhasesAndForceTests { deriv = pkgs.hello; };
+          helloVanilla = forceTests { deriv = pkgs.hello; };
 
-          helloRopOnly = timePhasesAndForceTests {
+          helloRopOnly = forceTests {
             deriv = ropfuscateRopOnly {
               deriv = pkgs.hello;
               stdenv = libropRopStdenv;
             };
           };
 
-          helloHalfAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateHalfAddresses {
-              deriv = pkgs.hello;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          helloAllAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateAllAddresses {
-              deriv = pkgs.hello;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          helloFull = timePhasesAndForceTests {
+          helloFull = forceTests {
             deriv = ropfuscateFull {
               deriv = pkgs.hello;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          llvmVanilla = timePhasesAndForceTests { deriv = pkgs.libllvm; };
-
-          llvmRopOnly = timePhasesAndForceTests {
-            deriv = ropfuscateRopOnly {
-              deriv = pkgs.libllvm;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          llvmHalfAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateHalfAddresses {
-              deriv = pkgs.libllvm;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          llvmAllAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateAllAddresses {
-              deriv = pkgs.libllvm;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          llvmFull = timePhasesAndForceTests {
-            deriv = ropfuscateFull {
-              deriv = pkgs.libllvm;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          coreutilsVanilla =
-            timePhasesAndForceTests { deriv = pkgs.coreutils; };
-
-          coreutilsRopOnly = timePhasesAndForceTests {
-            deriv = ropfuscateRopOnly {
-              deriv = pkgs.coreutils;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          coreutilsHalfAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateHalfAddresses {
-              deriv = pkgs.coreutils;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          coreutilsAllAddresses = timePhasesAndForceTests {
-            deriv = ropfuscateAllAddresses {
-              deriv = pkgs.coreutils;
-              stdenv = libropRopStdenv;
-            };
-          };
-
-          coreutilsFull = timePhasesAndForceTests {
-            deriv = ropfuscateFull {
-              deriv = pkgs.coreutils;
               stdenv = libropRopStdenv;
             };
           };
