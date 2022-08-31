@@ -146,6 +146,10 @@
             deriv.overrideAttrs (old: {
               # forcing the derivation to run tests (if any)
               doCheck = true;
+
+              # allow phase to fail
+              preCheck = (old.preCheck or "") + "set +e;";
+              postCheck = (old.preCheck or "") + "set -e;";
               postPatch = (old.postPatch or "") + "export doCheck=1;";
             })
           else
