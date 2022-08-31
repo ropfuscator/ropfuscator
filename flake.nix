@@ -215,7 +215,7 @@
         # expose helper functions
         inherit ropfuscate ropfuscateRopOnly ropfuscateHalfAddresses
           ropfuscateAllAddresses ropfuscateFull;
-        inherit timePhases timePhasesAndForceTests;
+        inherit timePhases timePhasesAndForceTests forceTests;
 
         releaseBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang;
         debugBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang-debug;
