@@ -217,10 +217,7 @@
           ropfuscateAllAddresses ropfuscateFull;
         inherit timePhases timePhasesAndForceTests forceTests;
 
-        releaseBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang;
-        debugBuild = pkgsRopfuscator.buildPackages.ropfuscator-clang-debug;
-
-        defaultPackage = releaseBuild;
+        defaultPackage = packages.clang;
 
         # development shell
         devShell = packages.llvmDebug.overrideAttrs (_: {
@@ -258,20 +255,16 @@
             stdenv = vanillaRopStdenv;
           };
 
-          helloVanilla = forceTests { deriv = pkgs.hello; };
+          helloVanilla = pkgs.hello;
 
-          helloRopOnly = forceTests {
-            deriv = ropfuscateRopOnly {
-              deriv = pkgs.hello;
-              stdenv = libropRopStdenv;
-            };
+          helloRopOnly = ropfuscateRopOnly {
+            deriv = pkgs.hello;
+            stdenv = libropRopStdenv;
           };
 
-          helloFull = forceTests {
-            deriv = ropfuscateFull {
-              deriv = pkgs.hello;
-              stdenv = libropRopStdenv;
-            };
+          helloFull = ropfuscateFull {
+            deriv = pkgs.hello;
+            stdenv = libropRopStdenv;
           };
         };
       });
