@@ -150,8 +150,8 @@
               doCheck = true;
 
               # allow phase to fail
-              preCheck = (old.preCheck or "") + "set +e;";
-              postCheck = (old.preCheck or "") + "set -e;";
+              preCheck = "set +e;" + (old.preCheck or "");
+              postCheck = "set -e;" + (old.postCheck or "");
               postPatch = (old.postPatch or "") + "export doCheck=1;";
             })
           else
