@@ -94,20 +94,23 @@
         benchmarkPhases = { deriv }:
           let
             obfuscation_stats_file_header = "ropfuscator_obfuscation_stats";
-            aggregated_obfuscation_stats_file =
-              "ropfuscator_obfuscation_stats-aggregated";
-            performance_stats_file = "ropfuscator_performance_stats.log";
             ropfuscator_dir = "$out/ropfuscator";
+            performance_stats_file =
+              "${ropfuscator_dir}/ropfuscator_performance_stats.log";
+            aggregated_obfuscation_stats_file =
+              "${ropfuscator_dir}/ropfuscator_obfuscation_stats-aggregated.log";
           in deriv.overrideAttrs (old: {
             nativeBuildInputs = (old.nativeBuildInputs or [ ])
               ++ [ pkgs.bc pkgs.datamash ];
 
             preBuild = ''
               if [ ! -x ${ropfuscator_dir} ]; then
+                echo "[*] Creating ROPfuscator directory in output store"
                 mkdir -p ${ropfuscator_dir}
               fi
 
-              touch ${ropfuscator_dir}/${performance_stats_file}
+              echo "[*] Touching performance statistics file"
+              touch ${performance_stats_file}
 
               export ROPFUSCATOR_BUILD_START=`date +%s.%N`
             '' + (old.preBuild or "");
@@ -115,7 +118,8 @@
               export ROPFUSCATOR_BUILD_END=`date +%s.%N`
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
 
-              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+              echo "[*] Writing build time into performance statistics file"
+              printf "BUILD_DURATION = %.3f\n" $ROPFUSCATOR_BUILD_DURATION >> ${performance_stats_file}
             '' + (old.postBuild or "");
 
             preCheck = ''
@@ -128,7 +132,8 @@
               export ROPFUSCATOR_CHECK_END=`date +%s.%N`
               export ROPFUSCATOR_CHECK_DURATION=`echo "$ROPFUSCATOR_CHECK_END - $ROPFUSCATOR_CHECK_START" | bc`
 
-              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${ropfuscator_dir}/${performance_stats_file}
+              echo "[*] Writing check phase duration into performance statistics file"
+              printf "CHECK_DURATION = %.3f\n" $ROPFUSCATOR_CHECK_DURATION >> ${performance_stats_file}
             '' + (old.postCheck or "");
 
             preInstall = ''
