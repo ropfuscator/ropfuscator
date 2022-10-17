@@ -103,7 +103,7 @@
             nativeBuildInputs = (old.nativeBuildInputs or [ ])
               ++ [ pkgs.bc pkgs.datamash ];
 
-            preBuild = ''
+            preConfigure = ''
               if [ ! -x ${ropfuscator_dir} ]; then
                 echo "[*] Creating ROPfuscator directory in output store"
                 mkdir -p ${ropfuscator_dir}
@@ -112,8 +112,21 @@
               echo "[*] Touching performance statistics file"
               touch ${performance_stats_file}
 
+              export ROPFUSCATOR_CONFIGURE_START=`date +%s.%N`
+            '' + (old.preConfigure or "");
+
+            postConfigure = ''
+              export ROPFUSCATOR_CONFIGURE_END=`date +%s.%N`
+              export ROPFUSCATOR_CONFIGURE_DURATION=`echo "$ROPFUSCATOR_CONFIGURE_END - $ROPFUSCATOR_CONFIGURE_START" | bc`
+
+              echo "[*] Writing configure phase duration into performance statistics file"
+              printf "CONFIGURE_DURATION = %.3f\n" $ROPFUSCATOR_CONFIGURE_DURATION >> ${performance_stats_file}
+            '' + (old.postConfigure or "");
+
+            preBuild = ''
               export ROPFUSCATOR_BUILD_START=`date +%s.%N`
             '' + (old.preBuild or "");
+
             postBuild = ''
               export ROPFUSCATOR_BUILD_END=`date +%s.%N`
               export ROPFUSCATOR_BUILD_DURATION=`echo "$ROPFUSCATOR_BUILD_END - $ROPFUSCATOR_BUILD_START" | bc`
