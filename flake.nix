@@ -94,7 +94,7 @@
         benchmarkPhases = { deriv }:
           let
             obfuscation_stats_file_header = "ropfuscator_obfuscation_stats";
-            ropfuscator_dir = "$out/ropfuscator";
+            ropfuscator_dir = "$TMPDIR/ropfuscator";
             performance_stats_file =
               "${ropfuscator_dir}/ropfuscator_performance_stats.log";
             aggregated_obfuscation_stats_file =
