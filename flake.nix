@@ -104,7 +104,7 @@
               ++ [ pkgs.bc pkgs.datamash ];
 
             preConfigure = ''
-              if [ ! -x ${ropfuscator_dir} ]; then
+              if [ ! -d ${ropfuscator_dir} ]; then
                 echo "[*] Creating ROPfuscator directory in output store"
                 mkdir -p ${ropfuscator_dir}
               fi
