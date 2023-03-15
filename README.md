@@ -26,7 +26,7 @@ ROPfuscator now leverages [Nix](https://nixos.org/), a powerful declarative pack
 - Allows for isolated build environments, eliminating conflicts with other installed packages.
 - Supports rollbacks to previous package versions, making it easier to recover from failed updates.
 
-ROPfuscator exposes a Nix flake and several `stdenv` that can be used to natively compile Nix derivations, without applying any modification to the build system of the project to be built. 
+ROPfuscator provides a Nix flake exposing ROPfuscator's `stdenv`s and various helper functions used to natively compile Nix derivations, without applying any modification to the build system of the project to be built. 
 
 ### Evaluation Process
 
