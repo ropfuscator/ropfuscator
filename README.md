@@ -12,6 +12,38 @@ For build, usage and implementation, see individual documents:
 - Obfuscation algorithm details: [algorithm.md](./docs/algorithm.md)
 - Implementation details: [implementation.md](./docs/implementation.md)
 
+---
+
+## Key Improvements
+
+This project aims to provide an improved version of ROPfuscator with a strong focus on reproducibility and ease of integration. We have made several key enhancements in this repository, as outlined below.
+
+### Nix Package Manager
+
+ROPfuscator now leverages [Nix](https://nixos.org/), a powerful declarative package manager that allows for reliable and reproducible builds. Nix provides several benefits:
+
+- Ensures dependencies and build environments are consistent across systems.
+- Allows for isolated build environments, eliminating conflicts with other installed packages.
+- Supports rollbacks to previous package versions, making it easier to recover from failed updates.
+
+ROPfuscator exposes a Nix flake and several `stdenv` that can be used to natively compile Nix derivations, without applying any modification to the build system of the project to be built. 
+
+### Evaluation Process
+
+The evaluation process has been rewritten from scratch, taking full advantage of the Nix package manager. This ensures a more reliable and transparent evaluation, which will be the foundation for future work on ROPfuscator.
+
+### Transparent Obfuscation for Upstream Nix Packages
+
+ROPfuscator can now transparently attempt to obfuscate _any_ package present in the upstream Nix package repository, [nixpkgs](https://github.com/NixOS/nixpkgs), without requiring any modifications. This allows Nix users to seamlessly integrate ROPfuscator into their existing workflows and test its capabilities.
+
+ROPfuscator can target a single project, obfuscating only the object files pertinent to the project itself, or it can obfuscate the target along with all its dependencies.
+
+## Evaluation and White Paper
+
+Please note that the evaluation code present in this repository has not been used to produce any artifact. The original evaluation from the deprecated repository is still valid and it is used in the original white paper, published at the WOOT workshop.
+
+---
+
 ## Get started
 
 ### Using Nix (recommended)
@@ -28,7 +60,7 @@ Flakes allow you to specify your code's dependencies in a declarative way and th
 
 #### Step 2: Add ROPfuscator cache repository to Nix's channels (optional) 
 
-This step allows to leverage ROPfuscator cache repository to avoid recompiling the project and all its dependencies from scratch. This step is obviously optional but recommended.
+This step allows leveraging ROPfuscator's cache repository to avoid recompiling the project and all its dependencies from scratch. This step is optional but recommended.
 
 To enable ROPfuscator's cache, first install `cachix`:
 
