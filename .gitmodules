@@ -6,4 +6,4 @@
 	url = https://github.com/fmtlib/fmt
 [submodule "tests/utils"]
 	path = tests/utils
-	url = git@github.com:ropfuscator/utilities.git
+	url = https://github.com/ropfuscator/utilities
