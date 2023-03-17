@@ -103,3 +103,9 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
 
 - Linux 32-bit x86 binaries are the only supported target (as of now)
 - For detailed limitations, see [limitation.md](./docs/limitation.md).
+
+## Interested in working on ROPfuscator?
+
+We encourage collaboration and are open to discussing potential extensions or improvements to the project. If you are interested in contributing, please reach out to us or open an issue.
+
+Thank you for your support!
