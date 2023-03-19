@@ -7,7 +7,7 @@ ROPfuscator is a research proof of concept and is not intended for production us
 # ROPfuscator [![Build](https://github.com/ropfuscator/ropfuscator/actions/workflows/main.yaml/badge.svg)](https://github.com/ropfuscator/ropfuscator/actions/workflows/main.yaml)
 ![logo](./docs/logo.png)
 
-ROPfuscator is a fine-grained code obfuscation framework for C/C++ programs using ROP (return-oriented programming).
+ROPfuscator is a fine-grained code obfuscation framework for LLVM-supported languages using ROP (return-oriented programming).
 ROPfuscator obfuscates a program at the assembly code level by transforming regular instructions into ROP chains, thwarting our natural conception of normal control flow.
 It is implemented as an extension to LLVM (10.0.1) x86 backend.
 
@@ -46,7 +46,7 @@ ROPfuscator can target a single project, obfuscating only the object files perti
 
 ## Evaluation and White Paper
 
-Please note that the evaluation code present in this repository has not been used to produce any artifact. The original evaluation from the deprecated repository is still valid and it is used in the original white paper, published at the WOOT workshop.
+Please note that the evaluation code present in this repository has not been used to produce any artifact. The original evaluation from the deprecated repository is still valid and it is used in the original white paper.
 
 ---
 
