@@ -105,6 +105,45 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
 - Opaque Predicate Insertion
   - Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
 
+## Quick Start
+
+ROPfuscator can be used to obfuscate packages that are present in the Nixpkgs repository. Currently, we are using a custom fork because some upstream packages were not properly configured for cross-compilation. Although we have already submitted some of the patches upstream, there is still some work to be done for a seamless experience.
+
+To get started, follow the first two steps listed above and install Nix. Then, copy `flake-example.nix` into a directory, renaming it to `flake.nix`:
+
+```bash
+ mkdir -p ropfuscator-example && cd ropfuscator-example
+ cp ../flake-example.nix flake.nix
+```
+
+At this point, you can build the two packages defined in the flake: `hello` and `obfuscatedHello`.
+
+To build `obfuscatedHello`, use:
+
+```bash
+ nix build .#obfuscatedHello -L
+```
+
+Similarly, to build `hello` run:
+
+```
+ nix build .#hello -L
+```
+
+## Quick Start
+
+You can use ROPfuscator to obfuscate packages present in the Nixpkgs repository. We currently are locked into a custom fork as some packages upstream were not well configured for cross-compilation. We pushed some of the patches upstream but there is more work to have a seemless experience.
+
+Follow step 0 and step 1 from above and install Nix. Then, copy the `flake-example.nix` into a directory. At this point we can build the two packages defined in the flake: `hello` and `obfuscatedHello`.
+
+To build obfuscatedHello we have to invoke
+
+ nix build .#obfuscatedHello -L
+
+Similarly, for hello:
+
+ nix build .#hello -L
+ 
 ## Configurations
 
 ROPfuscator can be configured through TOML configuration files. [This repository](https://github.com/ropfuscator/utilities/tree/master/configs) includes the following pre-made configurations:
