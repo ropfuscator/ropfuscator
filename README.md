@@ -105,6 +105,17 @@ We combine the following obfuscation layers to achieve robust obfuscation agains
 - Opaque Predicate Insertion
   - Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
 
+## Configurations
+
+ROPfuscator can be configured through TOML configuration files. [This repository](https://github.com/ropfuscator/utilities/tree/master/configs) includes the following pre-made configurations:
+
+ - **ROP Only**: does not obfuscate gadget addresses, stack values, immediate operands, or branch targets, and does not use opaque predicates.
+ - **All Addresses**: obfuscates all gadget addresses and uses opaque predicates for all opaque constants.
+ - **Half addresses**: obfuscates 50% of gadget addresses and uses opaque predicates for all opaque constants.
+ - **Full**: obfuscates all gadget addresses, stack values, immediate operands, and branch targets, and uses opaque predicates for all opaque constants.
+
+Each configuration can be further customized with the options available in the configuration table in the [README](https://github.com/ropfuscator/utilities/tree/master/configs).
+
 ## Limitations
 
 - Linux 32-bit x86 binaries are the only supported target (as of now)
