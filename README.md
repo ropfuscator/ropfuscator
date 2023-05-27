@@ -35,7 +35,6 @@ For build, usage and implementation, see individual documents:
       booktitle = {Proceedings of the 17th {IEEE} Workshop on Offensive Technologies},
       year      = {2023},
       month     = {May},
-      address   = {co-located with IEEE S\&P},
       organization = {IEEE}
      }
     
