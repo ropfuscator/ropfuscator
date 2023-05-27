@@ -18,6 +18,31 @@ For build, usage and implementation, see individual documents:
 - Obfuscation algorithm details: [algorithm.md](./docs/algorithm.md)
 - Implementation details: [implementation.md](./docs/implementation.md)
 
+## Research Paper
+
+<table>
+  <tr>
+    <td>
+     <img src="https://github.com/ropfuscator/ropfuscator/assets/6033387/7b6723e4-65d7-49cd-862f-45809be3c867">
+     <br>
+     <a href="https://wootconference.org/papers/woot23-paper4.pdf">Read the paper here</a>
+   </td>
+    <td>
+     
+     @inproceedings{depasquale-ropfuscator2023,
+      author    = {Giulio De Pasquale and Fukutomo Nakanishi and Daniele Ferla and Lorenzo Cavallaro},
+      title     = {{ROPfuscator}: Robust Obfuscation with {ROP}},
+      booktitle = {Proceedings of the 17th {IEEE} Workshop on Offensive Technologies},
+      year      = {2023},
+      month     = {May},
+      address   = {co-located with IEEE S\&P},
+      organization = {IEEE}
+     }
+    
+   </td>
+  </tr>
+</table>
+
 ---
 
 ## Key Improvements
