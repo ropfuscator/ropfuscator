@@ -68,10 +68,6 @@ ROPfuscator can now transparently attempt to obfuscate _any_ package present in 
 
 ROPfuscator can target a single project, obfuscating only the object files pertinent to the project itself, or it can obfuscate the target along with all its dependencies.
 
-## Evaluation and White Paper
-
-Please note that the evaluation code present in this repository has not been used to produce any artifact. The original evaluation from the deprecated repository is still valid and it is used in the original white paper.
-
 ---
 
 ## Get started
@@ -118,19 +114,6 @@ If you want to drop in a shell configured to use ROPfuscator by default, just in
 nix shell github:ropfuscator/ropfuscator
 ```
 
-## ROPfuscator Overview
-
-![architecture](./docs/architecture.svg)
-
-We combine the following obfuscation layers to achieve robust obfuscation against several attacks.
-
-- ROP Transformation
-  - Convert each instruction into one or more ROP gadgets, and translate the entire code to ROP chains.
-- Opaque Predicate Insertion
-  - Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
-
-## Quick Start
-
 ROPfuscator can be used to obfuscate packages that are present in the Nixpkgs repository. Currently, we are using a custom fork because some upstream packages were not properly configured for cross-compilation. Although we have already submitted some of the patches upstream, there is still some work to be done for a seamless experience.
 
 To get started, follow the first two steps listed above and install Nix. Then, copy `flake-example.nix` into a directory, renaming it to `flake.nix`:
@@ -153,20 +136,18 @@ Similarly, to build `hello` run:
 ```
  nix build .#hello -L
 ```
+---
 
-## Quick Start
+## ROPfuscator Overview
 
-You can use ROPfuscator to obfuscate packages present in the Nixpkgs repository. We currently are locked into a custom fork as some packages upstream were not well configured for cross-compilation. We pushed some of the patches upstream but there is more work to have a seemless experience.
+![architecture](./docs/architecture.svg)
 
-Follow step 0 and step 1 from above and install Nix. Then, copy the `flake-example.nix` into a directory. At this point we can build the two packages defined in the flake: `hello` and `obfuscatedHello`.
+We combine the following obfuscation layers to achieve robust obfuscation against several attacks.
 
-To build obfuscatedHello we have to invoke
-
- nix build .#obfuscatedHello -L
-
-Similarly, for hello:
-
- nix build .#hello -L
+- ROP Transformation
+  - Convert each instruction into one or more ROP gadgets, and translate the entire code to ROP chains.
+- Opaque Predicate Insertion
+  - Translate ROP gadget address(es) and stack pushed values into opaque constants, which are composition of multiple opaque predicates.
  
 ## Configurations
 
