@@ -29,14 +29,14 @@ For build, usage and implementation, see individual documents:
    </td>
     <td>
      
-     @inproceedings{depasquale-ropfuscator2023,
-      author    = {Giulio De Pasquale and Fukutomo Nakanishi and Daniele Ferla and Lorenzo Cavallaro},
-      title     = {{ROPfuscator}: Robust Obfuscation with {ROP}},
-      booktitle = {Proceedings of the 17th {IEEE} Workshop on Offensive Technologies},
-      year      = {2023},
-      month     = {May},
-      organization = {IEEE}
-     }
+    @inproceedings{depasquale2023ropfuscator,
+      title={ROPfuscator: Robust Obfuscation with ROP},
+      author={De Pasquale, Giulio and Nakanishi, Fukutomo and Ferla, Daniele and Cavallaro, Lorenzo},
+      booktitle={2023 IEEE Security and Privacy Workshops (SPW)},
+      pages={1--10},
+      year={2023},
+      organization={IEEE}
+    }
     
    </td>
   </tr>
